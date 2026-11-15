@@ -1,0 +1,19 @@
+# dependencies and build output
+node_modules/
+app-tauri/dist/
+app-tauri/src-tauri/target/
+app-tauri/src-tauri/gen/
+*.exe
+
+# portable builds and user data (library, drafts, templates, settings)
+app-tauri/dist-portable/
+**/KitCreatorData/
+
+# third-party model template (source of public/models, exported with scripts/export_comet_glb.py)
+CometKITpreviewer V1.01b/
+
+# local tooling
+.claude/
+*.log
+.DS_Store
+Thumbs.db

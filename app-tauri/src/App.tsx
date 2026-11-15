@@ -1,0 +1,79 @@
+import { useEffect, useState } from 'react'
+import { useApp, type View } from './state'
+import { Teams } from './ui/Teams'
+import { Editor } from './ui/Editor'
+import { Bulk } from './ui/Bulk'
+import { Library } from './ui/Library'
+import { Settings } from './ui/Settings'
+import { setLang } from './i18n'
+
+const NAV: [View, string][] = [['teams', 'Equipas'], ['editor', 'Editor'], ['bulk', 'Gerador em massa'], ['library', 'Biblioteca'], ['settings', 'Definições']]
+
+function Setup(): JSX.Element {
+  const openGame = useApp((s) => s.openGame)
+  const notify = useApp((s) => s.notify)
+  const progress = useApp((s) => s.progress)
+  const pick = async (): Promise<void> => {
+    const d = await window.kc.pickFolder('Pasta do jogo (onde está o FL_2027.exe)')
+    if (!d) return
+    try { await openGame(d) } catch (e) { notify('err', String((e as Error).message ?? e)) }
+  }
+  return (
+    <div className="setup">
+      <div className="setup-card">
+        <h1>PES KitLab</h1>
+        <p>Cria equipamentos para o PES 2021 / Football Life sem Photoshop, com pré-visualização 3D e exportação direta para o Sider.</p>
+        <ol>
+          <li>Escolhe a pasta do jogo (onde está o <code>FL_2027.exe</code> e a pasta <code>SiderAddons</code>).</li>
+          <li>Escolhe uma equipa, edita ou gera kits em massa.</li>
+          <li>Exporta — os originais nunca são apagados e podes repor a qualquer momento.</li>
+        </ol>
+        <button className="btn primary big" onClick={pick} disabled={!!progress}>{progress || 'Escolher pasta do jogo…'}</button>
+      </div>
+    </div>
+  )
+}
+
+export function App(): JSX.Element {
+  const { status, view, setView, toast, progress, init, project, undo, redo } = useApp()
+  const lang = useApp((s) => s.settings?.lang)
+  useEffect(() => { setLang(lang) }, [lang])
+  useEffect(() => {
+    const h = (e: MouseEvent): void => { const t = e.target as HTMLElement; if (!t.closest('input, textarea, [contenteditable]')) e.preventDefault() }
+    window.addEventListener('contextmenu', h)
+    return () => window.removeEventListener('contextmenu', h)
+  }, [])
+  const [version, setVersion] = useState('')
+  useEffect(() => { init(); window.kc.getVersion().then(setVersion) }, [init])
+  useEffect(() => {
+    const h = (e: KeyboardEvent): void => {
+      if (!(e.ctrlKey || e.metaKey) || (e.target as HTMLElement).tagName === 'INPUT') return
+      if (e.key === 'z') { e.preventDefault(); undo() }
+      if (e.key === 'y') { e.preventDefault(); redo() }
+    }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [undo, redo])
+
+  return (
+    <div className="app">
+      <header className="topbar">
+        <div className="brand"><img className="brand-logo" src="/logo.png" alt="" /> PES KitLab <span className="version">v{version}</span></div>
+        {status && (
+          <nav>
+            {NAV.map(([v, l]) => (
+              <button key={v} className={'nav' + (view === v ? ' active' : '')} onClick={() => setView(v)} disabled={v === 'editor' && !project}>{l}</button>
+            ))}
+          </nav>
+        )}
+        <div className="grow" />
+        {progress && <div className="progress"><span className="spinner" />{progress}</div>}
+        {status && <div className="game-chip" title={status.root}>{status.teamCount} equipas · {status.kitsRoot ? 'Sider kit-server ✓' : 'sem kit-server'}</div>}
+      </header>
+      <main className="content">
+        {!status ? <Setup /> : view === 'teams' ? <Teams /> : view === 'editor' && project ? <Editor /> : view === 'bulk' ? <Bulk /> : view === 'library' ? <Library /> : view === 'settings' ? <Settings /> : <Teams />}
+      </main>
+      {toast && <div className={'toast ' + toast.kind} onClick={() => useApp.setState({ toast: null })}>{toast.text}</div>}
+    </div>
+  )
+}

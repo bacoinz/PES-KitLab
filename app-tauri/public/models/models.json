@@ -1,0 +1,2704 @@
+[
+ {
+  "name": "1. Long..",
+  "file": "1_long.glb",
+  "smooth": "1_long_sd.glb",
+  "kind": "sleeves",
+  "id": null,
+  "tris": 2652,
+  "uvBox": [
+   8,
+   134,
+   2040,
+   649
+  ]
+ },
+ {
+  "name": "1. Pants_IN_sub",
+  "file": "1_pants_in_sub.glb",
+  "smooth": "1_pants_in_sub_sd.glb",
+  "kind": "shorts",
+  "id": null,
+  "tris": 1258,
+  "uvBox": [
+   162,
+   1167,
+   1881,
+   1945
+  ]
+ },
+ {
+  "name": "1. SHORT",
+  "file": "1_short.glb",
+  "smooth": "1_short_sd.glb",
+  "kind": "sleeves",
+  "id": null,
+  "tris": 1110,
+  "uvBox": [
+   490,
+   694,
+   1557,
+   1209
+  ]
+ },
+ {
+  "name": "1.SHORT_Sleeve",
+  "file": "1_short_sleeve.glb",
+  "smooth": "1_short_sleeve_sd.glb",
+  "kind": "sleeves",
+  "id": null,
+  "tris": 958,
+  "uvBox": [
+   490,
+   694,
+   1557,
+   1209
+  ]
+ },
+ {
+  "name": "2. LONG_with_Captin",
+  "file": "2_long_with_captin.glb",
+  "smooth": "2_long_with_captin_sd.glb",
+  "kind": "sleeves",
+  "id": null,
+  "tris": 3128,
+  "uvBox": [
+   2,
+   3,
+   2040,
+   649
+  ]
+ },
+ {
+  "name": "2. Pants_out_sub",
+  "file": "2_pants_out_sub.glb",
+  "smooth": "2_pants_out_sub_sd.glb",
+  "kind": "shorts",
+  "id": null,
+  "tris": 1244,
+  "uvBox": [
+   162,
+   1167,
+   1881,
+   1945
+  ]
+ },
+ {
+  "name": "2. Short_With_Captin",
+  "file": "2_short_with_captin.glb",
+  "smooth": "2_short_with_captin_sd.glb",
+  "kind": "sleeves",
+  "id": null,
+  "tris": 1420,
+  "uvBox": [
+   2,
+   3,
+   1557,
+   1209
+  ]
+ },
+ {
+  "name": "2.SHORT_Sleeve_with_Captin",
+  "file": "2_short_sleeve_with_captin.glb",
+  "smooth": "2_short_sleeve_with_captin_sd.glb",
+  "kind": "sleeves",
+  "id": null,
+  "tris": 1306,
+  "uvBox": [
+   2,
+   3,
+   1557,
+   1209
+  ]
+ },
+ {
+  "name": "3. Long__Kappa",
+  "file": "3_long_kappa.glb",
+  "smooth": "3_long_kappa_sd.glb",
+  "kind": "sleeves",
+  "id": null,
+  "tris": 2692,
+  "uvBox": [
+   8,
+   134,
+   2040,
+   649
+  ]
+ },
+ {
+  "name": "3. Pants_Out_Tight",
+  "file": "3_pants_out_tight.glb",
+  "smooth": "3_pants_out_tight_sd.glb",
+  "kind": "shorts",
+  "id": null,
+  "tris": 1244,
+  "uvBox": [
+   162,
+   1167,
+   1881,
+   1945
+  ]
+ },
+ {
+  "name": "3. Short_Kappa",
+  "file": "3_short_kappa.glb",
+  "smooth": "3_short_kappa_sd.glb",
+  "kind": "sleeves",
+  "id": null,
+  "tris": 1064,
+  "uvBox": [
+   490,
+   694,
+   1557,
+   1209
+  ]
+ },
+ {
+  "name": "3.SHORT_Sleeve_Kappa",
+  "file": "3_short_sleeve_kappa.glb",
+  "smooth": "3_short_sleeve_kappa_sd.glb",
+  "kind": "sleeves",
+  "id": null,
+  "tris": 980,
+  "uvBox": [
+   490,
+   694,
+   1557,
+   1209
+  ]
+ },
+ {
+  "name": "4.  Long_Kappa_With_Captin",
+  "file": "4_long_kappa_with_captin.glb",
+  "smooth": "4_long_kappa_with_captin_sd.glb",
+  "kind": "sleeves",
+  "id": null,
+  "tris": 3168,
+  "uvBox": [
+   2,
+   3,
+   2040,
+   649
+  ]
+ },
+ {
+  "name": "4. SHORT_Kappa_with_Captin",
+  "file": "4_short_kappa_with_captin.glb",
+  "smooth": "4_short_kappa_with_captin_sd.glb",
+  "kind": "sleeves",
+  "id": null,
+  "tris": 1383,
+  "uvBox": [
+   2,
+   3,
+   1557,
+   1209
+  ]
+ },
+ {
+  "name": "4.SHORT_Sleeve_Kappa_with_Captin",
+  "file": "4_short_sleeve_kappa_with_captin.glb",
+  "smooth": "4_short_sleeve_kappa_with_captin_sd.glb",
+  "kind": "sleeves",
+  "id": null,
+  "tris": 1321,
+  "uvBox": [
+   2,
+   3,
+   1557,
+   1209
+  ]
+ },
+ {
+  "name": "5.LONG_Sleeve",
+  "file": "5_long_sleeve.glb",
+  "smooth": "5_long_sleeve_sd.glb",
+  "kind": "sleeves",
+  "id": null,
+  "tris": 2612,
+  "uvBox": [
+   8,
+   134,
+   2040,
+   649
+  ]
+ },
+ {
+  "name": "6.LONG_Sleeve_with_Captin",
+  "file": "6_long_sleeve_with_captin.glb",
+  "smooth": "6_long_sleeve_with_captin_sd.glb",
+  "kind": "sleeves",
+  "id": null,
+  "tris": 3050,
+  "uvBox": [
+   2,
+   3,
+   2040,
+   649
+  ]
+ },
+ {
+  "name": "7.LONG_Sleeve_Kappa",
+  "file": "7_long_sleeve_kappa.glb",
+  "smooth": "7_long_sleeve_kappa_sd.glb",
+  "kind": "sleeves",
+  "id": null,
+  "tris": 2692,
+  "uvBox": [
+   8,
+   134,
+   2040,
+   649
+  ]
+ },
+ {
+  "name": "8.LONG_Sleeve_Kappa_with_Captin",
+  "file": "8_long_sleeve_kappa_with_captin.glb",
+  "smooth": "8_long_sleeve_kappa_with_captin_sd.glb",
+  "kind": "sleeves",
+  "id": null,
+  "tris": 3130,
+  "uvBox": [
+   2,
+   3,
+   2040,
+   649
+  ]
+ },
+ {
+  "name": "Arm",
+  "file": "arm.glb",
+  "smooth": null,
+  "kind": "arm",
+  "id": null,
+  "tris": 178,
+  "uvBox": [
+   251,
+   1255,
+   1796,
+   1332
+  ]
+ },
+ {
+  "name": "arm_long",
+  "file": "arm_long.glb",
+  "smooth": null,
+  "kind": "arm",
+  "id": null,
+  "tris": 178,
+  "uvBox": [
+   251,
+   1255,
+   1796,
+   1332
+  ]
+ },
+ {
+  "name": "collar_E01",
+  "file": "collar_e01.glb",
+  "smooth": null,
+  "kind": "collar_ps4",
+  "id": 1,
+  "tris": 830,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "collar_E02",
+  "file": "collar_e02.glb",
+  "smooth": null,
+  "kind": "collar_ps4",
+  "id": 2,
+  "tris": 818,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "collar_E05",
+  "file": "collar_e05.glb",
+  "smooth": null,
+  "kind": "collar_ps4",
+  "id": 5,
+  "tris": 830,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "collar_E06",
+  "file": "collar_e06.glb",
+  "smooth": null,
+  "kind": "collar_ps4",
+  "id": 6,
+  "tris": 818,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "collar_E07",
+  "file": "collar_e07.glb",
+  "smooth": null,
+  "kind": "collar_ps4",
+  "id": 7,
+  "tris": 846,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "collar_E08",
+  "file": "collar_e08.glb",
+  "smooth": null,
+  "kind": "collar_ps4",
+  "id": 8,
+  "tris": 778,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "collar_E10",
+  "file": "collar_e10.glb",
+  "smooth": null,
+  "kind": "collar_ps4",
+  "id": 10,
+  "tris": 560,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   1959
+  ]
+ },
+ {
+  "name": "collar_E11",
+  "file": "collar_e11.glb",
+  "smooth": null,
+  "kind": "collar_ps4",
+  "id": 11,
+  "tris": 748,
+  "uvBox": [
+   679,
+   894,
+   1369,
+   1958
+  ]
+ },
+ {
+  "name": "GK_sleeve",
+  "file": "gk_sleeve.glb",
+  "smooth": "gk_sleeve_sd.glb",
+  "kind": "sleeves",
+  "id": null,
+  "tris": 2212,
+  "uvBox": [
+   80,
+   134,
+   1971,
+   649
+  ]
+ },
+ {
+  "name": "GK_Sleeve.",
+  "file": "gk_sleeve_2.glb",
+  "smooth": "gk_sleeve_2_sd.glb",
+  "kind": "sleeves",
+  "id": null,
+  "tris": 2212,
+  "uvBox": [
+   78,
+   134,
+   1979,
+   649
+  ]
+ },
+ {
+  "name": "GK_with_Captin",
+  "file": "gk_with_captin.glb",
+  "smooth": "gk_with_captin_sd.glb",
+  "kind": "sleeves",
+  "id": null,
+  "tris": 2728,
+  "uvBox": [
+   2,
+   3,
+   1982,
+   649
+  ]
+ },
+ {
+  "name": "MESH_collar_001",
+  "file": "mesh_collar_001.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 1,
+  "tris": 830,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_002",
+  "file": "mesh_collar_002.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 2,
+  "tris": 818,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_003",
+  "file": "mesh_collar_003.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 3,
+  "tris": 846,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_004",
+  "file": "mesh_collar_004.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 4,
+  "tris": 830,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_005",
+  "file": "mesh_collar_005.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 5,
+  "tris": 1210,
+  "uvBox": [
+   676,
+   894,
+   1372,
+   2019
+  ]
+ },
+ {
+  "name": "MESH_collar_010",
+  "file": "mesh_collar_010.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 10,
+  "tris": 818,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_011",
+  "file": "mesh_collar_011.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 11,
+  "tris": 830,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_012",
+  "file": "mesh_collar_012.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 12,
+  "tris": 846,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_013",
+  "file": "mesh_collar_013.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 13,
+  "tris": 830,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_014",
+  "file": "mesh_collar_014.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 14,
+  "tris": 830,
+  "uvBox": [
+   676,
+   894,
+   1370,
+   1953
+  ]
+ },
+ {
+  "name": "MESH_collar_015",
+  "file": "mesh_collar_015.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 15,
+  "tris": 818,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1969
+  ]
+ },
+ {
+  "name": "MESH_collar_016",
+  "file": "mesh_collar_016.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 16,
+  "tris": 820,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_019",
+  "file": "mesh_collar_019.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 19,
+  "tris": 806,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_021",
+  "file": "mesh_collar_021.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 21,
+  "tris": 818,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_022",
+  "file": "mesh_collar_022.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 22,
+  "tris": 856,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_023",
+  "file": "mesh_collar_023.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 23,
+  "tris": 866,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_024",
+  "file": "mesh_collar_024.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 24,
+  "tris": 748,
+  "uvBox": [
+   679,
+   894,
+   1369,
+   1950
+  ]
+ },
+ {
+  "name": "MESH_collar_027",
+  "file": "mesh_collar_027.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 27,
+  "tris": 872,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_031",
+  "file": "mesh_collar_031.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 31,
+  "tris": 846,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_032",
+  "file": "mesh_collar_032.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 32,
+  "tris": 838,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_033",
+  "file": "mesh_collar_033.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 33,
+  "tris": 830,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_035",
+  "file": "mesh_collar_035.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 35,
+  "tris": 608,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   1956
+  ]
+ },
+ {
+  "name": "MESH_collar_037",
+  "file": "mesh_collar_037.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 37,
+  "tris": 862,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_038",
+  "file": "mesh_collar_038.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 38,
+  "tris": 778,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_039",
+  "file": "mesh_collar_039.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 39,
+  "tris": 524,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_040",
+  "file": "mesh_collar_040.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 40,
+  "tris": 568,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_043",
+  "file": "mesh_collar_043.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 43,
+  "tris": 656,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_044",
+  "file": "mesh_collar_044.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 44,
+  "tris": 604,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_045",
+  "file": "mesh_collar_045.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 45,
+  "tris": 708,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_047",
+  "file": "mesh_collar_047.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 47,
+  "tris": 548,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_048",
+  "file": "mesh_collar_048.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 48,
+  "tris": 704,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   1970
+  ]
+ },
+ {
+  "name": "MESH_collar_049",
+  "file": "mesh_collar_049.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 49,
+  "tris": 622,
+  "uvBox": [
+   699,
+   894,
+   1348,
+   1965
+  ]
+ },
+ {
+  "name": "MESH_collar_050",
+  "file": "mesh_collar_050.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 50,
+  "tris": 664,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_052",
+  "file": "mesh_collar_052.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 52,
+  "tris": 532,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_053",
+  "file": "mesh_collar_053.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 53,
+  "tris": 766,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   1965
+  ]
+ },
+ {
+  "name": "MESH_collar_054",
+  "file": "mesh_collar_054.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 54,
+  "tris": 590,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   1967
+  ]
+ },
+ {
+  "name": "MESH_collar_056",
+  "file": "mesh_collar_056.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 56,
+  "tris": 700,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   1965
+  ]
+ },
+ {
+  "name": "MESH_collar_057",
+  "file": "mesh_collar_057.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 57,
+  "tris": 552,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_059",
+  "file": "mesh_collar_059.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 59,
+  "tris": 1216,
+  "uvBox": [
+   694,
+   894,
+   1329,
+   2030
+  ]
+ },
+ {
+  "name": "MESH_collar_060",
+  "file": "mesh_collar_060.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 60,
+  "tris": 780,
+  "uvBox": [
+   678,
+   894,
+   1372,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_068",
+  "file": "mesh_collar_068.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 68,
+  "tris": 594,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_069",
+  "file": "mesh_collar_069.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 69,
+  "tris": 560,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   1969
+  ]
+ },
+ {
+  "name": "MESH_collar_072",
+  "file": "mesh_collar_072.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 72,
+  "tris": 678,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_074",
+  "file": "mesh_collar_074.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 74,
+  "tris": 846,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   2025
+  ]
+ },
+ {
+  "name": "MESH_collar_085",
+  "file": "mesh_collar_085.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 85,
+  "tris": 724,
+  "uvBox": [
+   687,
+   894,
+   1361,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_087",
+  "file": "mesh_collar_087.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 87,
+  "tris": 772,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   1972
+  ]
+ },
+ {
+  "name": "MESH_collar_088",
+  "file": "mesh_collar_088.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 88,
+  "tris": 692,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_091",
+  "file": "mesh_collar_091.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 91,
+  "tris": 696,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_092",
+  "file": "mesh_collar_092.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 92,
+  "tris": 848,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   1965
+  ]
+ },
+ {
+  "name": "MESH_collar_093",
+  "file": "mesh_collar_093.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 93,
+  "tris": 652,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_096",
+  "file": "mesh_collar_096.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 96,
+  "tris": 734,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_101",
+  "file": "mesh_collar_101.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 101,
+  "tris": 722,
+  "uvBox": [
+   674,
+   894,
+   1373,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_104",
+  "file": "mesh_collar_104.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 104,
+  "tris": 666,
+  "uvBox": [
+   679,
+   894,
+   1369,
+   1950
+  ]
+ },
+ {
+  "name": "MESH_collar_105",
+  "file": "mesh_collar_105.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 105,
+  "tris": 714,
+  "uvBox": [
+   676,
+   894,
+   1370,
+   1953
+  ]
+ },
+ {
+  "name": "MESH_collar_109",
+  "file": "mesh_collar_109.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 109,
+  "tris": 820,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_111",
+  "file": "mesh_collar_111.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 111,
+  "tris": 714,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   1970
+  ]
+ },
+ {
+  "name": "MESH_collar_112",
+  "file": "mesh_collar_112.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 112,
+  "tris": 840,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_119",
+  "file": "mesh_collar_119.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 119,
+  "tris": 830,
+  "uvBox": [
+   671,
+   894,
+   1377,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_120",
+  "file": "mesh_collar_120.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 120,
+  "tris": 816,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_122",
+  "file": "mesh_collar_122.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 122,
+  "tris": 850,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_123",
+  "file": "mesh_collar_123.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 123,
+  "tris": 622,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_124",
+  "file": "mesh_collar_124.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 124,
+  "tris": 614,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_126",
+  "file": "mesh_collar_126.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 126,
+  "tris": 818,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_127",
+  "file": "mesh_collar_127.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 127,
+  "tris": 736,
+  "uvBox": [
+   687,
+   894,
+   1361,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_128",
+  "file": "mesh_collar_128.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 128,
+  "tris": 830,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1942
+  ]
+ },
+ {
+  "name": "MESH_collar_129",
+  "file": "mesh_collar_129.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 129,
+  "tris": 830,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1877
+  ]
+ },
+ {
+  "name": "MESH_collar_130",
+  "file": "mesh_collar_130.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 130,
+  "tris": 818,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1877
+  ]
+ },
+ {
+  "name": "MESH_collar_131",
+  "file": "mesh_collar_131.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 131,
+  "tris": 860,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_132",
+  "file": "mesh_collar_132.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 132,
+  "tris": 810,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_133",
+  "file": "mesh_collar_133.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 133,
+  "tris": 798,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_006",
+  "file": "mesh_collar_006.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 6,
+  "tris": 1200,
+  "uvBox": [
+   676,
+   894,
+   1372,
+   2019
+  ]
+ },
+ {
+  "name": "MESH_collar_007",
+  "file": "mesh_collar_007.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 7,
+  "tris": 1264,
+  "uvBox": [
+   727,
+   894,
+   1320,
+   2009
+  ]
+ },
+ {
+  "name": "MESH_collar_008",
+  "file": "mesh_collar_008.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 8,
+  "tris": 1210,
+  "uvBox": [
+   676,
+   894,
+   1372,
+   2019
+  ]
+ },
+ {
+  "name": "MESH_collar_009",
+  "file": "mesh_collar_009.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 9,
+  "tris": 874,
+  "uvBox": [
+   671,
+   894,
+   1376,
+   2030
+  ]
+ },
+ {
+  "name": "MESH_collar_017",
+  "file": "mesh_collar_017.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 17,
+  "tris": 858,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1958
+  ]
+ },
+ {
+  "name": "MESH_collar_018",
+  "file": "mesh_collar_018.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 18,
+  "tris": 958,
+  "uvBox": [
+   670,
+   894,
+   1376,
+   2027
+  ]
+ },
+ {
+  "name": "MESH_collar_020",
+  "file": "mesh_collar_020.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 20,
+  "tris": 1332,
+  "uvBox": [
+   672,
+   894,
+   1360,
+   2013
+  ]
+ },
+ {
+  "name": "MESH_collar_025",
+  "file": "mesh_collar_025.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 25,
+  "tris": 1382,
+  "uvBox": [
+   692,
+   894,
+   1350,
+   2014
+  ]
+ },
+ {
+  "name": "MESH_collar_026",
+  "file": "mesh_collar_026.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 26,
+  "tris": 1256,
+  "uvBox": [
+   674,
+   894,
+   1372,
+   1996
+  ]
+ },
+ {
+  "name": "MESH_collar_028",
+  "file": "mesh_collar_028.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 28,
+  "tris": 1054,
+  "uvBox": [
+   671,
+   894,
+   1376,
+   2020
+  ]
+ },
+ {
+  "name": "MESH_collar_029",
+  "file": "mesh_collar_029.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 29,
+  "tris": 1278,
+  "uvBox": [
+   736,
+   894,
+   1313,
+   2018
+  ]
+ },
+ {
+  "name": "MESH_collar_030",
+  "file": "mesh_collar_030.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 30,
+  "tris": 1086,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   2014
+  ]
+ },
+ {
+  "name": "MESH_collar_034",
+  "file": "mesh_collar_034.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 34,
+  "tris": 758,
+  "uvBox": [
+   683,
+   894,
+   1375,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_036",
+  "file": "mesh_collar_036.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 36,
+  "tris": 1166,
+  "uvBox": [
+   726,
+   894,
+   1325,
+   2019
+  ]
+ },
+ {
+  "name": "MESH_collar_041",
+  "file": "mesh_collar_041.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 41,
+  "tris": 660,
+  "uvBox": [
+   701,
+   894,
+   1346,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_042",
+  "file": "mesh_collar_042.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 42,
+  "tris": 1028,
+  "uvBox": [
+   714,
+   894,
+   1334,
+   2007
+  ]
+ },
+ {
+  "name": "MESH_collar_046",
+  "file": "mesh_collar_046.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 46,
+  "tris": 686,
+  "uvBox": [
+   687,
+   894,
+   1361,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_051",
+  "file": "mesh_collar_051.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 51,
+  "tris": 1140,
+  "uvBox": [
+   727,
+   894,
+   1321,
+   2008
+  ]
+ },
+ {
+  "name": "MESH_collar_055",
+  "file": "mesh_collar_055.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 55,
+  "tris": 1200,
+  "uvBox": [
+   718,
+   894,
+   1329,
+   2027
+  ]
+ },
+ {
+  "name": "MESH_collar_058",
+  "file": "mesh_collar_058.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 58,
+  "tris": 1192,
+  "uvBox": [
+   727,
+   894,
+   1320,
+   2009
+  ]
+ },
+ {
+  "name": "MESH_collar_061",
+  "file": "mesh_collar_061.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 61,
+  "tris": 684,
+  "uvBox": [
+   671,
+   894,
+   1373,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_062",
+  "file": "mesh_collar_062.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 62,
+  "tris": 708,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_063",
+  "file": "mesh_collar_063.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 63,
+  "tris": 1426,
+  "uvBox": [
+   727,
+   894,
+   1439,
+   2016
+  ]
+ },
+ {
+  "name": "MESH_collar_064",
+  "file": "mesh_collar_064.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 64,
+  "tris": 1590,
+  "uvBox": [
+   727,
+   894,
+   1567,
+   2016
+  ]
+ },
+ {
+  "name": "MESH_collar_065",
+  "file": "mesh_collar_065.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 65,
+  "tris": 720,
+  "uvBox": [
+   678,
+   894,
+   1439,
+   1968
+  ]
+ },
+ {
+  "name": "MESH_collar_066",
+  "file": "mesh_collar_066.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 66,
+  "tris": 1260,
+  "uvBox": [
+   716,
+   894,
+   1439,
+   1990
+  ]
+ },
+ {
+  "name": "MESH_collar_067",
+  "file": "mesh_collar_067.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 67,
+  "tris": 1404,
+  "uvBox": [
+   727,
+   894,
+   1439,
+   2009
+  ]
+ },
+ {
+  "name": "MESH_collar_070",
+  "file": "mesh_collar_070.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 70,
+  "tris": 944,
+  "uvBox": [
+   679,
+   894,
+   1439,
+   1968
+  ]
+ },
+ {
+  "name": "MESH_collar_071",
+  "file": "mesh_collar_071.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 71,
+  "tris": 828,
+  "uvBox": [
+   678,
+   894,
+   1439,
+   1968
+  ]
+ },
+ {
+  "name": "MESH_collar_073",
+  "file": "mesh_collar_073.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 73,
+  "tris": 1200,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   2021
+  ]
+ },
+ {
+  "name": "MESH_collar_075",
+  "file": "mesh_collar_075.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 75,
+  "tris": 864,
+  "uvBox": [
+   678,
+   894,
+   1372,
+   1961
+  ]
+ },
+ {
+  "name": "MESH_collar_076",
+  "file": "mesh_collar_076.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 76,
+  "tris": 1008,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   2021
+  ]
+ },
+ {
+  "name": "MESH_collar_077",
+  "file": "mesh_collar_077.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 77,
+  "tris": 1479,
+  "uvBox": [
+   714,
+   894,
+   1439,
+   1990
+  ]
+ },
+ {
+  "name": "MESH_collar_078",
+  "file": "mesh_collar_078.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 78,
+  "tris": 1514,
+  "uvBox": [
+   754,
+   894,
+   1289,
+   2030
+  ]
+ },
+ {
+  "name": "MESH_collar_079",
+  "file": "mesh_collar_079.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 79,
+  "tris": 1356,
+  "uvBox": [
+   716,
+   894,
+   1439,
+   1990
+  ]
+ },
+ {
+  "name": "MESH_collar_080",
+  "file": "mesh_collar_080.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 80,
+  "tris": 1350,
+  "uvBox": [
+   672,
+   894,
+   1374,
+   2031
+  ]
+ },
+ {
+  "name": "MESH_collar_081",
+  "file": "mesh_collar_081.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 81,
+  "tris": 912,
+  "uvBox": [
+   679,
+   894,
+   1503,
+   1968
+  ]
+ },
+ {
+  "name": "MESH_collar_082",
+  "file": "mesh_collar_082.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 82,
+  "tris": 1456,
+  "uvBox": [
+   727,
+   894,
+   1439,
+   2009
+  ]
+ },
+ {
+  "name": "MESH_collar_083",
+  "file": "mesh_collar_083.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 83,
+  "tris": 1536,
+  "uvBox": [
+   727,
+   894,
+   1503,
+   2016
+  ]
+ },
+ {
+  "name": "MESH_collar_084",
+  "file": "mesh_collar_084.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 84,
+  "tris": 1312,
+  "uvBox": [
+   716,
+   894,
+   1439,
+   2030
+  ]
+ },
+ {
+  "name": "MESH_collar_089",
+  "file": "mesh_collar_089.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 89,
+  "tris": 1416,
+  "uvBox": [
+   727,
+   894,
+   1439,
+   2009
+  ]
+ },
+ {
+  "name": "MESH_collar_090",
+  "file": "mesh_collar_090.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 90,
+  "tris": 1646,
+  "uvBox": [
+   411,
+   894,
+   1567,
+   2031
+  ]
+ },
+ {
+  "name": "MESH_collar_094",
+  "file": "mesh_collar_094.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 94,
+  "tris": 1338,
+  "uvBox": [
+   700,
+   894,
+   1353,
+   2022
+  ]
+ },
+ {
+  "name": "MESH_collar_095",
+  "file": "mesh_collar_095.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 95,
+  "tris": 1300,
+  "uvBox": [
+   692,
+   894,
+   1355,
+   2019
+  ]
+ },
+ {
+  "name": "MESH_collar_097",
+  "file": "mesh_collar_097.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 97,
+  "tris": 1200,
+  "uvBox": [
+   694,
+   894,
+   1354,
+   2019
+  ]
+ },
+ {
+  "name": "MESH_collar_098",
+  "file": "mesh_collar_098.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 98,
+  "tris": 682,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_099",
+  "file": "mesh_collar_099.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 99,
+  "tris": 698,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_100",
+  "file": "mesh_collar_100.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 100,
+  "tris": 2248,
+  "uvBox": [
+   443,
+   894,
+   1631,
+   2031
+  ]
+ },
+ {
+  "name": "MESH_collar_102",
+  "file": "mesh_collar_102.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 102,
+  "tris": 1985,
+  "uvBox": [
+   443,
+   894,
+   1631,
+   2031
+  ]
+ },
+ {
+  "name": "MESH_collar_103",
+  "file": "mesh_collar_103.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 103,
+  "tris": 926,
+  "uvBox": [
+   679,
+   894,
+   1439,
+   1968
+  ]
+ },
+ {
+  "name": "MESH_collar_106",
+  "file": "mesh_collar_106.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 106,
+  "tris": 1474,
+  "uvBox": [
+   727,
+   894,
+   1503,
+   2016
+  ]
+ },
+ {
+  "name": "MESH_collar_107",
+  "file": "mesh_collar_107.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 107,
+  "tris": 2385,
+  "uvBox": [
+   443,
+   894,
+   1695,
+   2031
+  ]
+ },
+ {
+  "name": "MESH_collar_108",
+  "file": "mesh_collar_108.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 108,
+  "tris": 1390,
+  "uvBox": [
+   727,
+   894,
+   1439,
+   2009
+  ]
+ },
+ {
+  "name": "MESH_collar_114",
+  "file": "mesh_collar_114.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 114,
+  "tris": 720,
+  "uvBox": [
+   672,
+   894,
+   1439,
+   1968
+  ]
+ },
+ {
+  "name": "MESH_collar_115",
+  "file": "mesh_collar_115.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 115,
+  "tris": 1338,
+  "uvBox": [
+   700,
+   894,
+   1353,
+   2022
+  ]
+ },
+ {
+  "name": "MESH_collar_116",
+  "file": "mesh_collar_116.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 116,
+  "tris": 764,
+  "uvBox": [
+   716,
+   894,
+   1331,
+   1959
+  ]
+ },
+ {
+  "name": "MESH_collar_117",
+  "file": "mesh_collar_117.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 117,
+  "tris": 1288,
+  "uvBox": [
+   674,
+   894,
+   1372,
+   1996
+  ]
+ },
+ {
+  "name": "MESH_collar_118",
+  "file": "mesh_collar_118.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 118,
+  "tris": 1096,
+  "uvBox": [
+   672,
+   894,
+   1376,
+   2014
+  ]
+ },
+ {
+  "name": "MESH_collar_121",
+  "file": "mesh_collar_121.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 121,
+  "tris": 1200,
+  "uvBox": [
+   672,
+   894,
+   1375,
+   2019
+  ]
+ },
+ {
+  "name": "MESH_collar_125",
+  "file": "mesh_collar_125.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 125,
+  "tris": 666,
+  "uvBox": [
+   672,
+   894,
+   1439,
+   1968
+  ]
+ },
+ {
+  "name": "MESH_collar_113",
+  "file": "mesh_collar_113.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 113,
+  "tris": 1216,
+  "uvBox": [
+   718,
+   894,
+   1353,
+   2030
+  ]
+ },
+ {
+  "name": "MESH_collar_110",
+  "file": "mesh_collar_110.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 110,
+  "tris": 974,
+  "uvBox": [
+   679,
+   894,
+   1439,
+   2016
+  ]
+ },
+ {
+  "name": "MESH_collar_086",
+  "file": "mesh_collar_086.glb",
+  "smooth": null,
+  "kind": "collar_pc",
+  "id": 86,
+  "tris": 850,
+  "uvBox": [
+   670,
+   894,
+   1439,
+   1968
+  ]
+ },
+ {
+  "name": "collar_E03",
+  "file": "collar_e03.glb",
+  "smooth": null,
+  "kind": "collar_ps4",
+  "id": 3,
+  "tris": 1210,
+  "uvBox": [
+   676,
+   894,
+   1372,
+   1980
+  ]
+ },
+ {
+  "name": "collar_E04",
+  "file": "collar_e04.glb",
+  "smooth": null,
+  "kind": "collar_ps4",
+  "id": 4,
+  "tris": 1200,
+  "uvBox": [
+   676,
+   894,
+   1372,
+   1980
+  ]
+ },
+ {
+  "name": "collar_E12",
+  "file": "collar_e12.glb",
+  "smooth": null,
+  "kind": "collar_ps4",
+  "id": 12,
+  "tris": 1350,
+  "uvBox": [
+   690,
+   894,
+   1357,
+   1958
+  ]
+ },
+ {
+  "name": "collar_E13",
+  "file": "collar_e13.glb",
+  "smooth": null,
+  "kind": "collar_ps4",
+  "id": 13,
+  "tris": 1216,
+  "uvBox": [
+   694,
+   894,
+   1329,
+   1957
+  ]
+ },
+ {
+  "name": "MESH_pants_001",
+  "file": "mesh_pants_001.glb",
+  "smooth": null,
+  "kind": "pants_hem",
+  "id": 1,
+  "tris": 540,
+  "uvBox": [
+   34,
+   1167,
+   2014,
+   1945
+  ]
+ },
+ {
+  "name": "MESH_pants_002",
+  "file": "mesh_pants_002.glb",
+  "smooth": null,
+  "kind": "pants_hem",
+  "id": 2,
+  "tris": 561,
+  "uvBox": [
+   34,
+   1167,
+   2014,
+   1945
+  ]
+ },
+ {
+  "name": "MESH_pants_003",
+  "file": "mesh_pants_003.glb",
+  "smooth": null,
+  "kind": "pants_hem",
+  "id": 3,
+  "tris": 562,
+  "uvBox": [
+   34,
+   1167,
+   2014,
+   1945
+  ]
+ },
+ {
+  "name": "MESH_pants_004",
+  "file": "mesh_pants_004.glb",
+  "smooth": null,
+  "kind": "pants_hem",
+  "id": 4,
+  "tris": 567,
+  "uvBox": [
+   34,
+   1167,
+   2014,
+   1945
+  ]
+ },
+ {
+  "name": "MESH_pants_005",
+  "file": "mesh_pants_005.glb",
+  "smooth": null,
+  "kind": "pants_hem",
+  "id": 5,
+  "tris": 558,
+  "uvBox": [
+   34,
+   1167,
+   2014,
+   1945
+  ]
+ },
+ {
+  "name": "MESH_pants_006",
+  "file": "mesh_pants_006.glb",
+  "smooth": null,
+  "kind": "pants_hem",
+  "id": 6,
+  "tris": 564,
+  "uvBox": [
+   34,
+   1167,
+   2014,
+   1945
+  ]
+ },
+ {
+  "name": "MESH_pants_007",
+  "file": "mesh_pants_007.glb",
+  "smooth": null,
+  "kind": "pants_hem",
+  "id": 7,
+  "tris": 582,
+  "uvBox": [
+   34,
+   1167,
+   2014,
+   1945
+  ]
+ },
+ {
+  "name": "MESH_pants_008",
+  "file": "mesh_pants_008.glb",
+  "smooth": null,
+  "kind": "pants_hem",
+  "id": 8,
+  "tris": 577,
+  "uvBox": [
+   34,
+   1167,
+   2014,
+   1945
+  ]
+ },
+ {
+  "name": "MESH_pants_009",
+  "file": "mesh_pants_009.glb",
+  "smooth": null,
+  "kind": "pants_hem",
+  "id": 9,
+  "tris": 558,
+  "uvBox": [
+   34,
+   1167,
+   2014,
+   1945
+  ]
+ },
+ {
+  "name": "MESH_pants_010",
+  "file": "mesh_pants_010.glb",
+  "smooth": null,
+  "kind": "pants_hem",
+  "id": 10,
+  "tris": 543,
+  "uvBox": [
+   34,
+   1167,
+   2014,
+   1945
+  ]
+ },
+ {
+  "name": "MESH_pants_011",
+  "file": "mesh_pants_011.glb",
+  "smooth": null,
+  "kind": "pants_hem",
+  "id": 11,
+  "tris": 555,
+  "uvBox": [
+   34,
+   1167,
+   2014,
+   1945
+  ]
+ },
+ {
+  "name": "MESH_pants_012",
+  "file": "mesh_pants_012.glb",
+  "smooth": null,
+  "kind": "pants_hem",
+  "id": 12,
+  "tris": 540,
+  "uvBox": [
+   34,
+   1167,
+   2014,
+   1945
+  ]
+ },
+ {
+  "name": "MESH_pants_013",
+  "file": "mesh_pants_013.glb",
+  "smooth": null,
+  "kind": "pants_hem",
+  "id": 13,
+  "tris": 576,
+  "uvBox": [
+   34,
+   1167,
+   2014,
+   1945
+  ]
+ },
+ {
+  "name": "MESH_pants_014",
+  "file": "mesh_pants_014.glb",
+  "smooth": null,
+  "kind": "pants_hem",
+  "id": 14,
+  "tris": 552,
+  "uvBox": [
+   34,
+   1167,
+   2014,
+   1945
+  ]
+ },
+ {
+  "name": "MESH_pants_015",
+  "file": "mesh_pants_015.glb",
+  "smooth": null,
+  "kind": "pants_hem",
+  "id": 15,
+  "tris": 561,
+  "uvBox": [
+   34,
+   1167,
+   2014,
+   1945
+  ]
+ },
+ {
+  "name": "MESH_pants_016",
+  "file": "mesh_pants_016.glb",
+  "smooth": null,
+  "kind": "pants_hem",
+  "id": 16,
+  "tris": 108,
+  "uvBox": [
+   159,
+   1167,
+   1884,
+   1945
+  ]
+ },
+ {
+  "name": "shirt_in",
+  "file": "shirt_in.glb",
+  "smooth": "shirt_in_sd.glb",
+  "kind": "shirt",
+  "id": null,
+  "tris": 1864,
+  "uvBox": [
+   704,
+   244,
+   1344,
+   1650
+  ]
+ },
+ {
+  "name": "Shirt_IN",
+  "file": "shirt_in_tight.glb",
+  "smooth": "shirt_in_tight_sd.glb",
+  "kind": "shirt",
+  "id": null,
+  "tris": 1864,
+  "uvBox": [
+   704,
+   261,
+   1344,
+   1659
+  ]
+ },
+ {
+  "name": "shirt_out",
+  "file": "shirt_out.glb",
+  "smooth": "shirt_out_sd.glb",
+  "kind": "shirt",
+  "id": null,
+  "tris": 2344,
+  "uvBox": [
+   704,
+   48,
+   1344,
+   1856
+  ]
+ },
+ {
+  "name": "Shirt_OUT",
+  "file": "shirt_out_tight.glb",
+  "smooth": "shirt_out_tight_sd.glb",
+  "kind": "shirt",
+  "id": null,
+  "tris": 2504,
+  "uvBox": [
+   704,
+   48,
+   1344,
+   1856
+  ]
+ },
+ {
+  "name": "socks_long",
+  "file": "socks_long.glb",
+  "smooth": "socks_long_sd.glb",
+  "kind": "socks",
+  "id": null,
+  "tris": 3320,
+  "uvBox": [
+   11,
+   640,
+   2037,
+   1149
+  ]
+ },
+ {
+  "name": "socks_middle",
+  "file": "socks_middle.glb",
+  "smooth": "socks_middle_sd.glb",
+  "kind": "socks",
+  "id": null,
+  "tris": 2552,
+  "uvBox": [
+   11,
+   640,
+   2037,
+   1149
+  ]
+ },
+ {
+  "name": "socks_short",
+  "file": "socks_short.glb",
+  "smooth": "socks_short_sd.glb",
+  "kind": "socks",
+  "id": null,
+  "tris": 3420,
+  "uvBox": [
+   11,
+   640,
+   2037,
+   1151
+  ]
+ },
+ {
+  "name": "with_Captin",
+  "file": "with_captin.glb",
+  "smooth": "with_captin_sd.glb",
+  "kind": "sleeves",
+  "id": null,
+  "tris": 2650,
+  "uvBox": [
+   2,
+   3,
+   1971,
+   649
+  ]
+ }
+]
