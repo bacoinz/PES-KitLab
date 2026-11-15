@@ -54,6 +54,11 @@ export function Settings(): JSX.Element {
           <button className="btn small ghost" onClick={() => { if (!confirm('Repor as preferências da interface (painéis, vista 3D, cores guardadas)?')) return; try { Object.keys(localStorage).filter((k) => k.startsWith('kc.')).forEach((k) => localStorage.removeItem(k)) } catch { /* ignore */ } notify('ok', 'Preferências repostas') }}>Repor preferências da interface</button>
         </div>
 
+        <div className="set-sub">Gravação automática</div>
+        <div className="set-grid">
+          <label>Guardar a equipa aberta</label>{sel(settings?.autoSave ?? 0, [[0, 'Desligada'], [2, 'De 2 em 2 minutos'], [5, 'De 5 em 5 minutos'], [10, 'De 10 em 10 minutos'], [15, 'De 15 em 15 minutos']], (v) => save({ autoSave: Number(v) as S['autoSave'] }))}
+        </div>
+
         <div className="set-sub">Exportação</div>
         <div className="set-grid">
           <label>Formato</label>{sel(settings?.defaultFormat ?? 'DXT5', [['DXT5', 'DXT5 (rápido, igual aos kit-server)'], ['BC7', 'BC7 (melhor qualidade, mais lento)']], (v) => save({ defaultFormat: v as S['defaultFormat'] }))}

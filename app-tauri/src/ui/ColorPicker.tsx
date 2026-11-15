@@ -20,7 +20,9 @@ export function pickColorTarget(c: string): boolean {
 /** Provided by the editor: where "apply to all" goes and the kit / team colours offered as presets. */
 export const ColorCtx = createContext<{ applyAll?: (from: string, to: string) => void; presets?: NamedColor[] }>({})
 
-const HEX = /^#[0-9a-f]{6}$/i
+const HEX = /^#[0-9a-f]{6}([0-9a-f]{2})?$/i
+/** Swatch background that shows transparency (a checkerboard under the colour). */
+export const swatchBg = (c: string): string => (/^#[0-9a-f]{8}$/i.test(c) ? `linear-gradient(${c},${c}), repeating-conic-gradient(#8a8a8a 0 25%, #d8d8d8 0 50%) 0 0/8px 8px` : c)
 const clamp = (v: number, a = 0, b = 1): number => Math.max(a, Math.min(b, v))
 function hexToHsv(h: string): [number, number, number] {
   const r = parseInt(h.slice(1, 3), 16) / 255, g = parseInt(h.slice(3, 5), 16) / 255, b = parseInt(h.slice(5, 7), 16) / 255
@@ -59,14 +61,21 @@ const loadSaved = (): NamedColor[] => { try { return JSON.parse(localStorage.get
 export function ColorPicker({ value, anchor, title, onApply, onClose }: { value: string; anchor: DOMRect; title?: string; onApply: (c: string, all?: boolean) => void; onClose: () => void }): JSX.Element {
   const ctx = useContext(ColorCtx)
   const start = HEX.test(value) ? value.toLowerCase() : '#000000'
-  const [hsv, setHsv] = useState(() => hexToHsv(start))
+  const [hsv, setHsv] = useState(() => hexToHsv(start.slice(0, 7)))
+  // transparency 0 … 100 % (100 = opaque); kept in the colour itself as #rrggbbaa
+  const [alpha, setAlpha] = useState(() => (start.length === 9 ? Math.round((parseInt(start.slice(7, 9), 16) / 255) * 100) : 100))
   const [hex, setHex] = useState(start)
   const [tab, setTab] = useState<'grid' | 'presets'>('grid')
   const [q, setQ] = useState('')
   const [saved, setSaved] = useState(loadSaved)
-  const cur = hsvToHex(...hsv)
+  const rgbCur = hsvToHex(...hsv)
+  const cur = alpha >= 100 ? rgbCur : rgbCur + Math.round((alpha / 100) * 255).toString(16).padStart(2, '0')
   useEffect(() => setHex(cur), [cur])
-  const setColor = (c: string): void => { if (HEX.test(c)) setHsv(hexToHsv(c.toLowerCase())) }
+  const setColor = (c: string): void => {
+    if (!HEX.test(c)) return
+    setHsv(hexToHsv(c.toLowerCase().slice(0, 7)))
+    if (c.length === 9) setAlpha(Math.round((parseInt(c.slice(7, 9), 16) / 255) * 100))
+  }
   const sv = useRef<HTMLDivElement>(null), hue = useRef<HTMLDivElement>(null)
   const drag = (ref: React.RefObject<HTMLDivElement>, f: (x: number, y: number) => void) => (e: React.PointerEvent): void => {
     const el = ref.current
@@ -92,7 +101,7 @@ export function ColorPicker({ value, anchor, title, onApply, onClose }: { value:
     return () => window.removeEventListener('keydown', k)
   }, [cur, onApply, onClose, dropping])
   // place next to the swatch, kept inside the window
-  const W = 470, H = 290
+  const W = 470, H = 320
   const left = clamp(anchor.right + 8, 8, window.innerWidth - W - 8), top = clamp(anchor.top - 40, 8, window.innerHeight - H - 8)
   return createPortal(
     dropping ? (
@@ -141,8 +150,14 @@ export function ColorPicker({ value, anchor, title, onApply, onClose }: { value:
             </div>
           </div>
         </div>
+        <div className="cp-alpha" title="Opacidade da cor (menos = mais transparente)">
+          <span>Opacidade</span>
+          <input type="range" min={0} max={100} value={alpha} onChange={(e) => setAlpha(Number(e.target.value))}
+            style={{ background: `linear-gradient(to right, transparent, ${rgbCur}), repeating-conic-gradient(#8a8a8a 0 25%, #d8d8d8 0 50%) 0 0/8px 8px` }} />
+          <b>{alpha}%</b>
+        </div>
         <div className="cp-foot">
-          <span className="cp-cmp" title="Antes / depois"><span style={{ background: start }} /><span style={{ background: cur }} /></span>
+          <span className="cp-cmp" title="Antes / depois"><span style={{ background: swatchBg(start) }} /><span style={{ background: swatchBg(cur) }} /></span>
           <input className="cp-hex" value={hex} spellCheck={false} onChange={(e) => { setHex(e.target.value); setColor(e.target.value) }} />
           <span className="grow" />
           <button className="btn small ghost" onClick={onClose}>Cancelar</button>
@@ -163,7 +178,7 @@ export function Swatch({ value, onChange, title, className, style }: { value: st
   const [at, setAt] = useState<DOMRect | null>(null)
   return (
     <>
-      <button type="button" className={className ?? 'swatch-btn'} style={{ background: value, ...style }} title={title ?? value}
+      <button type="button" className={className ?? 'swatch-btn'} style={{ background: swatchBg(value), ...style }} title={title ?? value}
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); armColorTarget(onChange); setAt((e.currentTarget as HTMLElement).getBoundingClientRect()) }} />
       {at && <ColorPicker value={value} anchor={at} title={title} onClose={() => setAt(null)}
         onApply={(c, all) => { setAt(null); if (all && ctx.applyAll) ctx.applyAll(value, c); else onChange(c) }} />}

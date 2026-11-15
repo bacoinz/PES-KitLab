@@ -43,6 +43,18 @@ export function App(): JSX.Element {
     window.addEventListener('contextmenu', h)
     return () => window.removeEventListener('contextmenu', h)
   }, [])
+  // auto-save (Definições → Gravação automática): the open team, only when it has unsaved changes (not the
+  // sandbox projects of the template editors)
+  const autoSave = useApp((s) => s.settings?.autoSave ?? 0)
+  useEffect(() => {
+    if (!autoSave) return
+    const t = setInterval(() => {
+      const s = useApp.getState()
+      if (!s.project || s.project.teamId < 0 || s.project === s.savedProject) return
+      s.saveProject().then(() => s.notify('ok', 'Guardado automaticamente')).catch(() => undefined)
+    }, autoSave * 60000)
+    return () => clearInterval(t)
+  }, [autoSave])
   const [version, setVersion] = useState('')
   useEffect(() => { init(); window.kc.getVersion().then(setVersion) }, [init])
   useEffect(() => {

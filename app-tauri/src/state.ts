@@ -56,11 +56,16 @@ interface State {
   setActiveSlot(s: string): void
   undo(): void
   redo(): void
+  /** history panel: go straight to step i of [...past, project, ...future] */
+  jumpHistory(i: number): void
   toggleBulk(id: number, on?: boolean): void
   setBulk(ids: number[]): void
 }
 
 /** Sandbox project used to edit the "new kit" templates (never saved as a team draft). */
+/** When each undo step was made (history panel) and when the last one was, to merge quick runs of changes. */
+export const stepTime = new WeakMap<TeamProject, number>()
+let lastStep = 0
 export const PRESET_TEAM = -1
 /** Sandbox project used to edit one saved shirt template (Biblioteca → Templates). */
 export const USER_TPL_TEAM = -2
@@ -272,7 +277,14 @@ export const useApp = create<State>((set, get) => ({
     const cur = get().project
     if (!cur) return
     const next = fn(cur)
-    set({ project: next, past: record ? [...get().past.slice(-60), cur] : get().past, future: record ? [] : get().future })
+    if (next === cur) return
+    // undo steps: up to 300; a quick run of changes (dragging a slider, typing) is one step
+    const now = Date.now()
+    const merge = record && now - lastStep < 400 && get().past.length > 0
+    if (record) lastStep = now
+    if (record && !merge) stepTime.set(next, now)
+    else if (merge) stepTime.set(next, now)
+    set({ project: next, past: record && !merge ? [...get().past.slice(-300), cur] : get().past, future: record ? [] : get().future })
   },
   updateKit: (slot, fn) => get().setProject((p) => ({ ...p, kits: p.kits.map((k) => (k.slot === slot ? fn(k) : k)) })),
   setActiveSlot: (activeSlot) => set({ activeSlot }),
@@ -285,6 +297,14 @@ export const useApp = create<State>((set, get) => ({
     const { past, project, future } = get()
     if (!future.length || !project) return
     set({ project: future[0], future: future.slice(1), past: [...past, project] })
+  },
+  jumpHistory: (i) => {
+    const { past, project, future } = get()
+    if (!project) return
+    const all = [...past, project, ...future]
+    if (i < 0 || i >= all.length) return
+    lastStep = 0
+    set({ project: all[i], past: all.slice(0, i), future: all.slice(i + 1) })
   },
   toggleBulk: (id, on) => {
     const s = new Set(get().bulkSelection)

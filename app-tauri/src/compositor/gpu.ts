@@ -392,6 +392,7 @@ function tileTex(key: string, img: ImageSource): WebGLTexture {
 }
 
 const rgb = (h: string): number[] => hexToRgb(h).map((v) => v / 255)
+const hexAlpha = (h: string): number => (/^#[0-9a-f]{8}$/i.test(h) ? parseInt(h.slice(7, 9), 16) / 255 : 1)
 
 // ---------------------------------------------------------------- render
 export interface RenderOptions { size?: number; s2s?: boolean }
@@ -428,7 +429,8 @@ function runPasses(passes: Pass[], opt: RenderOptions): Target {
       g.uniform1i(U.u_type, 0)
       if (p.mask) { g.bindTexture(g.TEXTURE_2D, maskTex(p.mask)); g.uniform1i(U.u_maskMode, p.mask.zones ? 2 : 1) }
       const f = p.fill
-      if (f.kind === 'solid') { g.uniform1i(U.u_grad, 0); g.uniform3fv(U.u_color, rgb(f.color)) }
+      // colours may carry transparency (#rrggbbaa): it multiplies the pass opacity
+      if (f.kind === 'solid') { g.uniform1i(U.u_grad, 0); g.uniform3fv(U.u_color, rgb(f.color)); const al = hexAlpha(f.color); if (al < 1) g.uniform1f(U.u_opacity, (p.opacity ?? 1) * al) }
       else {
         const stops = [...f.stops].sort((a, b) => a.at - b.at).slice(0, 8)
         g.uniform1i(U.u_grad, 1)

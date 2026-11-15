@@ -99,6 +99,7 @@ export const kc: KcApi & { launchGame(): Promise<string> } = {
   deleteUserTemplate: (id) => call('delete_user_template', { id }),
   listTemplateImages: () => call('list_template_images'),
   screenPixel: () => call('screen_pixel'),
+  licenceHint: (teamId) => call('licence_hint', { teamId }),
   templateDirPath: () => call('template_dir_path'),
   deleteDraft: (teamId) => call('delete_draft', { teamId }),
   listDrafts: () => call('list_drafts'),

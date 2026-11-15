@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { useApp, assetFromFile, rawAssetFromFile, previewAssetFromFile, PRESET_TEAM, USER_TPL_TEAM } from '../state'
+import { useApp, assetFromFile, rawAssetFromFile, previewAssetFromFile, PRESET_TEAM, USER_TPL_TEAM, stepTime } from '../state'
 import type { PanelStyle, TextPlacement, PanelKind, KitDesign, OverlayLayer, Asset, LogoPlacement, LogoTint, Fill, PatternSpec, FabricLayer, FabricZone, Zone, Logos, StitchKind, StitchSpec } from '../model/design'
-import { PANEL_STYLES, SLOT_LABEL, uid, defaultDesign, contrastOn, slotOrder, solid, fillMain, normalizeGroups, dropLayer, migrateKit, LOGO_SIZES, NUMBER_DEFAULTS, STITCH_KINDS } from '../model/design'
+import { describeStep } from './history'
+import { PANEL_STYLES, SLOT_LABEL, uid, defaultDesign, contrastOn, slotOrder, solid, fillMain, normalizeGroups, dropLayer, migrateKit, LOGO_SIZES, NUMBER_DEFAULTS, STITCH_KINDS, mergeLogos, copyNumbers } from '../model/design'
 import { TEMPLATES, applyTemplate } from '../model/templates'
 import { TORSO_PATTERNS, SLEEVE_PATTERNS, SHORTS_PATTERNS, SOCKS_PATTERNS, TEXTURES, STROKES } from '../compositor/patterns'
 import { composeKit, composeLive, composeShine, COLLAR_DESIGNS, frontThumb } from '../compositor/compose'
@@ -108,6 +109,8 @@ const newLogo = (size: number, extra: Partial<LogoPlacement> = {}): LogoPlacemen
 
 /** Layers copied with the right-click menu (kept while the app is open, so they can be pasted into another kit). */
 let layerClipboard: { layers: OverlayLayer[]; assets: Record<string, Asset> } | null = null
+/** Right-click copy of a logo / sponsor (its image, colours, size and place), also between kits and teams. */
+let logoClipboard: { lp: LogoPlacement; asset?: Asset } | null = null
 
 /** Logos tab with each logo's own shininess: the overall value new rows start from (undefined = not in that mode). */
 const LogoShineCtx = createContext<number | undefined>(undefined)
@@ -273,6 +276,16 @@ function ShineRow({ value, fallback, onChange, label = 'Brilho' }: { value: numb
 
 export function Editor(): JSX.Element {
   const { project, savedProject, activeSlot, setActiveSlot, updateKit, setProject, undo, redo, past, future, notify, saveProject, discardAll, setView } = useApp()
+  const jumpHistory = useApp((s) => s.jumpHistory)
+  const [licence, setLicence] = useState<string | null>(null)
+  useEffect(() => { setLicence(null); if (project && project.teamId >= 0) window.kc.licenceHint(project.teamId).then(setLicence).catch(() => undefined) }, [project?.teamId])
+  const [histOpen, setHistOpen] = useState(false)
+  useEffect(() => {
+    if (!histOpen) return
+    const close = (): void => setHistOpen(false)
+    window.addEventListener('pointerdown', close)
+    return () => window.removeEventListener('pointerdown', close)
+  }, [histOpen])
   // the GPU compositor renders into one shared canvas; `texV` bumps on every new frame
   const [tex, setTex] = useState<HTMLCanvasElement | null>(null)
   const [texV, setTexV] = useState(0)
@@ -315,6 +328,14 @@ export function Editor(): JSX.Element {
     window.kc.listTemplateImages().then(setTplImgs).catch(() => setTplImgs([]))
     window.kc.listUserTemplates().then((l) => setUserTpl(l.map((j) => { try { return JSON.parse(j) } catch { return null } }).filter(Boolean).sort((a, b) => String(b.date).localeCompare(String(a.date))))).catch(() => setUserTpl([])) }
   const [ctx, setCtx] = useState<{ x: number; y: number; layer?: string; part: 'torso' | 'shorts' | 'socks' } | null>(null)
+  const [copyColors, setCopyColors] = useState(false)
+  const [logoCtx, setLogoCtx] = useState<{ x: number; y: number; lp: LogoPlacement; set: (n: LogoPlacement) => void; key?: 'sponsors' | 'backSponsors' | 'sleeveBadges' | 'shortsSponsors'; i?: number } | null>(null)
+  useEffect(() => {
+    if (!logoCtx) return
+    const close = (): void => setLogoCtx(null)
+    window.addEventListener('pointerdown', close); window.addEventListener('blur', close)
+    return () => { window.removeEventListener('pointerdown', close); window.removeEventListener('blur', close) }
+  }, [logoCtx])
   useEffect(() => {
     if (!ctx) return
     const close = (): void => setCtx(null)
@@ -998,7 +1019,20 @@ export function Editor(): JSX.Element {
       }
       if (id === 'fixed:sleeves') { up((k) => ({ ...k, sleeveAfter: target.id })); return }
       if (id === 'fixed:shortsBase' || id === 'fixed:socksBase') { const which = id === 'fixed:shortsBase' ? 'shorts' : 'socks'; up((k) => ({ ...k, baseAfter: { ...k.baseAfter, [which]: target.kind === 'group' || !target.group ? target.id : target.group } })); return }
-      up((k) => ({ ...k, layers: dropLayer(k.layers, id, target.id) }))
+      up((k) => ({ ...reanchor(k, id), layers: dropLayer(k.layers, id, target.id) }))
+    }
+    // a fixed row (Mangas / base of the shorts or socks) placed right above a layer that is now being moved stays
+    // where it is: it is tied to the layer below the moved one instead of following it
+    const reanchor = (k: KitDesign, moved: string): KitDesign => {
+      const ls = normalizeGroups(k.layers)
+      const L = ls.find((x) => x.id === moved)
+      if (!L) return k
+      const block = new Set(ls.filter((x) => x.id === moved || x.group === moved).map((x) => x.id))
+      const below = (): string => { const i = ls.findIndex((x) => block.has(x.id)); for (let j = i - 1; j >= 0; j--) if (!block.has(ls[j].id)) return ls[j].group && !block.has(ls[j].group!) && ls.find((g) => g.id === ls[j].group) ? ls[j].group! : ls[j].id; return '' }
+      const fix = (a: string | undefined): string | undefined => (a && block.has(a) ? below() : a)
+      const sa = fix(k.sleeveAfter)
+      const bs = fix(k.baseAfter?.shorts), bk = fix(k.baseAfter?.socks)
+      return { ...k, sleeveAfter: sa, baseAfter: k.baseAfter ? { ...k.baseAfter, shorts: bs || undefined, socks: bk || undefined } : k.baseAfter }
     }
     const row = (L: OverlayLayer): JSX.Element | null => {
       const isGroup = L.kind === 'group'
@@ -1066,7 +1100,12 @@ export function Editor(): JSX.Element {
           up((k) => ({ ...k, sleevePattern: { ...k.sleevePattern, maskLayer: src, maskInvert: undefined }, layers: k.layers.map((x) => (x.id === src ? { ...x, visible: false } : x)) }))
         } else if (d === 'fixed:sleeves') up((k) => ({ ...k, sleeveAfter: '' }))
         else if (d === 'fixed:shortsBase' || d === 'fixed:socksBase') { const which = d === 'fixed:shortsBase' ? 'shorts' : 'socks'; up((k) => ({ ...k, baseAfter: { ...k.baseAfter, [which]: undefined } })) }
-        else if (!d.startsWith('mask:') && !d.startsWith('fixed:')) up((k) => ({ ...k, layers: dropLayer(k.layers, d, '') }))
+        else if (!d.startsWith('mask:') && !d.startsWith('fixed:')) {
+          // dropped on a fixed row placed among the layers: the layer goes right above that row (over what it draws);
+          // on a fixed row at the bottom: under every layer
+          const anchor = afterOf(f)
+          up((k) => ({ ...reanchor(k, d), layers: dropLayer(k.layers, d, anchor && anchor !== d && k.layers.some((x) => x.id === anchor) ? anchor : '') }))
+        }
       }
       return (
         <div key={id} className="lrow-wrap">
@@ -1085,12 +1124,12 @@ export function Editor(): JSX.Element {
     }
     // the sleeves row, once dragged among the layers, is shown where it is drawn
     const afterOf = (f: FixedRow): string | undefined => (f.id === 'sleeves' ? kit.sleeveAfter : f.id === 'shortsBase' ? kit.baseAfter?.shorts : f.id === 'socksBase' ? kit.baseAfter?.socks : undefined)
-    const placed = fixed.find((f) => f.movable && afterOf(f) && display.some((l) => l.id === afterOf(f)))
+    const placedAll = fixed.filter((f) => f.movable && afterOf(f) && display.some((l) => l.id === afterOf(f)))
     return (
       <>
         <div className="lrows" onContextMenu={(e) => { e.preventDefault(); setCtx({ x: e.clientX, y: e.clientY, part }) }}>
-          {display.map((l) => (placed && l.id === afterOf(placed) ? [fixedRow(placed), row(l)] : row(l)))}
-          {fixed.filter((f) => f !== placed).map(fixedRow)}
+          {display.map((l) => { const here = placedAll.filter((f) => afterOf(f) === l.id); return here.length ? [...here.map(fixedRow), row(l)] : row(l) })}
+          {fixed.filter((f) => !placedAll.includes(f)).map(fixedRow)}
         </div>
         <div className="add-title">ADICIONAR CAMADA</div>
         <div className="add-grid">
@@ -1253,12 +1292,31 @@ export function Editor(): JSX.Element {
   // ---------------------------------------------------------------- tabs
   const clean = kit.base.clean ?? (kit.base.cleanLogos ? CLEAN_AREAS.map((c) => c[0]) : [])
   const logos = kit.logos
-  type ListKey = 'sponsors' | 'backSponsors' | 'sleeveBadges'
+  type ListKey = 'sponsors' | 'backSponsors' | 'sleeveBadges' | 'shortsSponsors'
+  // "add to the other kits": a sponsor / badge goes into the same list of every other kit of the team (not twice)
+  const toOtherKits = (key: ListKey, lp: LogoPlacement): void => {
+    if (!lp.assetId) return notify('err', 'Escolhe primeiro a imagem deste logo')
+    let n = 0
+    setProject((p) => ({ ...p, kits: p.kits.map((k) => {
+      if (k.slot === kit.slot) return k
+      const list = k.logos[key] ?? []
+      if (list.some((x) => x.assetId === lp.assetId)) return k
+      n++
+      return { ...k, logos: { ...k.logos, [key]: [...list, JSON.parse(JSON.stringify(lp))] } }
+    }) }))
+    setTimeout(() => notify('ok', n ? `Adicionado a ${n} kit(s)` : 'Os outros kits já o têm'), 0)
+  }
+  const toOthersBtn = (key: ListKey, lp: LogoPlacement): JSX.Element => <button className="btn tiny" title="Põe este logo também nos outros equipamentos da equipa (os que já o têm ficam como estão)" onClick={() => toOtherKits(key, lp)}>Adicionar aos outros kits</button>
+  // right-click on a logo row: copy its look, paste over another logo, duplicate (lists), add to the other kits
+  const logoMenu = (lp: LogoPlacement, set: (n: LogoPlacement) => void, key?: ListKey, i?: number) => ({
+    onContextMenu: (e: React.MouseEvent): void => { e.preventDefault(); e.stopPropagation(); setLogoCtx({ x: e.clientX, y: e.clientY, lp, set, key, i }) }
+  })
   const listOf = (key: ListKey): LogoPlacement[] => logos[key] ?? []
   const setList = (key: ListKey, list: LogoPlacement[]): void => setLogos((l) => ({ ...l, [key]: list }))
 
   const originTab = (
     <>
+      {licence && <div className="warn-box" data-notr>⚠ {licence}</div>}
       <Section group={tab} title="Cores do kit" onActivate={() => go('front')}>
         <div className="muted small">Todas as cores deste equipamento. Muda uma e todas as camadas, designs, gola e punhos com essa cor mudam também — para fazer variantes do mesmo kit noutras cores.</div>
         <div className="kit-palette">
@@ -1305,7 +1363,7 @@ export function Editor(): JSX.Element {
             // without the crest and the sponsors; the brand stays
             const L = kit.logos
             const off = (lp: LogoPlacement): LogoPlacement => ({ ...lp, assetId: undefined, enabled: false })
-            const logos: Logos = { ...L, crest: off(L.crest), shortsCrest: off(L.shortsCrest), sponsor: off(L.sponsor), backSponsor: off(L.backSponsor), sponsors: [], backSponsors: [], sleeveBadges: (L.sleeveBadges ?? []).filter((b) => b.brand), shortsSponsor: L.shortsSponsor ? off(L.shortsSponsor) : undefined }
+            const logos: Logos = { ...L, crest: off(L.crest), shortsCrest: off(L.shortsCrest), sponsor: off(L.sponsor), backSponsor: off(L.backSponsor), sponsors: [], backSponsors: [], sleeveBadges: (L.sleeveBadges ?? []).filter((b) => b.brand), shortsSponsor: L.shortsSponsor ? off(L.shortsSponsor) : undefined, shortsSponsors: [] }
             const t = { ...kit, logos, armband: kit.armband ? { ...kit.armband, crest: false } : kit.armband }
             const used = new Set<string>()
             JSON.stringify(t, (k2, v) => { if ((k2 === 'assetId' || k2 === 'imageAssetId' || k2 === 'backAsset' || k2 === 'legAsset' || k2 === 'nameAsset' || k2 === 'asset') && typeof v === 'string') used.add(v); if (k2 === 'source' && typeof v === 'string' && v.startsWith('asset:')) used.add(v.slice(6)); return v })
@@ -1320,18 +1378,19 @@ export function Editor(): JSX.Element {
         <Row label="Camisola"><Select value={tucked ? 'in' : 'out'} options={[['out', 'Por fora dos calções'], ['in', 'Por dentro dos calções']]} onChange={(v) => { setTucked(v === 'in'); try { localStorage.setItem('kc.tucked', v === 'in' ? '1' : '0') } catch { /* ignore */ } }} /></Row>
       </Section>
       <Section group={tab} title="Copiar para todos os kits">
-        <div className="muted small">Copia deste kit ({SLOT_LABEL[kit.slot] ?? kit.slot}) para os outros equipamentos da equipa.</div>
+        <div className="muted small">Copia deste kit ({SLOT_LABEL[kit.slot] ?? kit.slot}) para os outros equipamentos da equipa. Os logos que um kit já tem ficam como estão; só se acrescenta o que falta.</div>
+        <label className="check"><input type="checkbox" checked={copyColors} onChange={(e) => setCopyColors(e.target.checked)} /> Copiar também as cores</label>
         <div className="btn-row">
           <button className="btn small" onClick={() => {
             const others = project.kits.filter((k) => k.slot !== kit.slot).map((k) => SLOT_LABEL[k.slot] ?? k.slot).join(', ')
-            if (!confirm(`De certeza? Os emblemas, marcas e patrocínios de ${others} vão ser substituídos pelos deste kit.`)) return
-            setProject((p) => ({ ...p, kits: p.kits.map((k) => (k.slot === kit.slot ? k : { ...k, logos: JSON.parse(JSON.stringify(kit.logos)) })) }))
+            if (!confirm(`Copiar os emblemas, marcas e patrocínios deste kit para ${others}?` + (copyColors ? ' (com as cores)' : ' (sem as cores)'))) return
+            setProject((p) => ({ ...p, kits: p.kits.map((k) => (k.slot === kit.slot ? k : { ...k, logos: mergeLogos(k.logos, kit.logos, copyColors) })) }))
           }}>Logos e patrocínios → todos</button>
           <button className="btn small" onClick={() => {
             const others = project.kits.filter((k) => k.slot !== kit.slot).map((k) => SLOT_LABEL[k.slot] ?? k.slot).join(', ')
-            if (!confirm(`De certeza? Os números, nomes, fontes e posições de ${others} vão ser substituídos pelos deste kit.`)) return
+            if (!confirm(`Copiar os números, nomes, fontes e posições deste kit para ${others}?` + (copyColors ? ' (com as cores)' : ' (sem as cores)'))) return
             const keys = ['Name', 'NameShape', 'NameY', 'NameSize', 'NameStretch', 'BackNumberY', 'BackNumberSize', 'BackNumberSpacing', 'BackNumberType', 'ChestNumberX', 'ChestNumberY', 'ChestNumberSize', 'ShortsNumberSide', 'ShortsNumberX', 'ShortsNumberY', 'ShortsNumberSize']
-            setProject((p) => ({ ...p, kits: p.kits.map((k) => (k.slot === kit.slot ? k : { ...k, numbers: JSON.parse(JSON.stringify(kit.numbers)), config: { ...k.config, ...Object.fromEntries(keys.filter((x) => kit.config[x] !== undefined).map((x) => [x, kit.config[x]])) } })) }))
+            setProject((p) => ({ ...p, kits: p.kits.map((k) => (k.slot === kit.slot ? k : { ...k, numbers: copyNumbers(k.numbers, kit.numbers, copyColors), config: { ...k.config, ...Object.fromEntries(keys.filter((x) => kit.config[x] !== undefined).map((x) => [x, kit.config[x]])) } })) }))
           }}>Números, nomes e fontes → todos</button>
         </div>
       </Section>
@@ -1346,9 +1405,18 @@ export function Editor(): JSX.Element {
   )
 
   const ab = kit.armband ?? { show: true, fill: solid(kit.colors.armband), text: 'C', textColor: '#111111', font: 'Arial Black' }
-  const setAb = (patch: Partial<typeof ab>): void => up((k) => ({ ...k, armband: { ...ab, ...patch } }))
+  // "Aplicar a todos os kits": the armband is the same in every kit of the team (changes go to all of them)
+  const setAb = (patch: Partial<typeof ab>): void => {
+    const next = { ...ab, ...patch }
+    if (next.all) setProject((p) => ({ ...p, kits: p.kits.map((k) => ({ ...k, armband: JSON.parse(JSON.stringify(next)) })) }))
+    else up((k) => ({ ...k, armband: next }))
+  }
   const armbandBody = (
     <>
+      <label className="check" title="As alterações à braçadeira passam a valer para todos os equipamentos da equipa"><input type="checkbox" checked={!!ab.all} onChange={(e) => {
+        if (e.target.checked) setAb({ all: true })
+        else setProject((p) => ({ ...p, kits: p.kits.map((k) => (k.armband ? { ...k, armband: { ...k.armband, all: undefined } } : k)) }))
+      }} /> Aplicar a todos os kits</label>
       <label className="check"><input type="checkbox" checked={ab.show} onChange={(e) => setAb({ show: e.target.checked })} /> Mostrar no 3D</label>
       <FillRow label="Cor" value={ab.fill} onChange={(fill) => setAb({ fill })} />
       <Row label="Texto"><input value={ab.text} maxLength={10} onChange={(e) => setAb({ text: e.target.value })} /></Row>
@@ -1535,9 +1603,9 @@ export function Editor(): JSX.Element {
           }))} />
         </Row>
         <label className="check"><input type="checkbox" checked={project.updateGameEmblem} onChange={(e) => setProject((p) => ({ ...p, updateGameEmblem: e.target.checked }))} /> Substituir também o emblema no jogo (menus, placar)</label>
-        <div onPointerDown={at('front')}><LogoBlock title="Emblema · Camisola" lp={logos.crest} assets={assets} onAsset={addAsset} folderHint="Logos" onChange={(crest) => setLogos((l) => ({ ...l, crest }))} /></div>
+        <div onPointerDown={at('front')} {...logoMenu(logos.crest, (crest) => setLogos((l) => ({ ...l, crest })))}><LogoBlock title="Emblema · Camisola" lp={logos.crest} assets={assets} onAsset={addAsset} folderHint="Logos" onChange={(crest) => setLogos((l) => ({ ...l, crest }))} /></div>
         <div className="sub-title">Marca</div>
-        <div onPointerDown={at('front')}>
+        <div onPointerDown={at('front')} {...logoMenu(logos.brand, (brand) => setLogos((l) => ({ ...l, brand })))}>
           <LogoBlock title="Marca · Camisola" lp={logos.brand} assets={assets} onAsset={addAsset} folderHint="Brands"
             onChange={(brand) => setLogos((l) => ({
               ...l, brand,
@@ -1560,50 +1628,63 @@ export function Editor(): JSX.Element {
         </div>
         <div className="sub-title">Patrocinadores (peito)</div>
         {listOf('sponsors').map((sp, i) => (
-          <div key={i} onPointerDown={at('front')}>
+          <div key={i} onPointerDown={at('front')} {...logoMenu(sp, (n) => setList('sponsors', listOf('sponsors').map((x, j) => (j === i ? n : x))), 'sponsors', i)}>
             <LogoBlock title={`Patrocinador ${i + 1}`} lp={sp} assets={assets} onAsset={addAsset} folderHint="Sponsors"
-              onChange={(n) => setList('sponsors', listOf('sponsors').map((x, j) => (j === i ? n : x)))} onRemove={() => setList('sponsors', listOf('sponsors').filter((_, j) => j !== i))} />
+              onChange={(n) => setList('sponsors', listOf('sponsors').map((x, j) => (j === i ? n : x)))} onRemove={() => setList('sponsors', listOf('sponsors').filter((_, j) => j !== i))}
+              extra={toOthersBtn('sponsors', sp)} />
           </div>
         ))}
         <button className="btn small" onClick={() => setList('sponsors', [...listOf('sponsors'), newLogo(listOf('sponsors').length ? 200 : 380, { dy: listOf('sponsors').length * 150, enabled: false })])}>+ Patrocinador no peito</button>
         <div className="sub-title">Badge / marca nas mangas</div>
         {listOf('sleeveBadges').map((b, i) => (
-          <div key={i} onPointerDown={at('sleeve')}>
+          <div key={i} onPointerDown={at('sleeve')} {...logoMenu(b, (n) => setList('sleeveBadges', listOf('sleeveBadges').map((x, j) => (j === i ? n : x))), 'sleeveBadges', i)}>
             <LogoBlock title={b.brand ? 'Marca · Mangas' : `Badge ${i + 1}`} lp={b} assets={assets} onAsset={addAsset} folderHint={b.brand ? 'Brands' : 'Badges'}
               onChange={(n) => setList('sleeveBadges', listOf('sleeveBadges').map((x, j) => (j === i ? n : x)))} onRemove={() => setLogos((l) => ({ ...l, brand: b.brand ? { ...l.brand, alsoSleeves: false } : l.brand, sleeveBadges: (l.sleeveBadges ?? []).filter((_, j) => j !== i) }))}
-              extra={<Row label="Manga"><Select value={b.side ?? 'both'} options={[['both', 'As duas'], ['left', 'Esquerda'], ['right', 'Direita']]} onChange={(side) => setList('sleeveBadges', listOf('sleeveBadges').map((x, j) => (j === i ? { ...x, side } : x)))} /></Row>} />
+              extra={<><Row label="Manga"><Select value={b.side ?? 'both'} options={[['both', 'As duas'], ['left', 'Esquerda'], ['right', 'Direita']]} onChange={(side) => setList('sleeveBadges', listOf('sleeveBadges').map((x, j) => (j === i ? { ...x, side } : x)))} /></Row>{!b.brand && toOthersBtn('sleeveBadges', b)}</>} />
           </div>
         ))}
         <button className="btn small" onClick={() => setList('sleeveBadges', [...listOf('sleeveBadges'), newLogo(LOGO_SIZES.sleeveBadge, { tint: 'original', side: 'right', enabled: false, dy: listOf('sleeveBadges').filter((b) => !b.brand).length * 120 })])}>+ Badge nas mangas</button>
         <div className="sub-title">Patrocinadores (costas)</div>
         {listOf('backSponsors').map((sp, i) => (
-          <div key={i} onPointerDown={at('back')}>
+          <div key={i} onPointerDown={at('back')} {...logoMenu(sp, (n) => setList('backSponsors', listOf('backSponsors').map((x, j) => (j === i ? n : x))), 'backSponsors', i)}>
             <LogoBlock title={`Costas ${i + 1}`} lp={sp} assets={assets} onAsset={addAsset} folderHint="Sponsors"
               onChange={(n) => setList('backSponsors', listOf('backSponsors').map((x, j) => (j === i ? n : x)))} onRemove={() => setList('backSponsors', listOf('backSponsors').filter((_, j) => j !== i))}
-              extra={<Row label="Posição"><Select value={sp.place ?? 'bottom'} options={[['top', 'Em cima do nome e número'], ['bottom', 'Em baixo do número']]} onChange={(place) => setList('backSponsors', listOf('backSponsors').map((x, j) => (j === i ? { ...x, place } : x)))} /></Row>} />
+              extra={<><Row label="Posição"><Select value={sp.place ?? 'bottom'} options={[['top', 'Em cima do nome e número'], ['bottom', 'Em baixo do número']]} onChange={(place) => setList('backSponsors', listOf('backSponsors').map((x, j) => (j === i ? { ...x, place } : x)))} /></Row>{toOthersBtn('backSponsors', sp)}</>} />
           </div>
         ))}
         <button className="btn small" onClick={() => setList('backSponsors', [...listOf('backSponsors'), newLogo(LOGO_SIZES.backSponsor, { enabled: false, dy: listOf('backSponsors').length * 140 })])}>+ Patrocinador nas costas</button>
       
-      <div className="sub-title">Calções e meias</div>
+      <div className="sub-title">Calções</div>
       <div onPointerDown={at('shorts')}>
-
+        <div {...logoMenu(logos.shortsCrest, (shortsCrest) => setLogos((l) => ({ ...l, shortsCrest })))}>
         <LogoBlock title="Emblema · Calções" lp={logos.shortsCrest} assets={assets} onAsset={addAsset} folderHint="Logos" onChange={(shortsCrest) => setLogos((l) => ({ ...l, shortsCrest }))}
           extra={<Row label="Perna"><Select value={logos.shortsCrest.side === 'left' || logos.shortsCrest.side === 'both' ? logos.shortsCrest.side : 'right'} options={[['right', 'Direita'], ['left', 'Esquerda'], ['both', 'As duas']]} onChange={(side) => setLogos((l) => ({ ...l, shortsCrest: { ...l.shortsCrest, side } }))} /></Row>} />
+        </div>
+        <div {...logoMenu(logos.shortsBrand, (shortsBrand) => setLogos((l) => ({ ...l, shortsBrand })))}>
         <LogoBlock title="Marca · Calções" lp={logos.shortsBrand} assets={assets} onAsset={addAsset} folderHint="Brands" onChange={(shortsBrand) => setLogos((l) => ({ ...l, shortsBrand }))}
           extra={<>
             <Row label="Perna"><Select value={logos.shortsBrand.side === 'right' || logos.shortsBrand.side === 'both' ? logos.shortsBrand.side : 'left'} options={[['left', 'Esquerda'], ['right', 'Direita'], ['both', 'As duas']]} onChange={(side) => setLogos((l) => ({ ...l, shortsBrand: { ...l.shortsBrand, side } }))} /></Row>
             <Row label="Onde"><Select value={logos.shortsBrand.spot === 'back' ? 'back' : 'front'} options={[['front', 'Frente da perna'], ['back', 'Parte de trás da perna']]} onChange={(spot) => setLogos((l) => ({ ...l, shortsBrand: { ...l.shortsBrand, spot } }))} /></Row>
           </>} />
-        <LogoBlock title="Patrocinador · Calções" lp={logos.shortsSponsor ?? newLogo(160, { enabled: false, spot: 'back' })} assets={assets} onAsset={addAsset} folderHint="Sponsors"
-          onChange={(shortsSponsor) => setLogos((l) => ({ ...l, shortsSponsor }))}
-          extra={<>
-            <Row label="Onde"><Select value={logos.shortsSponsor?.spot ?? 'back'} options={[['back', 'Atrás (rabo), ao centro'], ['middle', 'Frente ao centro'], ['front', 'Frente de uma perna']]} onChange={(spot) => setLogos((l) => ({ ...l, shortsSponsor: { ...(l.shortsSponsor ?? newLogo(220)), spot } }))} /></Row>
-            {logos.shortsSponsor?.spot === 'front' && <Row label="Perna"><Select value={logos.shortsSponsor.side === 'left' || logos.shortsSponsor.side === 'both' ? logos.shortsSponsor.side : 'right'} options={[['right', 'Direita'], ['left', 'Esquerda'], ['both', 'As duas']]} onChange={(side) => setLogos((l) => ({ ...l, shortsSponsor: { ...(l.shortsSponsor ?? newLogo(220)), side } }))} /></Row>}
-          </>} />
-        
+        </div>
+        {listOf('shortsSponsors').map((sp, i) => {
+          const setOne = (n: LogoPlacement): void => setList('shortsSponsors', listOf('shortsSponsors').map((x, j) => (j === i ? n : x)))
+          return (
+            <div key={i} {...logoMenu(sp, setOne, 'shortsSponsors', i)}>
+              <LogoBlock title={`Patrocinador · Calções ${i + 1}`} lp={sp} assets={assets} onAsset={addAsset} folderHint="Sponsors" onChange={setOne}
+                onRemove={() => setList('shortsSponsors', listOf('shortsSponsors').filter((_, j) => j !== i))}
+                extra={<>
+                  <Row label="Onde"><Select value={sp.spot ?? 'back'} options={[['back', 'Atrás (rabo), ao centro'], ['middle', 'Frente ao centro'], ['front', 'Frente de uma perna']]} onChange={(spot) => setOne({ ...sp, spot })} /></Row>
+                  {sp.spot === 'front' && <Row label="Perna"><Select value={sp.side === 'left' || sp.side === 'both' ? sp.side : 'right'} options={[['right', 'Direita'], ['left', 'Esquerda'], ['both', 'As duas']]} onChange={(side) => setOne({ ...sp, side })} /></Row>}
+                  {toOthersBtn('shortsSponsors', sp)}
+                </>} />
+            </div>
+          )
+        })}
+        <button className="btn small" onClick={() => setList('shortsSponsors', [...listOf('shortsSponsors'), newLogo(160, { enabled: false, spot: listOf('shortsSponsors').length ? 'front' : 'back', dy: listOf('shortsSponsors').filter((x) => x.spot === 'front').length * 60 })])}>+ Patrocinador nos calções</button>
       </div>
-      <div onPointerDown={at('socks')}><LogoBlock title="Marca · Meias" lp={logos.socksBrand} assets={assets} onAsset={addAsset} folderHint="Brands" onChange={(socksBrand) => setLogos((l) => ({ ...l, socksBrand }))} /></div>
+      <div className="sub-title">Meias</div>
+      <div onPointerDown={at('socks')} {...logoMenu(logos.socksBrand, (socksBrand) => setLogos((l) => ({ ...l, socksBrand })))}><LogoBlock title="Marca · Meias" lp={logos.socksBrand} assets={assets} onAsset={addAsset} folderHint="Brands" onChange={(socksBrand) => setLogos((l) => ({ ...l, socksBrand }))} /></div>
       <button className="btn small" title="Põe a marca da camisola também nos calções e nas meias" onClick={() => setLogos((l) => ({ ...l, shortsBrand: { ...l.shortsBrand, assetId: l.brand.assetId, enabled: !!l.brand.assetId }, socksBrand: { ...l.socksBrand, assetId: l.brand.assetId, enabled: !!l.brand.assetId } }))}>Usar a marca da camisola em tudo</button>
     </div>
     </LogoShineCtx.Provider>
@@ -1793,7 +1874,7 @@ export function Editor(): JSX.Element {
         if (texPick.kind === 'patterns') {
           const m = await patternMask(a)
           m.asset.id = 'pvm:' + f.path
-          return kitPreview3d({ ...stripLogos(pvKit), layers: [mk({ id: 'pv', kind: 'image', fit: 'tile', assetId: m.asset.id, tileTint: m.mono ? 'color' : 'original', color: PV[0], size: 160, gap: 0 })] }, { ...assets, [m.asset.id]: m.asset }, P, 'file:' + f.path + PV[0] + PVB)
+          return kitPreview3d({ ...stripLogos(pvKit), layers: [mk({ id: 'pv', kind: 'image', fit: 'tile', assetId: m.asset.id, tileTint: m.mono ? 'color' : 'original', color: PV[0], size: 200, gap: 0 })] }, { ...assets, [m.asset.id]: m.asset }, P, 'file2:' + f.path + PV[0] + PVB)
         }
         const img = await loadAsset(a)
         const fit = Math.abs(img.width - img.height) < 4 ? 'uv' : 'part'
@@ -1817,7 +1898,7 @@ export function Editor(): JSX.Element {
     }
     let builtin: CatItem[]
     if (texPick.kind === 'patterns') {
-      builtin = TEXTURES.map(([id, label]) => ({ id, label, category: 'Incluídos', load: () => pv3(mk({ id: 'pv', kind: 'texture', pattern: id, color: PV[0], opacity: 1 }), P, 'tx:' + id, pvKit) }))
+      builtin = TEXTURES.map(([id, label]) => ({ id, label, category: 'Incluídos', load: () => pv3(mk({ id: 'pv', kind: 'texture', pattern: id, color: PV[0], opacity: 1, scale: 200 }), P, 'tx2:' + id, pvKit) }))
     } else {
       // everything in one list: base designs, bands and shapes, panels (sides, shoulders, cuffs, hems, sock trims), collar
       const dcol = [kit.colors.shirt2, kit.colors.shirt3, '#ffffff', '#111111', kit.colors.collar]
@@ -1871,9 +1952,17 @@ export function Editor(): JSX.Element {
     const all = [...builtin, ...fileItems.map((f) => ({ ...f, category: texPick.kind === 'graphics' ? graphicCat(f.category) : f.category }))]
       .map((x, i) => [x, i] as const).sort((a, b) => catRank(a[0].category) - catRank(b[0].category) || a[1] - b[1]).map(([x]) => x)
     const withEmpty = [...all, ...texLib.categories.filter((c) => !all.some((x) => x.category === c)).map((c) => ({ id: 'none:' + c, label: '', category: c, load: async () => '' }))]
+    // swapping a layer's design: open on that design's category (collar → Gola, stripes → Riscas, cuffs → Punhos…)
+    const curId = !target ? undefined
+      : target.kind === 'design' ? 'design:' + target.design
+      : target.kind === 'collar' ? 'collar:' + target.collarStyle
+      : target.kind === 'panel' ? all.find((x) => x.id.startsWith(`panel:${target.panel}:${target.pstyle ?? 'solid'}`))?.id
+      : target.kind === 'shape' ? target.shape
+      : target.kind === 'texture' ? target.pattern : undefined
+    const curCat = curId ? all.find((x) => x.id === curId)?.category : undefined
     sidePanel = (
       <Flyout key={'tp:' + texPick.kind + texPick.part + (texPick.category ?? '') + (texPick.replace ?? '')} title={texPick.kind === 'patterns' ? (target ? 'Padrões — trocar' : 'Padrões') : target ? 'Designs — trocar' : 'Designs'} onClose={close}>
-        <CatGrid items={withEmpty.filter((x) => !x.id.startsWith('none:'))} initialCategory={texPick.category} onPick={onPick}
+        <CatGrid items={withEmpty.filter((x) => !x.id.startsWith('none:'))} initialCategory={texPick.category ?? curCat} onPick={onPick}
           value={!target ? undefined : target.kind === 'design' ? 'design:' + target.design : target.kind === 'panel' ? `panel:${target.panel}:${target.pstyle ?? 'solid'}${target.pcount && target.pstyle === 'stripes' && target.panel === 'cuffs' && (target.pcount === 2 || target.pcount === 3) ? ':' + target.pcount : ''}` : target.kind === 'shape' ? target.shape : target.kind === 'collar' ? 'collar:' + target.collarStyle : undefined}
           tools={<>
             <button className="btn small" title="Abrir a pasta para pores aqui as tuas imagens" onClick={() => texLib.root && window.kc.openPath(texLib.root)}>Abrir pasta</button>
@@ -1940,6 +2029,26 @@ export function Editor(): JSX.Element {
         </div>
       )
     })()}
+    {logoCtx && (() => {
+      const { lp, set, key, i } = logoCtx
+      const close = (): void => setLogoCtx(null)
+      const cb = logoClipboard
+      return (
+        <div className="ctx-menu" style={{ left: logoCtx.x, top: logoCtx.y }} onPointerDown={(e) => e.stopPropagation()} onContextMenu={(e) => e.preventDefault()}>
+          <button onClick={() => { logoClipboard = { lp: JSON.parse(JSON.stringify(lp)), asset: lp.assetId ? assets[lp.assetId] : undefined }; notify('ok', 'Logo copiado'); close() }}>Copiar logo</button>
+          <button disabled={!cb} onClick={() => {
+            if (!cb) return
+            if (cb.asset) addAsset(cb.asset)
+            // the copied look over this one (this row keeps its own place: side / spot / position in the back)
+            set({ ...lp, ...cb.lp, side: lp.side ?? cb.lp.side, spot: lp.spot ?? cb.lp.spot, place: lp.place ?? cb.lp.place, brand: lp.brand, alsoShorts: lp.alsoShorts, alsoSocks: lp.alsoSocks, alsoSleeves: lp.alsoSleeves })
+            notify('ok', 'Logo colado'); close()
+          }}>Colar aqui</button>
+          {key && <button disabled={!cb} onClick={() => { if (!cb) return; if (cb.asset) addAsset(cb.asset); setLogos((l) => ({ ...l, [key]: [...(l[key] ?? []), { ...cb.lp, brand: undefined }] })); notify('ok', 'Logo colado como novo'); close() }}>Colar como novo</button>}
+          {key && i !== undefined && <button onClick={() => { setLogos((l) => { const list = l[key] ?? []; return { ...l, [key]: [...list.slice(0, i + 1), { ...list[i], brand: undefined, dy: list[i].dy + 60 }, ...list.slice(i + 1)] } }); close() }}>Duplicar</button>}
+          {key && <button onClick={() => { toOtherKits(key, lp); close() }}>Adicionar aos outros kits</button>}
+        </div>
+      )
+    })()}
     {vecEdit && (() => {
       const V = kit.layers.find((x) => x.id === vecEdit)
       if (!V) return null
@@ -1997,6 +2106,31 @@ export function Editor(): JSX.Element {
           <div className="grow" />
           <button className="btn ghost" disabled={!past.length} onClick={undo} title="Desfazer (Ctrl+Z)">↶</button>
           <button className="btn ghost" disabled={!future.length} onClick={redo} title="Refazer (Ctrl+Y)">↷</button>
+          <span className="hist-wrap">
+            <button className={'btn ghost' + (histOpen ? ' active' : '')} disabled={!past.length && !future.length} onClick={() => setHistOpen(!histOpen)} title="Histórico: volta atrás ou para a frente nas alterações">🕘</button>
+            {histOpen && (() => {
+              const all = [...past, project, ...future]
+              const cur = past.length
+              const from = Math.max(0, all.length - 120)
+              return (
+                <div className="hist-pop" onPointerDown={(e) => e.stopPropagation()}>
+                  <div className="hist-head"><b>Histórico</b><span className="muted small">{all.length - 1} passos</span></div>
+                  <div className="hist-list">
+                    {all.slice(from).map((p, j) => {
+                      const i = from + j
+                      const t = stepTime.get(p)
+                      return (
+                        <button key={i} className={'hist-item' + (i === cur ? ' cur' : i > cur ? ' fut' : '')} onClick={() => jumpHistory(i)}>
+                          <span>{describeStep(i ? all[i - 1] : undefined, p)}</span>
+                          <span className="muted small">{t ? new Date(t).toLocaleTimeString().slice(0, 8) : ''}</span>
+                        </button>
+                      )
+                    }).reverse()}
+                  </div>
+                </div>
+              )
+            })()}
+          </span>
           <button className="btn" onClick={async () => {
             if (!kit) return
             const b = await (await composeKit(kit, project.assets)).convertToBlob({ type: 'image/png' })

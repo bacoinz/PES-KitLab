@@ -69,10 +69,10 @@ export function ColorInput({ value, onChange }: { value: string; onChange: (v: s
   const arm = (): void => armColorTarget(onChange)
   return (
     <span className="color-input" onPointerDown={arm} onFocus={arm}>
-      <Swatch value={/^#[0-9a-f]{6}$/i.test(value) ? value : '#000000'} onChange={onChange} className="swatch-btn color-sw" />
+      <Swatch value={/^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(value) ? value : '#000000'} onChange={onChange} className="swatch-btn color-sw" />
       <input
         className="hex" value={txt} spellCheck={false}
-        onChange={(e) => { setTxt(e.target.value); if (/^#[0-9a-f]{6}$/i.test(e.target.value)) onChange(e.target.value.toLowerCase()) }}
+        onChange={(e) => { setTxt(e.target.value); if (/^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(e.target.value)) onChange(e.target.value.toLowerCase()) }}
       />
     </span>
   )

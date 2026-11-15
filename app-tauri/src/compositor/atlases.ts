@@ -44,6 +44,16 @@ export async function atlasImage(teamId: number, slot: string, part: NumberPart,
     ? { ...spec, mode: own.mode as NumbersSpec['mode'], fill: own.fill, outline: own.outline, outlineWidth: own.outlineWidth, font: own.font, backAsset: own.asset, legAsset: own.asset, fileRecolor: own.recolor }
     : spec
   const withOutline = (c: OffscreenCanvas): OffscreenCanvas => (eff.mode !== 'font' && eff.outlineWidth > 0 ? outlineAtlas(c, eff.outline, eff.outlineWidth) : c)
+  if (own && own.mode === 'recolor' && part !== 'name') {
+    // chest / shorts "Recolorir": the same numbers as the back (the back's own file when one was loaded, else the
+    // game's), only with these colours — no need to load the file again
+    const src = spec.mode === 'file'
+      ? (await assetRgba(part === 'leg' && spec.legAsset ? assets[spec.legAsset] : spec.backAsset ? assets[spec.backAsset] : undefined)) ?? orig
+      : orig ?? (part === 'leg' ? await originalAtlas(teamId, slot, 'back') : null)
+    if (src) return { img: withOutline(recolorNumbers(src, eff)), orig: src }
+    // nothing to recolour: draw them with the back's font in these colours
+    return { img: renderNumbers(part === 'chest' ? 'back' : part, findBoxes(origPart, null), { ...eff, mode: 'font', font: spec.font }), orig: null }
+  }
   if (eff.mode === 'file') {
     const id = part === 'name' ? eff.nameAsset : part === 'leg' ? eff.legAsset ?? eff.backAsset : eff.backAsset
     const img = await assetRgba(id ? assets[id] : undefined)

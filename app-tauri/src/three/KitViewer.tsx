@@ -243,19 +243,21 @@ export const LIGHT_PRESETS: [LightPreset, string][] = [
   ['day', 'Dia'], ['dayR', 'Dia (dir.)'], ['dayL', 'Dia (esq.)'], ['day2', 'Dia 2'], ['darkR', 'Escuro (dir.)'], ['darkL', 'Escuro (esq.)']
 ]
 type LP = { exp: number; env: number; key: number; color: number; pos: [number, number, number]; fill: number; fpos: [number, number, number]; fcolor?: number }
+// balanced (0.4.0): a white kit at the default slider does not burn out under any preset; a lower ambient (env)
+// and a clear key light make the per-layer shininess visible as highlights
 const LIGHTS: Record<LightPreset, LP> = {
-  hdri: { exp: 1, env: 1, key: 0.55, color: 0xffffff, pos: [1.5, 2.5, 3], fill: 0, fpos: [-2, 1, 2] },
-  studio: { exp: 1.05, env: 0.8, key: 1.1, color: 0xffffff, pos: [0.5, 3, 3], fill: 0.5, fpos: [-2.5, 1.2, 1.5] },
-  default: { exp: 1, env: 0.6, key: 1.3, color: 0xfff8f0, pos: [2, 2.5, 2.5], fill: 0.35, fpos: [-2, 0.8, 1] },
-  default2: { exp: 1, env: 0.6, key: 1.3, color: 0xfff8f0, pos: [-2, 2.5, 2.5], fill: 0.35, fpos: [2, 0.8, 1] },
-  default3: { exp: 1, env: 0.7, key: 1.0, color: 0xffffff, pos: [0, 2, 3.5], fill: 0.5, fpos: [0, 3, -2] },
-  night: { exp: 0.5, env: 0.12, key: 1.3, color: 0xb8c8ff, pos: [0.5, 4, 1.5], fill: 0.25, fpos: [0, 1, -3], fcolor: 0x6f86ff },
-  day: { exp: 1.12, env: 0.9, key: 1.8, color: 0xfff1d8, pos: [1, 4, 3], fill: 0.3, fpos: [-1, 1, 2], fcolor: 0xbfd9ff },
-  dayR: { exp: 1.08, env: 0.8, key: 2.0, color: 0xfff1d8, pos: [4, 3, 1.5], fill: 0.25, fpos: [-2, 1, 2], fcolor: 0xbfd9ff },
-  dayL: { exp: 1.08, env: 0.8, key: 2.0, color: 0xfff1d8, pos: [-4, 3, 1.5], fill: 0.25, fpos: [2, 1, 2], fcolor: 0xbfd9ff },
-  day2: { exp: 1.15, env: 1.1, key: 1.4, color: 0xffffff, pos: [0, 5, 1], fill: 0.4, fpos: [0, 1, 3], fcolor: 0xdfeaff },
-  darkR: { exp: 0.6, env: 0.04, key: 3.2, color: 0xffffff, pos: [4, 1.5, 0.5], fill: 0.0, fpos: [0, 1, 2] },
-  darkL: { exp: 0.6, env: 0.04, key: 3.2, color: 0xffffff, pos: [-4, 1.5, 0.5], fill: 0.0, fpos: [0, 1, 2] }
+  hdri: { exp: 0.95, env: 0.75, key: 0.6, color: 0xffffff, pos: [1.5, 2.5, 3], fill: 0, fpos: [-2, 1, 2] },
+  studio: { exp: 0.95, env: 0.55, key: 0.9, color: 0xffffff, pos: [0.5, 3, 3], fill: 0.3, fpos: [-2.5, 1.2, 1.5] },
+  default: { exp: 0.95, env: 0.45, key: 1.0, color: 0xfff8f0, pos: [2, 2.5, 2.5], fill: 0.25, fpos: [-2, 0.8, 1] },
+  default2: { exp: 0.95, env: 0.45, key: 1.0, color: 0xfff8f0, pos: [-2, 2.5, 2.5], fill: 0.25, fpos: [2, 0.8, 1] },
+  default3: { exp: 0.95, env: 0.5, key: 0.85, color: 0xffffff, pos: [0, 2, 3.5], fill: 0.3, fpos: [0, 3, -2] },
+  night: { exp: 0.75, env: 0.15, key: 1.1, color: 0xb8c8ff, pos: [0.5, 4, 1.5], fill: 0.25, fpos: [0, 1, -3], fcolor: 0x6f86ff },
+  day: { exp: 0.95, env: 0.55, key: 1.25, color: 0xfff1d8, pos: [1, 4, 3], fill: 0.2, fpos: [-1, 1, 2], fcolor: 0xbfd9ff },
+  dayR: { exp: 0.95, env: 0.5, key: 1.35, color: 0xfff1d8, pos: [4, 3, 1.5], fill: 0.2, fpos: [-2, 1, 2], fcolor: 0xbfd9ff },
+  dayL: { exp: 0.95, env: 0.5, key: 1.35, color: 0xfff1d8, pos: [-4, 3, 1.5], fill: 0.2, fpos: [2, 1, 2], fcolor: 0xbfd9ff },
+  day2: { exp: 0.95, env: 0.65, key: 1.0, color: 0xffffff, pos: [0, 5, 1], fill: 0.25, fpos: [0, 1, 3], fcolor: 0xdfeaff },
+  darkR: { exp: 0.8, env: 0.06, key: 2.2, color: 0xffffff, pos: [4, 1.5, 0.5], fill: 0.05, fpos: [0, 1, 2] },
+  darkL: { exp: 0.8, env: 0.06, key: 2.2, color: 0xffffff, pos: [-4, 1.5, 0.5], fill: 0.05, fpos: [0, 1, 2] }
 }
 export type EnvKind = 'room' | 'studio' | 'outdoor'
 export const ENVS: [EnvKind, string][] = [['room', 'Interior'], ['studio', 'Estúdio claro'], ['outdoor', 'Exterior (céu)']]
@@ -564,7 +566,7 @@ export function KitViewer({ texture, version = 0, collar, longSleeves, shortsMod
       s.mat.roughness = shineToRoughness(shine)
     }
     // glossier fabric shows more of the studio reflections
-    s.mat.envMapIntensity = (0.75 + Math.max(0, Math.min(100, shine)) * 0.004) * s.envMul
+    s.mat.envMapIntensity = (0.6 + Math.max(0, Math.min(100, shine)) * 0.008) * s.envMul
     s.mat.needsUpdate = true
     old?.dispose()
   }, [shine, shineMap])
@@ -573,7 +575,7 @@ export function KitViewer({ texture, version = 0, collar, longSleeves, shortsMod
   useEffect(() => {
     const s = st.current
     if (!s) return
-    s.renderer.toneMappingExposure = (0.45 + Math.max(0, Math.min(100, light)) * 0.0105) * (LIGHTS[lightPreset] ?? LIGHTS.hdri).exp
+    s.renderer.toneMappingExposure = (0.5 + Math.max(0, Math.min(100, light)) * 0.0085) * (LIGHTS[lightPreset] ?? LIGHTS.hdri).exp
   }, [light, lightPreset])
 
   // lighting preset, environment and background
@@ -584,7 +586,7 @@ export function KitViewer({ texture, version = 0, collar, longSleeves, shortsMod
     s.key.intensity = L.key; s.key.color.setHex(L.color); s.key.position.set(...L.pos)
     s.fill.intensity = L.fill; s.fill.color.setHex(L.fcolor ?? 0xffffff); s.fill.position.set(...L.fpos)
     s.envMul = L.env
-    s.mat.envMapIntensity = (0.75 + Math.max(0, Math.min(100, shine)) * 0.004) * L.env
+    s.mat.envMapIntensity = (0.6 + Math.max(0, Math.min(100, shine)) * 0.008) * L.env
   }, [lightPreset, shine])
   useEffect(() => {
     const s = st.current

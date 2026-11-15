@@ -27,6 +27,8 @@ export interface Settings {
   /** colours the design grids preview with (1st, 2nd, 3rd colour) and the plain kit under them */
   previewColors?: string[]
   previewBase?: string
+  /** save the open team every N minutes (0 / undefined = off) */
+  autoSave?: 0 | 2 | 5 | 10 | 15
 }
 
 export interface LibraryItem { path: string; name: string; folder: string }
@@ -83,6 +85,8 @@ export interface KcApi {
   templateDirPath(): Promise<string>
   /** colour of the screen pixel under the mouse (eyedropper) */
   screenPixel(): Promise<string>
+  /** why the game may not show this team's kit-server kits (unlicensed club), or null */
+  licenceHint(teamId: number): Promise<string | null>
   deleteDraft(teamId: number): Promise<void>
   listDrafts(): Promise<DraftInfo[]>
 

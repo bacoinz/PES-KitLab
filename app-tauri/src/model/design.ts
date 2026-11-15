@@ -210,13 +210,14 @@ export interface Logos {
   sleeveBadges?: LogoPlacement[]
   shortsCrest: LogoPlacement
   shortsBrand: LogoPlacement
-  shortsSponsor?: LogoPlacement
+  shortsSponsor?: LogoPlacement // legacy single shorts sponsor (migrated into shortsSponsors)
+  shortsSponsors?: LogoPlacement[]
   socksBrand: LogoPlacement
 }
 
 export type CollarStyle = 'solid' | 'tipped' | 'twoTone' | 'stripes2' | 'stripes3' | 'threeColor' | 'half' | 'front' | 'back' | 'halftone'
   | 'vInsert' | 'vInsert3' | 'vSlim' | 'placket'
-  | 'front1' | 'front2' | 'front3' | 'innerTrim' | 'doubleTrim' | 'stripes4' | 'vSlimL' | 'vSlimR' | 'vInsertR3' | 'vLine' | 'placketStripe' | 'placketWide'
+  | 'front1' | 'front2' | 'front3' | 'innerTrim' | 'outerTrim' | 'doubleTrim' | 'stripes4' | 'vSlimL' | 'vSlimR' | 'vInsertR3' | 'vLine' | 'placketStripe' | 'placketWide'
 /**
  * Collar design. `front`: the part of the collar model that lies on the chest (flaps, lining) — 'base' paints it
  * in the shirt colour (default: no torso design showing through in pieces), 'design' leaves the shirt design.
@@ -224,7 +225,7 @@ export type CollarStyle = 'solid' | 'tipped' | 'twoTone' | 'stripes2' | 'stripes
 export interface CollarSpec { style: CollarStyle; c1: string; c2: string; c3: string; front?: 'design' | 'base' | 'color'; frontColor?: string; width?: number }
 export interface CuffSpec { style: 'none' | 'solid' | 'tipped' | 'stripes2' | 'stripes3'; c1: string; c2: string; width: number; stitch?: StitchSpec }
 export interface FabricLayer { id: string; source: string /* builtin id or asset:<id> */; zones: FabricZone[]; opacity: number; scale: number; blend: GlobalCompositeOperation; visible: boolean; v2?: boolean /* zones include shorts / socks explicitly */ }
-export interface ArmbandSpec { show: boolean; fill: Fill; text: string; textColor: string; font: string; crest?: boolean; crestSize?: number; pattern?: string; patternColor?: string; patternScale?: number /* % */; patternAngle?: number; patternWidth?: number /* % */; patternDx?: number }
+export interface ArmbandSpec { all?: boolean /* same in every kit of the team */; show: boolean; fill: Fill; text: string; textColor: string; font: string; crest?: boolean; crestSize?: number; pattern?: string; patternColor?: string; patternScale?: number /* % */; patternAngle?: number; patternWidth?: number /* % */; patternDx?: number }
 
 /** Own look for the chest or shorts number (otherwise they use the back numbers). */
 export interface PartNumSpec { mode: 'same' | 'recolor' | 'font' | 'file'; fill: string; outline: string; outlineWidth: number; font: string; asset?: string; recolor?: boolean }
@@ -356,6 +357,8 @@ export function normalizeLogos(lg: Logos): Logos {
   if (!l.sleeveBadges?.length && l.sleeveBadge?.assetId) l.sleeveBadges = [{ ...l.sleeveBadge, side: l.sleeveBadge.side ?? 'both' }]
   l.sponsors ??= []; l.backSponsors ??= []; l.sleeveBadges ??= []
   l.shortsSponsor ??= { enabled: false, tint: 'auto', size: 160, dx: 0, dy: 0, spot: 'back' }
+  // several shorts sponsors (0.4.0): the old single one becomes the first of the list
+  if (!l.shortsSponsors) { l.shortsSponsors = l.shortsSponsor.assetId ? [{ ...l.shortsSponsor }] : []; l.shortsSponsor = { ...l.shortsSponsor, enabled: false, assetId: undefined } }
   return l
 }
 
@@ -477,3 +480,40 @@ export const uid = (): string => Math.random().toString(36).slice(2, 10)
 
 /** p1, p2, p3, p4, g1, g2 */
 export const slotOrder = (a: string, b: string): number => (a[0] === b[0] ? a.localeCompare(b) : a[0] === 'p' ? -1 : 1)
+
+/**
+ * "Copy to all kits" for logos: what the other kit already has (same image) stays as it is; what is missing is
+ * added. Without colours, a logo that fills an empty place keeps that kit's own colour settings for it.
+ */
+export function mergeLogos(to: Logos, from: Logos, withColors: boolean): Logos {
+  const src = JSON.parse(JSON.stringify(from)) as Logos
+  const look = (t: LogoPlacement, s: LogoPlacement): LogoPlacement => (withColors ? s : { ...s, tint: t.tint, color: t.color, outlineColor: t.outlineColor, outlineWidth: t.outlineWidth })
+  const one = (t: LogoPlacement | undefined, s: LogoPlacement | undefined): LogoPlacement | undefined => {
+    if (!s) return t
+    if (!t) return s
+    if (t.assetId && t.assetId === s.assetId && t.enabled) return withColors ? { ...t, tint: s.tint, color: s.color, outlineColor: s.outlineColor, outlineWidth: s.outlineWidth } : t
+    return s.assetId || s.enabled ? look(t, s) : t
+  }
+  const list = (t: LogoPlacement[] | undefined, s: LogoPlacement[] | undefined): LogoPlacement[] => {
+    const out = [...(t ?? [])]
+    for (const x of s ?? []) {
+      const i = out.findIndex((y) => (x.brand ? y.brand : !!x.assetId && y.assetId === x.assetId))
+      if (i < 0) out.push(withColors || x.tint === 'original' ? x : { ...x, tint: 'auto', color: undefined })
+      else if (withColors) out[i] = { ...out[i], tint: x.tint, color: x.color, outlineColor: x.outlineColor, outlineWidth: x.outlineWidth }
+    }
+    return out
+  }
+  return {
+    ...to,
+    crest: one(to.crest, src.crest)!, brand: one(to.brand, src.brand)!, shortsCrest: one(to.shortsCrest, src.shortsCrest)!, shortsBrand: one(to.shortsBrand, src.shortsBrand)!, socksBrand: one(to.socksBrand, src.socksBrand)!,
+    sponsors: list(to.sponsors, src.sponsors), backSponsors: list(to.backSponsors, src.backSponsors), sleeveBadges: list(to.sleeveBadges, src.sleeveBadges), shortsSponsors: list(to.shortsSponsors, src.shortsSponsors)
+  }
+}
+
+/** "Copy to all kits" for numbers / names / fonts: without colours each kit keeps its own number colours. */
+export function copyNumbers(to: NumbersSpec, from: NumbersSpec, withColors: boolean): NumbersSpec {
+  const s = JSON.parse(JSON.stringify(from)) as NumbersSpec
+  if (withColors) return s
+  const part = (t: PartNumSpec | undefined, x: PartNumSpec | undefined): PartNumSpec | undefined => (x && t ? { ...x, fill: t.fill, outline: t.outline } : x)
+  return { ...s, fill: to.fill, outline: to.outline, chest: part(to.chest, s.chest), leg: part(to.leg, s.leg) }
+}

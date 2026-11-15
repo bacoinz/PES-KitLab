@@ -474,6 +474,9 @@ async fn export_team(app: AppHandle, request: Request<'_>) -> R<ExportResult> {
 async fn restore_original(app: AppHandle, team_id: u32) -> R<ExportResult> {
     blocking(move || app.state::<AppState>().store()?.restore_original(team_id).map_err(e2s)).await
 }
+/// Why the game may not show this team's kits (club of an editable-kits pack), or None.
+#[tauri::command]
+fn licence_hint(st: State<AppState>, team_id: u32) -> Option<String> { st.store().ok()?.unlicensed_hint(team_id) }
 #[tauri::command]
 fn list_snapshots(st: State<AppState>, team_id: u32) -> R<Vec<SnapshotInfo>> { Ok(st.store()?.list_snapshots(team_id)) }
 #[tauri::command]
@@ -711,7 +714,7 @@ pub fn run() {
             get_settings, get_version, save_settings, pick_folder, pick_files, save_file, open_game, list_teams, read_kit_texture,
             read_emblem, read_model, list_collars, list_number_sets, read_file, decode_image_file, fetch_url, list_library, list_textures, export_team,
             restore_original, list_snapshots, save_snapshot, rename_snapshot, delete_snapshot, activate_snapshot, load_snapshot_project,
-            export_snapshot_zip, backup_original_zip, open_path, save_draft, load_draft, delete_draft, list_drafts, launch_game, save_user_template, list_user_templates, delete_user_template, list_template_images, template_dir_path, screen_pixel,
+            export_snapshot_zip, backup_original_zip, open_path, save_draft, load_draft, delete_draft, list_drafts, launch_game, save_user_template, list_user_templates, delete_user_template, list_template_images, template_dir_path, screen_pixel, licence_hint,
             script_result
         ])
         .setup(|app| {

@@ -149,6 +149,30 @@ impl Store {
         self.gi.read().unwrap().paths.kits_root.clone().ok_or_else(|| anyhow!("Sider kit-server não encontrado (pasta content\\kits)"))
     }
     fn sider_dir(&self) -> Option<PathBuf> { self.gi.read().unwrap().paths.sider_dir.clone() }
+    /// A club made by an FL26 Mod Studio pack built with "Kits you can edit in the game" (editable_kits) borrows no
+    /// kit of the game: the Sider Kit Server then treats it as unlicensed and switches its kit-server kits off
+    /// ("team is unlicensed. Disabling kits."). Our files are right, but the game won't show them: say so.
+    pub fn unlicensed_hint(&self, team_id: u32) -> Option<String> {
+        use std::io::{Read, Seek, SeekFrom};
+        let live = self.sider_dir()?.join("livecpk");
+        let id = team_id.to_string();
+        for e in fs::read_dir(&live).ok()?.flatten() {
+            let d = e.path();
+            let Ok(world) = fs::read_to_string(d.join("fl26world.txt")) else { continue };
+            if !world.split_whitespace().any(|w| w == id) { continue }
+            let Ok(mut f) = fs::File::open(d.join("leaguebuilder-plan.json")) else { continue };
+            let len = f.metadata().ok()?.len();
+            let _ = f.seek(SeekFrom::Start(len.saturating_sub(8 << 20)));
+            let mut tail = String::new();
+            let mut buf = vec![];
+            if f.read_to_end(&mut buf).is_err() { continue }
+            tail.push_str(&String::from_utf8_lossy(&buf));
+            if regex::Regex::new(r#""editable_kits"\s*:\s*true"#).ok()?.is_match(&tail) {
+                return Some(format!("Atenção: esta equipa vem do pack {} feito com \"Kits you can edit in the game\"; o Sider desliga os kits do kit-server dessas equipas (sem kit licenciado). Volta a gerar o pack no FL26 Mod Studio sem essa opção para os kits aparecerem.", e.file_name().to_string_lossy()));
+            }
+        }
+        None
+    }
     fn our_livecpk(&self) -> Result<PathBuf> {
         Ok(self.sider_dir().ok_or_else(|| anyhow!("Sider não encontrado"))?.join("livecpk").join(OUR_ROOT_NAME))
     }
@@ -259,6 +283,7 @@ impl Store {
         }
         let mut r = self.activate_snapshot(t.team_id, &snap_id)?;
         r.snapshot_id = Some(snap_id);
+        if let Some(h) = self.unlicensed_hint(t.team_id) { r.message = format!("{} · {}", r.message, h); }
         Ok(r)
     }
 
