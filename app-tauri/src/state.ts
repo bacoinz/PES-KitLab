@@ -453,7 +453,7 @@ export async function exportKitserverTeams(ids: number[], destFolder?: string): 
   const dest = destFolder ?? preset ?? await window.kc.pickFolder('Pasta onde guardar os kits (formato kitserver)')
   if (!dest) return
   const used = new Set<string>()
-  let ok = 0, skipped = 0
+  let ok = 0, skipped = 0, lastFolder = dest
   const errors: string[] = []
   for (const [i, id] of ids.entries()) {
     const j = await window.kc.loadDraft(id)
@@ -468,9 +468,12 @@ export async function exportKitserverTeams(ids: number[], destFolder?: string): 
       const { t } = await buildTeamExport(p)
       await window.kc.exportKitserver(t, folder)
       ok++
+      lastFolder = folder
     } catch (e) { errors.push(`${p.teamName}: ${String((e as Error).message ?? e)}`) }
   }
   useApp.setState({ progress: '' })
+  // show the result: the club's folder for one team, the export folder for several (not in scripted runs)
+  if (ok && !destFolder) void window.kc.openPath(ok === 1 ? lastFolder : dest)
   if (errors.length) st.notify('err', errors.join(' · '))
   else if (!ok) st.notify('err', 'Nenhuma das equipas tem trabalho guardado para exportar')
   else st.notify('ok', `${ok} equipa(s) exportada(s) em formato kitserver para ${dest}${skipped ? ` (${skipped} sem trabalho guardado)` : ''}`)

@@ -2,6 +2,10 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.11] - 2026-11-17
+### Changed
+- After exporting kits, the destination folder opens (the club's folder for one team, the export folder for several).
+
 ## [0.4.10] - 2026-11-17
 ### Added
 - Settings → General: default folder for kit export, with an "Always ask" checkbox (when ticked, the folder is chosen each time and the saved one is disabled).
