@@ -2,6 +2,12 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.10] - 2026-11-17
+### Added
+- Settings → General: default folder for kit export, with an "Always ask" checkbox (when ticked, the folder is chosen each time and the saved one is disabled).
+### Changed
+- Export always creates a folder named after the club first (also for a single team).
+
 ## [0.4.9] - 2026-11-17
 ### Added
 - New "Export" button (header, for the selected teams, and on each team card) that saves the kits in the Sider kit-server layout (`p1/`, `g1/`…, `order.ini`, `gk_order.ini`) to a folder you choose; with several teams, one sub-folder per club.

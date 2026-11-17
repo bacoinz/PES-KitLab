@@ -23,6 +23,9 @@ export interface Settings {
   defaultFormat: 'DXT5' | 'BC7'
   exportSize?: 512 | 1024 | 2048 | 4096 // kit texture size written for the game (default 2048)
   lang: 'pt' | 'en' | 'es'
+  /** default folder for "Exportar" (kit-server layout) and whether to ask each time (undefined = ask) */
+  kitExportDir?: string
+  kitExportAsk?: boolean
   defaults?: KitDefaults
   /** colours the design grids preview with (1st, 2nd, 3rd colour) and the plain kit under them */
   previewColors?: string[]

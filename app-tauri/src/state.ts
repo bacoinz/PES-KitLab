@@ -445,10 +445,12 @@ export async function exportProject(p: TeamProject, onStep?: (m: string) => void
 }
 
 /** Export the kits of these teams (their saved work) in the kit-server layout, into a folder the user picks.
- *  One team → files straight in the folder; several → one sub-folder per club. */
+ *  The folder comes from Settings (unless "ask always") and each club gets a sub-folder with its name. */
 export async function exportKitserverTeams(ids: number[], destFolder?: string): Promise<void> {
   const st = useApp.getState()
-  const dest = destFolder ?? await window.kc.pickFolder('Pasta onde guardar os kits (formato kitserver)')
+  const cfg = st.settings
+  const preset = !(cfg?.kitExportAsk ?? true) && cfg?.kitExportDir ? cfg.kitExportDir : undefined
+  const dest = destFolder ?? preset ?? await window.kc.pickFolder('Pasta onde guardar os kits (formato kitserver)')
   if (!dest) return
   const used = new Set<string>()
   let ok = 0, skipped = 0
@@ -459,13 +461,10 @@ export async function exportKitserverTeams(ids: number[], destFolder?: string): 
     const p = JSON.parse(j) as TeamProject
     useApp.setState({ progress: `A exportar ${i + 1}/${ids.length}: ${p.teamName}` })
     try {
-      let folder = dest
-      if (ids.length > 1) {
-        let n = p.teamName.replace(/[<>:"/|?*#\x00-\x1f]|\\/g, '_').trim().replace(/\.+$/, '') || String(id)
-        if (used.has(n.toLowerCase())) n = `${n} (${id})`
-        used.add(n.toLowerCase())
-        folder = dest.replace(/[\\/]+$/, '') + '\\' + n
-      }
+      let n = p.teamName.replace(/[<>:"/|?*#\x00-\x1f]|\\/g, '_').trim().replace(/\.+$/, '') || String(id)
+      if (used.has(n.toLowerCase())) n = `${n} (${id})`
+      used.add(n.toLowerCase())
+      const folder = dest.replace(/[\\/]+$/, '') + '\\' + n
       const { t } = await buildTeamExport(p)
       await window.kc.exportKitserver(t, folder)
       ok++

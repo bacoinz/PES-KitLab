@@ -148,7 +148,7 @@ export function Teams(): JSX.Element {
           <button className="btn primary" disabled={!pendingIds.length || !!progress} title="Escreve no jogo todas as equipas com alterações guardadas" onClick={() => {
             if (confirm(`Importar ${pendingIds.length} equipa(s) com alterações para o jogo? Os originais podem ser repostos em "Versões".`)) exportTeams(pendingIds)
           }}>⬆ Importar para o jogo ({pendingIds.length})</button>
-          <button className="btn" disabled={!bulkSelection.length || !!progress} title="Guarda os kits das equipas selecionadas numa pasta, no formato do Sider kit-server (uma pasta por clube se forem várias)" onClick={() => exportKitserverTeams(bulkSelection)}>Exportar ({bulkSelection.length})</button>
+          <button className="btn" disabled={!bulkSelection.length || !!progress} title="Guarda os kits das equipas selecionadas numa pasta (uma pasta por clube), no formato do Sider kit-server" onClick={() => exportKitserverTeams(bulkSelection)}>Exportar ({bulkSelection.length})</button>
           <button className="btn play" title="Arranca o Sider (se não estiver aberto) e depois o jogo" onClick={() => {
             window.kc.launchGame().then((m) => notify('ok', m), (e) => notify('err', String((e as Error)?.message ?? e)))
           }}>▶ ABRIR JOGO</button>

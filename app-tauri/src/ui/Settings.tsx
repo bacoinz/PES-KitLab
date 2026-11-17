@@ -54,6 +54,18 @@ export function Settings(): JSX.Element {
           <button className="btn small ghost" onClick={() => { if (!confirm('Repor as preferências da interface (painéis, vista 3D, cores guardadas)?')) return; try { Object.keys(localStorage).filter((k) => k.startsWith('kc.')).forEach((k) => localStorage.removeItem(k)) } catch { /* ignore */ } notify('ok', 'Preferências repostas') }}>Repor preferências da interface</button>
         </div>
 
+        <div className="set-sub">Pasta de exportação dos kits</div>
+        <div className="set-row">
+          <code className="grow" style={{ opacity: settings?.kitExportAsk ?? true ? 0.45 : 1 }}>{settings?.kitExportDir || '—'}</code>
+          <button className="btn small" disabled={settings?.kitExportAsk ?? true} onClick={async () => {
+            const d = await window.kc.pickFolder('Pasta predefinida para exportar os kits')
+            if (d) await save({ kitExportDir: d })
+          }}>Alterar…</button>
+          {settings?.kitExportDir && <button className="btn small ghost" onClick={() => window.kc.openPath(settings.kitExportDir!)}>Abrir</button>}
+        </div>
+        <label className="check"><input type="checkbox" checked={settings?.kitExportAsk ?? true} onChange={(e) => save({ kitExportAsk: e.target.checked })} /> Perguntar sempre</label>
+        <div className="muted small">Cada clube é exportado para uma pasta com o seu nome dentro desta pasta.</div>
+
         <div className="set-sub">Gravação automática</div>
         <div className="set-grid">
           <label>Guardar a equipa aberta</label>{sel(settings?.autoSave ?? 0, [[0, 'Desligada'], [2, 'De 2 em 2 minutos'], [5, 'De 5 em 5 minutos'], [10, 'De 10 em 10 minutos'], [15, 'De 15 em 15 minutos']], (v) => save({ autoSave: Number(v) as S['autoSave'] }))}
