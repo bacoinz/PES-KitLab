@@ -15,7 +15,8 @@ const CX = 1024, CY = 1400, BIG = 2600
 const EDGE: Param = { key: 'edge', label: 'Borda', def: 'straight', options: [['straight', 'Reta'], ['zigzag', 'Zigue-zague'], ['waves', 'Ondas']] }
 const MODE: Param = { key: 'mode', label: 'Modo', def: 'noCenter', options: [['noCenter', 'Sem risca central'], ['center', 'Com risca central'], ['offL', 'Desfasado (esq.)'], ['offR', 'Desfasado (dir.)']] }
 const shapeParams = (): Param[] => [
-  { key: 'outline', label: 'Contorno', def: false },
+  { key: 'outline', label: 'Só o contorno', def: false },
+  { key: 'ow', label: 'Espessura do contorno', min: 0, max: 120, def: 0 },
   { key: 'w', label: 'Largura', min: 1, max: 900, def: 150 },
   { key: 'h', label: 'Altura', min: 1, max: 900, def: 200 },
   { key: 'round', label: 'Arredondamento', min: 0, max: 100, def: 0 }
@@ -43,9 +44,10 @@ export const DESIGNS: DesignDef[] = [
   {
     id: 'shapes', label: 'Padrão de formas', group: 'Formas', colors: 1, params: [
       { key: 'shape', label: 'Forma', def: 'circle', options: [['circle', 'Círculo'], ['square', 'Quadrado'], ['triangle', 'Triângulo'], ['diamond', 'Losango'], ['star', 'Estrela'], ['hexagon', 'Hexágono']] },
-      { key: 'outline', label: 'Contorno', def: false },
-      { key: 'w', label: 'Largura', min: 1, max: 800, def: 40 },
-      { key: 'h', label: 'Altura', min: 1, max: 800, def: 40 },
+      { key: 'outline', label: 'Só o contorno', def: false },
+      { key: 'ow', label: 'Espessura do contorno', min: 0, max: 120, def: 0 },
+      { key: 'w', label: 'Largura da forma', min: 1, max: 800, def: 40 },
+      { key: 'h', label: 'Altura da forma', min: 1, max: 800, def: 40 },
       { key: 'round', label: 'Arredondamento', min: 0, max: 100, def: 0 },
       { key: 'srot', label: 'Rotação da forma', min: -180, max: 180, def: 0 },
       { key: 'squeeze', label: 'Achatamento', min: -100, max: 100, def: 0 },
@@ -130,9 +132,15 @@ function shapePath(g: G, kind: string, x: number, y: number, w: number, h: numbe
     default: g.roundRect(x - w / 2, y - h / 2, w, h, r)
   }
 }
-function drawShape(g: G, kind: string, x: number, y: number, w: number, h: number, round: number, outline: boolean): void {
+function drawShape(g: G, kind: string, x: number, y: number, w: number, h: number, round: number, outline: boolean, ow = 0, c0?: string, c1?: string): void {
   shapePath(g, kind, x, y, w, h, round)
-  if (outline) { g.lineWidth = Math.max(2, Math.min(w, h) * 0.12); g.stroke() } else g.fill()
+  // filled in colour 1; the outline (own thickness) in colour 2 ("Cor do contorno"); "Só o contorno" = no fill
+  if (!outline) { if (c0) g.fillStyle = c0; g.fill() }
+  if (outline || ow > 0) {
+    g.lineWidth = ow > 0 ? ow : Math.max(2, Math.min(w, h) * 0.12)
+    if (c1) g.strokeStyle = c1
+    g.stroke()
+  }
 }
 
 /** Draw the design. `col(i)` → colour of slot i; `stops` for the gradient designs. */
@@ -144,7 +152,7 @@ export function drawDesign(g: G, L: OverlayLayer, col: (i: number) => string, ma
   const id = designDef(L.design).id
   switch (id) {
     case 'rect': case 'triangle': case 'circle':
-      fill(0); drawShape(g, id === 'rect' ? 'square' : id, CX, CY, n('w'), n('h'), n('round'), b('outline')); break
+      fill(0); drawShape(g, id === 'rect' ? 'square' : id, CX, CY, n('w'), n('h'), n('round'), b('outline'), n('ow'), col(0), col(1)); break
     case 'shapes': {
       fill(0)
       const w = n('w'), h = n('h') * (1 - n('squeeze') / 200), d = n('dist'), r = n('ratio') / 100
@@ -154,7 +162,7 @@ export function drawDesign(g: G, L: OverlayLayer, col: (i: number) => string, ma
         if (layout === 'alt' && (i + j) % 2) continue
         const x = CX + i * gx + (layout === 'offset' && j % 2 ? gx / 2 : 0), y = CY + j * gy + (layout === 'voffset' && i % 2 ? gy / 2 : 0)
         g.save(); g.translate(x, y); g.rotate((n('srot') * Math.PI) / 180)
-        drawShape(g, s('shape'), 0, 0, w, h, n('round'), b('outline'))
+        drawShape(g, s('shape'), 0, 0, w, h, n('round'), b('outline'), n('ow'), col(0), col(1))
         g.restore()
       }
       break

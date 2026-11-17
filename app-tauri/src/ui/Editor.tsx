@@ -2,10 +2,10 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useApp, assetFromFile, rawAssetFromFile, previewAssetFromFile, PRESET_TEAM, USER_TPL_TEAM, stepTime } from '../state'
 import type { PanelStyle, TextPlacement, PanelKind, KitDesign, OverlayLayer, Asset, LogoPlacement, LogoTint, Fill, PatternSpec, FabricLayer, FabricZone, Zone, Logos, StitchKind, StitchSpec } from '../model/design'
 import { describeStep } from './history'
-import { PANEL_STYLES, SLOT_LABEL, uid, defaultDesign, contrastOn, slotOrder, solid, fillMain, normalizeGroups, dropLayer, migrateKit, LOGO_SIZES, NUMBER_DEFAULTS, STITCH_KINDS, mergeLogos, copyNumbers } from '../model/design'
+import { PANEL_STYLES, SLOT_LABEL, uid, defaultDesign, contrastOn, slotOrder, solid, fillMain, normalizeGroups, dropLayer, migrateKit, LOGO_SIZES, NUMBER_DEFAULTS, STITCH_KINDS, mergeLogos, copyNumbers, groupColors, swapGroupColor, resolveGroups } from '../model/design'
 import { TEMPLATES, applyTemplate } from '../model/templates'
 import { TORSO_PATTERNS, SLEEVE_PATTERNS, SHORTS_PATTERNS, SOCKS_PATTERNS, TEXTURES, STROKES } from '../compositor/patterns'
-import { composeKit, composeLive, composeShine, COLLAR_DESIGNS, frontThumb } from '../compositor/compose'
+import { composeKit, composeLive, composeShine, COLLAR_DESIGNS, collarParams, collarDefaults, frontThumb } from '../compositor/compose'
 import { decorationOverlay, type GlyphAtlas } from '../compositor/decorate'
 import { loadAtlases } from '../compositor/atlases'
 import { FABRICS } from '../compositor/fabric'
@@ -108,6 +108,8 @@ const partSpec = (k: KitDesign, part: 'chest' | 'leg'): PartNumSpec => k.numbers
 const newLogo = (size: number, extra: Partial<LogoPlacement> = {}): LogoPlacement => ({ enabled: true, tint: 'auto', size, dx: 0, dy: 0, ...extra })
 
 /** Layers copied with the right-click menu (kept while the app is open, so they can be pasted into another kit). */
+/** Drag type of the layer list (rows, fixed rows, mask handles): other drops are ignored. */
+const KC_DRAG = 'application/x-kitlab-layer'
 let layerClipboard: { layers: OverlayLayer[]; assets: Record<string, Asset> } | null = null
 /** Right-click copy of a logo / sponsor (its image, colours, size and place), also between kits and teams. */
 let logoClipboard: { lp: LogoPlacement; asset?: Asset } | null = null
@@ -149,8 +151,9 @@ function LogoBlock({ title, lp, assets, onChange, onAsset, folderHint, onRemove,
           <Row label="Contorno"><Slider value={lp.outlineWidth ?? 0} min={0} max={30} onChange={(outlineWidth) => onChange({ ...lp, outlineWidth })} /></Row>
           {(lp.outlineWidth ?? 0) > 0 && <Row label="Cor do contorno"><ColorInput value={lp.outlineColor ?? '#ffffff'} onChange={(outlineColor) => onChange({ ...lp, outlineColor })} /></Row>}
           <Row label="Tamanho"><Slider value={lp.size} min={30} max={700} onChange={(size) => onChange({ ...lp, size })} /></Row>
-          <Row label="Esquerda / direita"><Slider value={lp.dx} min={-250} max={250} onChange={(dx) => onChange({ ...lp, dx })} /></Row>
-          <Row label="Baixo / cima"><Slider invert value={lp.dy} min={-250} max={250} onChange={(dy) => onChange({ ...lp, dy })} /></Row>
+          <Row label="Esquerda / direita"><Slider value={lp.dx} min={-600} max={600} snaps={[0]} onChange={(dx) => onChange({ ...lp, dx })} /></Row>
+          <Row label="Baixo / cima"><Slider invert value={lp.dy} min={-600} max={600} snaps={[0]} onChange={(dy) => onChange({ ...lp, dy })} /></Row>
+          <Row label="Rotação"><Slider value={lp.rot ?? 0} min={-180} max={180} snaps={ROT_SNAPS} onChange={(rot) => onChange({ ...lp, rot: rot || undefined })} /></Row>
           {ownShine !== undefined && <ShineRow value={lp.shine} fallback={ownShine} onChange={(shine) => onChange({ ...lp, shine })} />}
         </>
       )}
@@ -696,27 +699,38 @@ export function Editor(): JSX.Element {
     )
     if (L.kind === 'group') {
       const members = kit.layers.filter((x) => x.group === L.id)
-      // move every member that has a position (panels follow the seams and stay put)
-      const nudge = (ddx: number, ddy: number): void => up((k) => ({
-        ...k,
-        layers: k.layers.map((x) => {
-          if (x.group !== L.id || x.kind === 'panel') return x
-          const free = x.kind === 'text' || (x.kind === 'image' && x.fit !== 'part')
-          return free ? { ...x, x: (x.x ?? 1024) + ddx, y: (x.y ?? (x.kind === 'text' ? 1100 : 1300)) + ddy } : { ...x, dx: (x.dx ?? 0) + ddx, dy: (x.dy ?? 0) + ddy }
-        })
-      }))
-      const steps: [string, number, number][] = [['←', -20, 0], ['→', 20, 0], ['↑', 0, -20], ['↓', 0, 20]]
+      const gcols = groupColors(kit.layers, L.id)
+      const offMaxG = members.some((m) => (m.zones ?? []).includes('sleeves')) ? 2000 : 500
       return (
-        <div className="layer-body">
+        <div className="layer-body pm">
           <Row label="Nome"><input value={L.name ?? ''} placeholder="Grupo" onChange={(e) => ch({ name: e.target.value || undefined })} /></Row>
-          <div className="muted small">{members.length ? `${members.length} camada(s). Para pôr outra camada no grupo, abre-a e escolhe o grupo.` : 'Grupo vazio: abre uma camada e escolhe este grupo em "Grupo".'}</div>
-          <Row label="Opacidade"><Slider value={Math.round(L.opacity * 100)} min={0} max={100} onChange={(o) => ch({ opacity: o / 100 })} /></Row>
-          <Row label="Mover tudo">
-            <div className="btn-row">{steps.map(([t, a, b]) => <button key={t} className="btn small" onClick={() => nudge(a, b)}>{t}</button>)}</div>
-          </Row>
+          <div className="muted small">{members.length ? `${members.length} camada(s). Para pôr outra camada no grupo, arrasta-a para o grupo ou abre-a e escolhe o grupo.` : 'Grupo vazio: arrasta camadas para cima do grupo.'}</div>
+          <div className="pm-sep" />
+          {gcols.length > 0 && (
+            <Row label="Cores do grupo">
+              <span className="sw-row">{gcols.map((c) => <Swatch key={c} value={c} title={'Trocar ' + c + ' em todas as camadas do grupo'} onChange={(v) => up((k) => ({ ...k, layers: swapGroupColor(k.layers, L.id, c, v) }))} />)}</span>
+            </Row>
+          )}
           {stitchRow}
-          <div className="muted small">A costura do grupo contorna tudo o que as camadas dele desenham juntas.</div>
-          <button className="btn small" onClick={() => up((k) => ({ ...k, layers: k.layers.filter((x) => x.id !== L.id).map((x) => (x.group === L.id ? { ...x, group: undefined } : x)) }))}>Desagrupar</button>
+          {shineRow}
+          <div className="muted small">O brilho do grupo, quando ligado, vale para todas as camadas dele.</div>
+          <div className="pm-sep" />
+          <Row label="Deslocamento (x)"><Slider value={L.dx ?? 0} min={-offMaxG} max={offMaxG} snaps={[0]} onChange={(dx) => ch({ dx: dx || undefined })} /></Row>
+          <Row label="Deslocamento (y)"><Slider value={-(L.dy ?? 0)} min={-offMaxG} max={offMaxG} snaps={[0]} onChange={(y) => ch({ dy: -y || undefined })} /></Row>
+          <Row label="Tamanho"><Slider value={L.zoom ?? 100} min={10} max={800} onChange={(zoom) => ch({ zoom: zoom === 100 ? undefined : zoom })} /></Row>
+          <Row label="Rotação"><Slider value={L.rotation ?? 0} min={-180} max={180} snaps={ROT_SNAPS} onChange={(rotation) => ch({ rotation: rotation || undefined })} /></Row>
+          <div className="muted small">Aplicados por cima dos valores de cada camada (os painéis e as golas seguem as costuras e não se mexem).</div>
+          <div className="pm-sep" />
+          <Row label="Modo de mistura"><BlendSelect value={(L.blend ?? 'source-over') as string} onChange={(b) => ch({ blend: b === 'source-over' ? undefined : b as GlobalCompositeOperation })} /></Row>
+          <Row label="Opacidade"><Slider value={Math.round(L.opacity * 100)} min={0} max={100} onChange={(o) => ch({ opacity: o / 100 })} /></Row>
+          <div className="pm-sep" />
+          <div className="btn-row">
+            <button className="btn small" onClick={() => ch({ dx: undefined, dy: undefined, zoom: undefined, rotation: undefined, blend: undefined, shine: undefined, opacity: 1, stitch: undefined })}>Repor valores por defeito</button>
+            <button className="btn small" title="As camadas ficam com o deslocamento, tamanho e rotação do grupo e saem dele" onClick={() => up((k) => {
+              const resolved = new Map(resolveGroups(k.layers).map((x) => [x.id, x]))
+              return { ...k, layers: k.layers.filter((x) => x.id !== L.id).map((x) => (x.group === L.id ? { ...(resolved.get(x.id) ?? x), visible: x.visible, opacity: x.opacity * L.opacity, group: undefined } : x)) }
+            })}>Desagrupar</button>
+          </div>
         </div>
       )
     }
@@ -724,29 +738,33 @@ export function Editor(): JSX.Element {
       const strokes = L.strokes ?? []
       const mine = kit.layers.filter((x) => x.id !== L.id && x.kind !== 'image' && !(x.kind === 'group' && x.id === L.group) && sameList(x))
       return (
-        <div className="layer-body">
+        <div className="layer-body pm">
           <Row label="Nome"><input value={L.name ?? ''} placeholder="Caneta" onChange={(e) => ch({ name: e.target.value || undefined })} /></Row>
           {groupRow}
-          <div className="btn-row">
-            <label className="check"><input type="checkbox" checked={!!L.mirrorCenter} onChange={(e) => ch({ mirrorCenter: e.target.checked || undefined })} /> Simetria (esquerda ↔ direita)</label>
-          </div>
-          <Row label="Espessura"><Slider value={L.size ?? 24} min={2} max={300} onChange={(size) => ch({ size })} /></Row>
-          <Row label="Rotação"><Slider value={L.rotation ?? 0} min={-180} max={180} snaps={ROT_SNAPS} onChange={(rotation) => ch({ rotation: rotation || undefined })} /></Row>
+          <Row label="Máscara">
+            <Select value={L.maskLayer ?? ''} options={[['', 'Nenhuma'], ...(part === 'torso' ? [['__sleeves', 'Só nas mangas'] as [string, string]] : []), ...mine.map((x) => [x.id, 'Só onde está: ' + layerLabel(x)] as [string, string])]} onChange={(maskLayer) => ch({ maskLayer: maskLayer || undefined })} />
+            {L.maskLayer && <label className="check"><input type="checkbox" checked={!!L.maskInvert} onChange={(e) => ch({ maskInvert: e.target.checked })} /> Inverter</label>}
+          </Row>
+          <div className="pm-sep" />
           <FillRow label="Cor" value={L.fill ?? solid(L.color)} onChange={(f) => ch({ fill: f.kind === 'solid' ? undefined : f, color: fillMain(f, L.color) })} />
+          <Row label="Espessura"><Slider value={L.size ?? 24} min={2} max={300} onChange={(size) => ch({ size })} /></Row>
           <div className="btn-row">
             <button className="btn small" disabled={!strokes.length} onClick={() => ch({ strokes: strokes.slice(0, -1) })}>Apagar último traço</button>
             <button className="btn small" disabled={!strokes.length} onClick={() => { if (confirm('Apagar todo o desenho desta camada?')) ch({ strokes: [] }) }}>Limpar desenho</button>
             <span className="muted small">{strokes.length} traço(s)</span>
           </div>
-          <Row label="Máscara">
-            <Select value={L.maskLayer ?? ''} options={[['', 'Nenhuma'], ...mine.map((x) => [x.id, 'Só onde está: ' + layerLabel(x)] as [string, string])]} onChange={(maskLayer) => ch({ maskLayer: maskLayer || undefined })} />
-            {L.maskLayer && <label className="check"><input type="checkbox" checked={!!L.maskInvert} onChange={(e) => ch({ maskInvert: e.target.checked })} /> Inverter</label>}
-          </Row>
-          <Row label="Desfoque"><Slider value={L.blur ?? 0} min={0} max={100} onChange={(blur) => ch({ blur: blur || undefined })} /></Row>
-          <Row label="Opacidade"><Slider value={Math.round(L.opacity * 100)} min={0} max={100} onChange={(o) => ch({ opacity: o / 100 })} /></Row>
-          {shineRow}
-          <Row label="Modo de mistura"><BlendSelect value={(L.blend ?? 'source-over') as string} onChange={(b) => ch({ blend: b as GlobalCompositeOperation })} /></Row>
           {stitchRow}
+          {shineRow}
+          <div className="pm-sep" />
+          <label className="check"><input type="checkbox" checked={!!L.mirrorCenter} onChange={(e) => ch({ mirrorCenter: e.target.checked || undefined })} /> Simetria (esquerda ↔ direita)</label>
+          <div className="pm-sep" />
+          <Row label="Rotação"><Slider value={L.rotation ?? 0} min={-180} max={180} snaps={ROT_SNAPS} onChange={(rotation) => ch({ rotation: rotation || undefined })} /></Row>
+          <div className="pm-sep" />
+          <Row label="Modo de mistura"><BlendSelect value={(L.blend ?? 'source-over') as string} onChange={(b) => ch({ blend: b as GlobalCompositeOperation })} /></Row>
+          <Row label="Opacidade"><Slider value={Math.round(L.opacity * 100)} min={0} max={100} onChange={(o) => ch({ opacity: o / 100 })} /></Row>
+          <Row label="Desfoque"><Slider value={L.blur ?? 0} min={0} max={100} onChange={(blur) => ch({ blur: blur || undefined })} /></Row>
+          <div className="pm-sep" />
+          <button className="btn small" onClick={resetLayer}>Repor valores por defeito</button>
         </div>
       )
     }
@@ -761,40 +779,61 @@ export function Editor(): JSX.Element {
           <Row label={def[2] > 1 ? 'Cores' : 'Cor'}>
             <span className="sw-row">{cols.slice(0, def[2]).map((c, i) => <Swatch key={i} value={c} title={'Cor ' + (i + 1)} onChange={(v) => { const n = [...cols]; n[i] = v; ch({ colors: n, color: n[0] }) }} />)}</span>
           </Row>
-          {(L.collarStyle === 'front' || L.collarStyle === 'back') && <Row label="Largura"><Slider value={L.width ?? (L.collarStyle === 'front' ? 30 : 40)} min={5} max={90} onChange={(width) => ch({ width })} /></Row>}
+          {L.collarStyle && (() => {
+            const st = L.collarStyle
+            const P = { ...collarDefaults(st, L.width), ...(L.p ?? {}) }
+            const setP = (k: string, v: number | string): void => ch({ p: { ...(L.p ?? {}), [k]: v } })
+            return (
+              <>
+                {collarParams(st).map((pm) => pm.options
+                  ? <Row key={pm.key} label={pm.label}><Select value={String(P[pm.key])} options={pm.options} onChange={(v) => setP(pm.key, v)} /></Row>
+                  : <Row key={pm.key} label={pm.label}><Slider value={Number(P[pm.key] ?? 0)} min={pm.min ?? 0} max={pm.max ?? 100} onChange={(v) => setP(pm.key, v)} /></Row>)}
+                {collarParams(st).length > 0 && <button className="btn tiny ghost" onClick={() => ch({ p: undefined })}>Repor medidas</button>}
+              </>
+            )
+          })()}
         </div>
       )
     }
     if (L.kind === 'panel') {
       const mine = kit.layers.filter((x) => x.id !== L.id && x.kind !== 'image' && !(x.kind === 'group' && x.id === L.group) && (x.part === L.part || (part === 'torso' && (x.part === 'shirt' || x.part === 'torso'))))
+      const two = (PANEL_STYLES.find((x) => x[0] === (L.pstyle ?? 'solid'))?.[2] ?? 1) > 1
       return (
-        <div className="layer-body">
+        <div className="layer-body pm">
           <Row label="Nome"><input value={L.name ?? ''} placeholder={layerLabel({ ...L, name: undefined })} onChange={(e) => ch({ name: e.target.value || undefined })} /></Row>
           {groupRow}
+          <Row label="Máscara">
+            <Select value={L.maskLayer ?? ''} options={[['', 'Nenhuma'], ...(part === 'torso' ? [['__sleeves', 'Só nas mangas'] as [string, string]] : []), ...mine.map((x) => [x.id, 'Só onde está: ' + layerLabel(x)] as [string, string])]} onChange={(maskLayer) => ch({ maskLayer: maskLayer || undefined })} />
+            {L.maskLayer && <label className="check"><input type="checkbox" checked={!!L.maskInvert} onChange={(e) => ch({ maskInvert: e.target.checked })} /> Inverter</label>}
+          </Row>
+          <div className="pm-sep" />
           {designCard(panelLabel(L))}
-          <Row label={(PANEL_STYLES.find((x) => x[0] === (L.pstyle ?? 'solid'))?.[2] ?? 1) > 1 ? 'Cores' : 'Cor'}>
+          <Row label={two ? 'Cores' : 'Cor'}>
             <span className="sw-row">
               <Swatch value={fillMain(L.fill, L.color)} title="Cor 1" onChange={(color) => ch({ color, fill: undefined })} />
-              {(PANEL_STYLES.find((x) => x[0] === (L.pstyle ?? 'solid'))?.[2] ?? 1) > 1 && <Swatch value={L.colors?.[1] ?? contrastOn(fillMain(L.fill, L.color))} title="Cor 2" onChange={(c) => ch({ colors: [L.color, c] })} />}
+              {two && <Swatch value={L.colors?.[1] ?? contrastOn(fillMain(L.fill, L.color))} title="Cor 2" onChange={(c) => ch({ colors: [L.color, c] })} />}
             </span>
           </Row>
           <Row label="Largura"><Slider value={L.size ?? 60} min={4} max={L.panel === 'sockFold' ? 300 : 400} onChange={(size) => ch({ size })} /></Row>
           {(L.pstyle === 'stripes' || L.pstyle === 'stripes2c') && <Row label="Riscas"><Slider value={L.pcount ?? 3} min={1} max={12} onChange={(pcount) => ch({ pcount })} /></Row>}
+          {(L.pstyle === 'stripes' || L.pstyle === 'stripes2c') && <Row label="Largura de cada risca"><Slider value={L.stripeW ?? 0} min={0} max={200} onChange={(stripeW) => ch({ stripeW: stripeW || undefined })} /></Row>}
+          {(L.pstyle === 'stripes' || L.pstyle === 'stripes2c') && !L.stripeW && <div className="muted small">Largura de cada risca 0 = as riscas repartem a largura do painel.</div>}
           {L.pstyle && L.pstyle !== 'solid' && L.pstyle !== 'twoTone' && <Row label={L.pstyle === 'border' ? 'Rebordo' : L.pstyle === 'center' ? 'Largura da risca' : 'Espaçamento'}><Slider value={L.pgap ?? Math.round((L.size ?? 60) / ((L.pcount ?? 3) * 3))} min={0} max={200} onChange={(pgap) => ch({ pgap })} /></Row>}
-          <Row label="Rotação"><Slider value={L.rotation ?? 0} min={-180} max={180} snaps={ROT_SNAPS} onChange={(rotation) => ch({ rotation: rotation || undefined })} /></Row>
-          <Row label={L.panel === 'shoulders' ? 'Deslocamento (através)' : 'Deslocamento'}><Slider value={L.dx ?? 0} min={-300} max={300} snaps={[0]} onChange={(dx) => ch({ dx: dx || undefined })} /></Row>
-          {L.panel === 'shoulders' && <Row label="Deslocamento (ao longo)"><Slider value={L.dy ?? 0} min={-300} max={300} snaps={[0]} onChange={(dy) => ch({ dy: dy || undefined })} /></Row>}
           {L.panel === 'sockTrim' && <Row label="Posição"><Slider value={L.y ?? 84} min={0} max={480} onChange={(y) => ch({ y })} /></Row>}
           {L.panel === 'shoulders' && <label className="check"><input type="checkbox" checked={!!L.panelSleeve} onChange={(e) => ch({ panelSleeve: e.target.checked || undefined })} /> Continuar pelas mangas</label>}
-          <Row label="Máscara">
-            <Select value={L.maskLayer ?? ''} options={[['', 'Nenhuma'], ...mine.map((x) => [x.id, 'Só onde está: ' + layerLabel(x)] as [string, string])]} onChange={(maskLayer) => ch({ maskLayer: maskLayer || undefined })} />
-            {L.maskLayer && <label className="check"><input type="checkbox" checked={!!L.maskInvert} onChange={(e) => ch({ maskInvert: e.target.checked })} /> Inverter</label>}
-          </Row>
-          <Row label="Desfoque"><Slider value={L.blur ?? 0} min={0} max={100} onChange={(blur) => ch({ blur: blur || undefined })} /></Row>
-          <Row label="Opacidade"><Slider value={Math.round(L.opacity * 100)} min={0} max={100} onChange={(o) => ch({ opacity: o / 100 })} /></Row>
-          {shineRow}
-          <Row label="Modo de mistura"><BlendSelect value={(L.blend ?? 'source-over') as string} onChange={(b) => ch({ blend: b as GlobalCompositeOperation })} /></Row>
+          {L.panel === 'shortsSides' && <Toggle on={!!L.mirrorCenter} label="Espelhar (pernas iguais ao espelho)" onChange={(v) => ch({ mirrorCenter: v || undefined })} />}
           {stitchRow}
+          {shineRow}
+          <div className="pm-sep" />
+          <Row label={L.panel === 'shoulders' ? 'Deslocamento (através)' : 'Deslocamento'}><Slider value={L.dx ?? 0} min={-300} max={300} snaps={[0]} onChange={(dx) => ch({ dx: dx || undefined })} /></Row>
+          {L.panel === 'shoulders' && <Row label="Deslocamento (ao longo)"><Slider value={L.dy ?? 0} min={-300} max={300} snaps={[0]} onChange={(dy) => ch({ dy: dy || undefined })} /></Row>}
+          <Row label="Rotação"><Slider value={L.rotation ?? 0} min={-180} max={180} snaps={ROT_SNAPS} onChange={(rotation) => ch({ rotation: rotation || undefined })} /></Row>
+          <div className="pm-sep" />
+          <Row label="Modo de mistura"><BlendSelect value={(L.blend ?? 'source-over') as string} onChange={(b) => ch({ blend: b as GlobalCompositeOperation })} /></Row>
+          <Row label="Opacidade"><Slider value={Math.round(L.opacity * 100)} min={0} max={100} onChange={(o) => ch({ opacity: o / 100 })} /></Row>
+          <Row label="Desfoque"><Slider value={L.blur ?? 0} min={0} max={100} onChange={(blur) => ch({ blur: blur || undefined })} /></Row>
+          <div className="pm-sep" />
+          <button className="btn small" onClick={resetLayer}>Repor valores por defeito</button>
         </div>
       )
     }
@@ -807,26 +846,55 @@ export function Editor(): JSX.Element {
     const setOff = (x: number, y: number): void => ch(freeXY ? { x: 1024 + x, y: FRONT_Y - y } : { dx: x, dy: -y })
     const masked = L.kind !== 'image' || (L.fit === 'tile' && L.tileTint === 'color')
     const showColor = masked && L.kind !== 'design'
+    const maskRow = masked ? (
+      <Row label="Máscara">
+        <Select value={L.maskLayer ?? ''} options={[['', '—'], ...(part === 'torso' ? [['__sleeves', 'Mangas'] as [string, string]] : []), ...kit.layers.filter((x) => x.id !== L.id && x.kind !== 'image' && !(x.kind === 'group' && x.id === L.group) && (x.part === L.part || (part === 'torso' && (x.part === 'shirt' || x.part === 'torso')))).map((x) => [x.id, layerLabel(x)] as [string, string])]} onChange={(maskLayer) => ch({ maskLayer: maskLayer || undefined })} />
+        {L.maskLayer && <label className="check"><input type="checkbox" checked={!!L.maskInvert} onChange={(e) => ch({ maskInvert: e.target.checked })} /> Inverter</label>}
+      </Row>
+    ) : null
+    // design parameters: the outline goes with the colours, rounding with the deformation; plain shapes have no
+    // width / height of their own any more (Tamanho x / y do that)
+    const def = L.kind === 'design' ? designDef(L.design) : null
+    const setP = (k: string, v: number | boolean | string): void => ch({ p: { ...(L.p ?? {}), [k]: v } })
+    const basicShape = !!def && ['rect', 'triangle', 'circle'].includes(def.id)
+    const paramRow = (pm: NonNullable<typeof def>['params'][number]): JSX.Element => {
+      const v = dp<number | boolean | string>(L, pm.key)
+      if (pm.options) return <Row key={pm.key} label={pm.label}><Select value={String(v)} options={pm.options} onChange={(x) => setP(pm.key, x)} /></Row>
+      if (typeof pm.def === 'boolean') return <Toggle key={pm.key} on={!!v} label={pm.label} onChange={(x) => setP(pm.key, x)} />
+      return <Row key={pm.key} label={pm.label}><Slider value={Number(v)} min={pm.min ?? 0} max={pm.max ?? 100} onChange={(x) => setP(pm.key, x)} /></Row>
+    }
+    const outlineKeys = ['outline', 'ow']
+    const params = def ? def.params.filter((pm) => !outlineKeys.includes(pm.key) && pm.key !== 'round' && !(basicShape && (pm.key === 'w' || pm.key === 'h'))) : []
+    const hasOutline = !!def && def.params.some((pm) => pm.key === 'ow')
+    const roundParam = def?.params.find((pm) => pm.key === 'round')
+    const noTransform = L.kind === 'image' && L.fit === 'uv'
     return (
       <div className="layer-body pm">
+        {/* 1. name, group, mask */}
+        <Row label="Nome"><input value={L.name ?? ''} placeholder={layerLabel({ ...L, name: undefined })} onChange={(e) => ch({ name: e.target.value || undefined })} /></Row>
+        {groupRow}
+        {maskRow}
+        <div className="pm-sep" />
+
+        {/* 2. preview, what the layer is, colour, outline, stitching, shine */}
         {L.kind === 'vector' && (
           <>
             <button className="btn" onClick={() => setVecEdit(L.id)}>✎ Editar desenho ({(L.vpaths ?? []).length} forma{(L.vpaths ?? []).length === 1 ? '' : 's'})</button>
             {(L.vpaths ?? []).some((v) => !v.closed) && <Row label="Espessura das linhas"><Slider value={L.strokeW ?? 8} min={1} max={120} onChange={(strokeW) => ch({ strokeW })} /></Row>}
           </>
         )}
-        {L.kind === 'design' && (() => {
-          const def = designDef(L.design)
-          const setP = (k: string, v: number | boolean | string): void => ch({ p: { ...(L.p ?? {}), [k]: v } })
+        {def && (() => {
           const nCols = def.params.some((x) => x.key === 'n') ? Math.min(def.colors, Math.max(1, Math.round(Number(dp<number>(L, 'n'))))) : def.colors
           const cols = Array.from({ length: nCols }, (_, i) => L.colors?.[i] ?? [kit.colors.shirt2, kit.colors.shirt3, '#ffffff', '#111111', kit.colors.collar, '#888888'][i] ?? '#888888')
           const stops = L.stops ?? [{ c: kit.colors.shirt2, at: 0 }, { c: kit.colors.shirt, at: 100 }]
+          const outlined = hasOutline && (!!dp<boolean>(L, 'outline') || Number(dp<number>(L, 'ow')) > 0)
+          const lineColor = L.colors?.[1] ?? cols[0]
           return (
             <>
               {designCard(def.label)}
               {def.colors > 0 && (
                 <Row label={def.colors > 1 ? 'Cores' : 'Cor'}>
-                  <span className="sw-row">{cols.map((c, i) => <Swatch key={i} value={c} title={'Cor ' + (i + 1)} onChange={(v) => { const n = [...cols]; n[i] = v; ch({ colors: n, color: n[0] }) }} />)}</span>
+                  <span className="sw-row">{cols.map((c, i) => <Swatch key={i} value={c} title={'Cor ' + (i + 1)} onChange={(v) => { const n = [...(L.colors ?? cols)]; n[i] = v; ch({ colors: n, color: n[0] }) }} />)}</span>
                 </Row>
               )}
               {def.stops && (
@@ -841,12 +909,14 @@ export function Editor(): JSX.Element {
                   <button className="btn tiny" onClick={() => ch({ stops: [...stops, { c: '#ffffff', at: 50 }] })}>+ Cor</button>
                 </div>
               )}
-              {def.params.map((pm) => {
-                const v = dp<number | boolean | string>(L, pm.key)
-                if (pm.options) return <Row key={pm.key} label={pm.label}><Select value={String(v)} options={pm.options} onChange={(x) => setP(pm.key, x)} /></Row>
-                if (typeof pm.def === 'boolean') return <Toggle key={pm.key} on={!!v} label={pm.label} onChange={(x) => setP(pm.key, x)} />
-                return <Row key={pm.key} label={pm.label}><Slider value={Number(v)} min={pm.min ?? 0} max={pm.max ?? 100} onChange={(x) => setP(pm.key, x)} /></Row>
-              })}
+              {hasOutline && (
+                <>
+                  <Row label="Espessura do contorno"><Slider value={Number(dp<number>(L, 'ow'))} min={0} max={120} onChange={(x) => setP('ow', x)} /></Row>
+                  {outlined && <Row label="Cor do contorno"><Swatch value={lineColor} title="Cor do contorno" onChange={(v) => { const n = [...(L.colors ?? cols)]; n[0] = n[0] ?? cols[0]; n[1] = v; ch({ colors: n }) }} /></Row>}
+                  <Toggle on={!!dp<boolean>(L, 'outline')} label="Só o contorno" onChange={(x) => setP('outline', x)} />
+                </>
+              )}
+              {params.map(paramRow)}
             </>
           )
         })()}
@@ -869,10 +939,12 @@ export function Editor(): JSX.Element {
         )}
         {L.kind === 'texture' && (
           <>
-            <ThumbButton label={TEXTURES.find((t) => t[0] === L.pattern)?.[1] ?? 'Padrão'} onClick={() => setFly({ kind: 'texture', layer: L.id })}
+            <ThumbButton label={TEXTURES.find((t) => t[0] === L.pattern)?.[1] ?? 'Padrão'} onClick={() => setTexPick({ kind: 'patterns', part, replace: L.id })}
               load={() => texturePreview(L.pattern ?? 'dots', fillMain(L.fill, L.color), kit.colors.shirt, L.scale)} deps={[L.pattern, L.color, L.fill, kit.colors.shirt, L.scale]} />
+            <Row label="Formas"><Select value={L.texOutline ? 'line' : 'fill'} options={[['fill', 'Cheias'], ['line', 'Só o contorno (traço)']]} onChange={(v) => ch({ texOutline: v === 'line' || undefined })} /></Row>
             <Row label="Traço"><Select value={L.stroke ?? 'solid'} options={STROKES} onChange={(stroke) => ch({ stroke })} /></Row>
             <Row label="Espessura do traço"><Slider value={L.lineWidth ?? 100} min={20} max={400} step={5} onChange={(lineWidth) => ch({ lineWidth })} /></Row>
+            <Row label="Tamanho do padrão"><Slider value={L.scale ?? 70} min={12} max={400} onChange={(scale) => ch({ scale })} /></Row>
           </>
         )}
         {L.kind === 'shape' && (
@@ -885,22 +957,12 @@ export function Editor(): JSX.Element {
           <>
             <Row label="Fonte"><FontPicker value={L.font ?? 'Arial Black'} onChange={(font) => ch({ font })} /></Row>
             <Row label="Texto"><input value={L.text ?? ''} onChange={(e) => ch({ text: e.target.value })} /></Row>
-            <Row label="Espaçamento de letras"><Slider value={L.letterSpacing ?? 0} min={-50} max={1000} snaps={[0]} onChange={(letterSpacing) => ch({ letterSpacing: letterSpacing || undefined })} /></Row>
-            <Row label="Arco"><Slider value={L.arch ?? 0} min={-150} max={150} snaps={[0]} onChange={(arch) => ch({ arch: arch || undefined })} /></Row>
-            <div className="toggles">
-              <Toggle on={!!L.italic} label="Itálico" onChange={(v) => ch({ italic: v || undefined })} />
-              <Toggle on={!!L.border} label="Contorno" onChange={(v) => ch({ border: v || undefined })} />
-            </div>
-            {L.border && (
-              <>
-                <Row label="Espessura do contorno"><Slider value={L.borderW ?? 2} min={1} max={8} onChange={(borderW) => ch({ borderW })} /></Row>
-                <Row label="Cor do contorno"><ColorInput value={L.borderColor ?? contrastOn(fillMain(L.fill, L.color))} onChange={(borderColor) => ch({ borderColor })} /></Row>
-              </>
-            )}
             {part === 'torso' && (
               <Row label="Posição"><Select value={L.placement ?? ((L.zones ?? ['front', 'back']).length > 1 ? 'frontBack' : (L.zones ?? ['front'])[0] === 'back' ? 'back' : 'front')} options={TEXT_PLACEMENTS}
                 onChange={(placement) => ch({ placement: placement as TextPlacement, ...(placement === 'front' ? { zones: ['front'] } : placement === 'back' ? { zones: ['back'] } : placement === 'frontBack' ? { zones: ['front', 'back'] } : {}) })} /></Row>
             )}
+            <Row label="Espaçamento de letras"><Slider value={L.letterSpacing ?? 0} min={-50} max={1000} snaps={[0]} onChange={(letterSpacing) => ch({ letterSpacing: letterSpacing || undefined })} /></Row>
+            <Toggle on={!!L.italic} label="Itálico" onChange={(v) => ch({ italic: v || undefined })} />
           </>
         )}
         {L.kind === 'image' && (
@@ -916,27 +978,22 @@ export function Editor(): JSX.Element {
           </>
         )}
         {showColor && <FillRow label="Cor" value={L.fill ?? solid(L.color)} onChange={(f) => ch({ fill: f.kind === 'solid' ? undefined : f, color: fillMain(f, L.color) })} />}
-
-        {!(L.kind === 'image' && L.fit === 'uv') && (<>
-        <Row label="Tamanho"><Slider value={L.zoom ?? 100} min={10} max={800} onChange={(zoom) => ch({ zoom: zoom === 100 ? undefined : zoom })} /></Row>
-        <Row label="Tamanho (x)"><Slider value={Math.round((L.sx ?? 1) * 100)} min={10} max={800} onChange={(v) => ch({ sx: v / 100 })} /></Row>
-        <Row label="Tamanho (y)"><Slider value={Math.round((L.sy ?? 1) * 100)} min={10} max={800} onChange={(v) => ch({ sy: v / 100 })} /></Row>
-        <Row label="Rotação"><Slider value={L.rotation ?? 0} min={-180} max={180} snaps={ROT_SNAPS} onChange={(rotation) => ch({ rotation })} /></Row>
-        <Row label="Deslocamento (x)"><Slider value={Math.round(offX)} min={-offMax} max={offMax} snaps={[0]} onChange={(x) => setOff(x, offY)} /></Row>
-        <Row label="Deslocamento (y)"><Slider value={Math.round(offY)} min={-offMax} max={offMax} snaps={[0]} onChange={(y) => setOff(offX, y)} /></Row>
-        <div className="toggles">
-          <Toggle on={!!L.flipX} label="Espelhar" onChange={(v) => ch({ flipX: v || undefined })} />
-          <Toggle on={!!L.mirrorCenter} label="Espelhar (centro)" onChange={(v) => ch({ mirrorCenter: v || undefined })} />
-          {part === 'torso' && <Toggle on={!!L.mirrorBack} label="Espelhar nas costas" onChange={(v) => ch({ mirrorBack: v || undefined })} />}
-        </div>
-        </>)}
-        {masked && (
+        {L.kind === 'text' && (
           <>
-            <Row label="Deformar"><Select value={L.warp?.kind ?? 'none'} options={[['none', 'Sem deformação'], ['arc', 'Arco'], ['wave', 'Onda'], ['flag', 'Bandeira']]} onChange={(kind) => ch({ warp: { kind, amount: L.warp?.amount || 60 } })} /></Row>
-            {L.warp && L.warp.kind !== 'none' && <Row label="Intensidade"><Slider value={L.warp.amount} min={-300} max={300} onChange={(amount) => ch({ warp: { ...L.warp!, amount } })} /></Row>}
+            <Toggle on={!!L.border} label="Contorno" onChange={(v) => ch({ border: v || undefined })} />
+            {L.border && (
+              <>
+                <Row label="Cor do contorno"><ColorInput value={L.borderColor ?? contrastOn(fillMain(L.fill, L.color))} onChange={(borderColor) => ch({ borderColor })} /></Row>
+                <Row label="Espessura do contorno"><Slider value={L.borderW ?? 2} min={1} max={8} onChange={(borderW) => ch({ borderW })} /></Row>
+              </>
+            )}
           </>
         )}
-        {part === 'torso' && L.kind !== 'text' && !(L.kind === 'image' && L.fit === 'uv') && (
+        {stitchRow}
+        {shineRow}
+
+        {/* 3. where it shows */}
+        {part === 'torso' && L.kind !== 'text' && !noTransform && (
           <>
             <div className="pm-sep" />
             <div className="pm-label">Mostrar em</div>
@@ -949,25 +1006,45 @@ export function Editor(): JSX.Element {
             </div>
           </>
         )}
-        <div className="pm-sep" />
-        <Row label="Desfoque"><Slider value={L.blur ?? 0} min={0} max={100} onChange={(blur) => ch({ blur: blur || undefined })} /></Row>
-        <Row label="Opacidade"><Slider value={Math.round(L.opacity * 100)} min={0} max={100} onChange={(o) => ch({ opacity: o / 100 })} /></Row>
-        <Row label="Modo de mistura"><BlendSelect value={(L.blend ?? 'source-over') as string} onChange={(b) => ch({ blend: b as GlobalCompositeOperation })} /></Row>
-        <div className="pm-sep" />
-        {shineRow}
-        {stitchRow}
-        {masked && (
+
+        {!noTransform && (
           <>
+            {/* 4. mirrors */}
             <div className="pm-sep" />
-            <Row label="Máscara">
-              <Select value={L.maskLayer ?? ''} options={[['', '—'], ...kit.layers.filter((x) => x.id !== L.id && x.kind !== 'image' && !(x.kind === 'group' && x.id === L.group) && (x.part === L.part || (part === 'torso' && (x.part === 'shirt' || x.part === 'torso')))).map((x) => [x.id, layerLabel(x)] as [string, string])]} onChange={(maskLayer) => ch({ maskLayer: maskLayer || undefined })} />
-              {L.maskLayer && <label className="check"><input type="checkbox" checked={!!L.maskInvert} onChange={(e) => ch({ maskInvert: e.target.checked })} /> Inverter</label>}
-            </Row>
+            <div className="toggles">
+              <Toggle on={!!L.flipX} label="Espelhar" onChange={(v) => ch({ flipX: v || undefined })} />
+              <Toggle on={!!L.mirrorCenter} label="Espelhar (centro)" onChange={(v) => ch({ mirrorCenter: v || undefined })} />
+              {part === 'torso' && <Toggle on={!!L.mirrorBack} label="Espelhar nas costas" onChange={(v) => ch({ mirrorBack: v || undefined })} />}
+            </div>
+
+            {/* 5. offset, size, rotation */}
+            <div className="pm-sep" />
+            <Row label="Deslocamento (x)"><Slider value={Math.round(offX)} min={-offMax} max={offMax} snaps={[0]} onChange={(x) => setOff(x, offY)} /></Row>
+            <Row label="Deslocamento (y)"><Slider value={Math.round(offY)} min={-offMax} max={offMax} snaps={[0]} onChange={(y) => setOff(offX, y)} /></Row>
+            <Row label="Tamanho"><Slider value={L.zoom ?? 100} min={10} max={800} onChange={(zoom) => ch({ zoom: zoom === 100 ? undefined : zoom })} /></Row>
+            <Row label="Tamanho (x)"><Slider value={Math.round((L.sx ?? 1) * 100)} min={10} max={800} onChange={(v) => ch({ sx: v / 100 })} /></Row>
+            <Row label="Tamanho (y)"><Slider value={Math.round((L.sy ?? 1) * 100)} min={10} max={800} onChange={(v) => ch({ sy: v / 100 })} /></Row>
+            <Row label="Rotação"><Slider value={L.rotation ?? 0} min={-180} max={180} snaps={ROT_SNAPS} onChange={(rotation) => ch({ rotation })} /></Row>
           </>
         )}
+
+        {/* 6. rounding and deformation (text: its arc) */}
+        {(roundParam || masked || L.kind === 'text') && <div className="pm-sep" />}
+        {roundParam && paramRow(roundParam)}
+        {L.kind === 'text' && <Row label="Arco"><Slider value={L.arch ?? 0} min={-150} max={150} snaps={[0]} onChange={(arch) => ch({ arch: arch || undefined })} /></Row>}
+        {masked && (
+          <>
+            <Row label="Deformar"><Select value={L.warp?.kind ?? 'none'} options={[['none', 'Sem deformação'], ['arc', 'Arco'], ['wave', 'Onda'], ['flag', 'Bandeira']]} onChange={(kind) => ch({ warp: { kind, amount: L.warp?.amount || 60 } })} /></Row>
+            {L.warp && L.warp.kind !== 'none' && <Row label="Intensidade"><Slider value={L.warp.amount} min={-300} max={300} onChange={(amount) => ch({ warp: { ...L.warp!, amount } })} /></Row>}
+          </>
+        )}
+
+        {/* 7. blend, opacity, blur */}
         <div className="pm-sep" />
-        {groupRow}
-        <Row label="Nome"><input value={L.name ?? ''} placeholder={layerLabel({ ...L, name: undefined })} onChange={(e) => ch({ name: e.target.value || undefined })} /></Row>
+        <Row label="Modo de mistura"><BlendSelect value={(L.blend ?? 'source-over') as string} onChange={(b) => ch({ blend: b as GlobalCompositeOperation })} /></Row>
+        <Row label="Opacidade"><Slider value={Math.round(L.opacity * 100)} min={0} max={100} onChange={(o) => ch({ opacity: o / 100 })} /></Row>
+        <Row label="Desfoque"><Slider value={L.blur ?? 0} min={0} max={100} onChange={(blur) => ch({ blur: blur || undefined })} /></Row>
+        <div className="pm-sep" />
         <button className="btn small" title="Tamanho, rotação, posição, espelhos, deformação, desfoque, opacidade, mistura, brilho e costura voltam aos valores iniciais (o design, as cores e as zonas ficam)" onClick={resetLayer}>Repor valores por defeito</button>
       </div>
     )
@@ -1059,9 +1136,9 @@ export function Editor(): JSX.Element {
         <div key={L.id} className={'lrow-wrap' + (parent ? ' in-group' : '') + (locked ? ' locked' : '')}>
           <div className={'lrow' + (open ? ' open' : '') + (L.visible ? '' : ' hidden') + (isGroup ? ' group' : '')}
             onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setCtx({ x: e.clientX, y: e.clientY, layer: L.id, part }) }}
-            draggable={!locked} onDragStart={(e) => { if (locked) { e.preventDefault(); return } dragId.current = L.id; e.dataTransfer.effectAllowed = 'move' }}
+            draggable={!locked} onDragStart={(e) => { if (locked) { e.preventDefault(); return } dragId.current = L.id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData(KC_DRAG, L.id) }} onDragEnd={() => { dragId.current = null }}
             onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('drop') }} onDragLeave={(e) => e.currentTarget.classList.remove('drop')}
-            onDrop={(e) => { e.preventDefault(); e.currentTarget.classList.remove('drop'); dropOn(L) }}
+            onDrop={(e) => { e.preventDefault(); e.currentTarget.classList.remove('drop'); if (!e.dataTransfer.types.includes(KC_DRAG)) { dragId.current = null; return } dropOn(L) }}
             onPointerDown={at(camFor(L))} onClick={() => setOpenLayer(open ? null : L.id)}>
             <button className="lr-eye" title={L.visible ? 'Esconder' : 'Mostrar'} onClick={(e) => { e.stopPropagation(); setLayer(L.id, (x) => ({ ...x, visible: !x.visible })) }}><Icon name={L.visible ? 'eye' : 'eyeOff'} /></button>
             {isGroup
@@ -1077,9 +1154,9 @@ export function Editor(): JSX.Element {
                   : <span onClick={(e) => e.stopPropagation()}><Swatch value={fillMain(L.fill, L.color)} title={layerLabel(L)} onChange={(c) => setLayer(L.id, (x) => ({ ...x, color: c, fill: undefined }))} className="swatch-btn lr-sw" /></span>}
             <span className="lr-ico"><Icon name={iconOf(L)} /></span>
             <span className="lr-name">{layerLabel(L)}{isGroup ? ` (${count})` : ''}</span>
-            {L.maskLayer && <button className="lr-mask" title={'Máscara: ' + layerLabel(kit.layers.find((x) => x.id === L.maskLayer) ?? L) + ' — clica para tirar'} onClick={(e) => { e.stopPropagation(); setLayer(L.id, (x) => ({ ...x, maskLayer: undefined, maskInvert: undefined })) }}>◐</button>}
+            {L.maskLayer && <button className="lr-mask" title={'Máscara: ' + (L.maskLayer === '__sleeves' ? 'Mangas' : layerLabel(kit.layers.find((x) => x.id === L.maskLayer) ?? L)) + ' — clica para tirar'} onClick={(e) => { e.stopPropagation(); setLayer(L.id, (x) => ({ ...x, maskLayer: undefined, maskInvert: undefined })) }}>◐</button>}
             <button className="lr-act mask-handle" draggable title="Máscara: arrasta este botão para cima de outra camada — esta passa a ser a máscara dela"
-              onDragStart={(e) => { e.stopPropagation(); dragId.current = 'mask:' + L.id; e.dataTransfer.effectAllowed = 'link' }}
+              onDragStart={(e) => { e.stopPropagation(); dragId.current = 'mask:' + L.id; e.dataTransfer.effectAllowed = 'link'; e.dataTransfer.setData(KC_DRAG, 'mask:' + L.id) }} onDragEnd={() => { dragId.current = null }}
               onClick={(e) => { e.stopPropagation(); notify('ok', 'Arrasta o botão de máscara para cima da camada que queres mascarar') }}><Icon name="mask" size={13} /></button>
             <button className={'lr-act' + (L.locked ? ' show on' : '')} title={L.locked ? 'Desbloquear' : 'Bloquear (não se seleciona, move nem edita)'} onClick={(e) => { e.stopPropagation(); setLayer(L.id, (x) => ({ ...x, locked: !x.locked || undefined })) }}><Icon name="lock" size={13} /></button>
             <button className="lr-act" title={isGroup ? 'Duplicar o grupo' : 'Duplicar'} onClick={(e) => { e.stopPropagation(); duplicate() }}>⧉</button>
@@ -1110,8 +1187,8 @@ export function Editor(): JSX.Element {
       return (
         <div key={id} className="lrow-wrap">
           <div className={'lrow fixed' + (open ? ' open' : '') + (f.movable ? ' movable' : '')} onPointerDown={f.cam ? at(f.cam) : undefined} onClick={() => setOpenLayer(open ? null : id)}
-            draggable={!!f.movable} onDragStart={(e) => { if (!f.movable) return; dragId.current = id; e.dataTransfer.effectAllowed = 'move' }}
-            onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); onDrop() }}>
+            draggable={!!f.movable} onDragStart={(e) => { if (!f.movable) return; dragId.current = id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData(KC_DRAG, id) }} onDragEnd={() => { dragId.current = null }}
+            onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (!e.dataTransfer.types.includes(KC_DRAG)) { dragId.current = null; return } onDrop() }}>
             <span className="lr-eye off">{f.movable ? <span className="lr-grip">⋮⋮</span> : <Icon name="lock" />}</span>
             {f.color && f.setColor ? <span onClick={(e) => e.stopPropagation()}><Swatch value={f.color} title={f.label} onChange={f.setColor} className="swatch-btn lr-sw" /></span> : <span className="lr-sw-empty" />}
             <span className="lr-ico"><Icon name={f.icon} /></span>
@@ -1498,7 +1575,20 @@ export function Editor(): JSX.Element {
               <>
                 <Row label="Cor"><ColorInput value={kit.cuffs?.c1 ?? kit.colors.cuffs} onChange={(c1) => up((k) => ({ ...k, cuffs: { ...k.cuffs!, c1 }, colors: { ...k.colors, cuffs: c1 } }))} /></Row>
                 {kit.cuffs?.style !== 'solid' && <Row label="Cor 2"><ColorInput value={kit.cuffs?.c2 ?? '#ffffff'} onChange={(c2) => up((k) => ({ ...k, cuffs: { ...k.cuffs!, c2 } }))} /></Row>}
-                <Row label="Largura"><Slider value={kit.cuffs?.width ?? 60} min={10} max={160} onChange={(width) => up((k) => ({ ...k, cuffs: { ...k.cuffs!, width } }))} /></Row>
+                <Row label="Largura do punho"><Slider value={kit.cuffs?.width ?? 60} min={10} max={160} onChange={(width) => up((k) => ({ ...k, cuffs: { ...k.cuffs!, width } }))} /></Row>
+                {kit.cuffs && kit.cuffs.style !== 'solid' && (() => {
+                  const cf = kit.cuffs, w = cf.width, n = cf.style === 'stripes3' ? 3 : 2
+                  const sw = cf.stripeW ?? (cf.style === 'tipped' ? 10 : n === 3 ? 7 : 8)
+                  const setC = (patch: Partial<typeof cf>): void => up((k) => ({ ...k, cuffs: { ...k.cuffs!, ...patch } }))
+                  return (
+                    <>
+                      <Row label={cf.style === 'tipped' ? 'Largura do rebordo' : 'Largura de cada risca'}><Slider value={sw} min={1} max={80} onChange={(stripeW) => setC({ stripeW })} /></Row>
+                      {cf.style !== 'tipped' && <Row label="Espaçamento"><Slider value={Math.round(cf.gap ?? (n === 3 ? w * 0.25 - sw : w * 0.35 - sw))} min={0} max={120} onChange={(gap) => setC({ gap })} /></Row>}
+                      <Row label={cf.style === 'tipped' ? 'Distância da ponta' : 'Distância da ponta (1.ª risca)'}><Slider value={Math.round(cf.offset ?? (cf.style === 'tipped' ? 0 : n === 3 ? w * 0.2 : w * 0.25))} min={0} max={160} onChange={(offset) => setC({ offset })} /></Row>
+                      <button className="btn tiny ghost" onClick={() => setC({ stripeW: undefined, gap: undefined, offset: undefined })}>Repor riscas</button>
+                    </>
+                  )
+                })()}
                 <StitchEditor value={kit.cuffs?.stitch} onChange={(stitch) => up((k) => ({ ...k, cuffs: { ...k.cuffs!, stitch } }))} />
               </>
             )}
@@ -1674,8 +1764,10 @@ export function Editor(): JSX.Element {
               <LogoBlock title={`Patrocinador · Calções ${i + 1}`} lp={sp} assets={assets} onAsset={addAsset} folderHint="Sponsors" onChange={setOne}
                 onRemove={() => setList('shortsSponsors', listOf('shortsSponsors').filter((_, j) => j !== i))}
                 extra={<>
-                  <Row label="Onde"><Select value={sp.spot ?? 'back'} options={[['back', 'Atrás (rabo), ao centro'], ['middle', 'Frente ao centro'], ['front', 'Frente de uma perna']]} onChange={(spot) => setOne({ ...sp, spot })} /></Row>
-                  {sp.spot === 'front' && <Row label="Perna"><Select value={sp.side === 'left' || sp.side === 'both' ? sp.side : 'right'} options={[['right', 'Direita'], ['left', 'Esquerda'], ['both', 'As duas']]} onChange={(side) => setOne({ ...sp, side })} /></Row>}
+                  <Row label="Onde"><Select value={sp.spot === 'back' ? 'back' : sp.spot === 'middle' ? 'middle' : sp.side === 'left' || sp.side === 'both' ? sp.side : 'right'}
+                    options={[['middle', 'Centro (frente)'], ['back', 'Centro (atrás)'], ['left', 'Perna esquerda'], ['right', 'Perna direita'], ['both', 'Ambas as pernas (espelhado)']]}
+                    onChange={(v) => setOne(v === 'middle' || v === 'back' ? { ...sp, spot: v } : { ...sp, spot: 'front', side: v as 'left' | 'right' | 'both' })} /></Row>
+                  {sp.spot !== 'back' && sp.spot !== 'middle' && <div className="muted small">Esquerda / direita leva o patrocínio à volta da perna, para a frente ou para trás.</div>}
                   {toOthersBtn('shortsSponsors', sp)}
                 </>} />
             </div>
@@ -1761,10 +1853,6 @@ export function Editor(): JSX.Element {
             <Row label="Tamanho"><Slider value={cfg('ChestNumberSize', 14)} min={1} max={28} onChange={(v) => setCfg('ChestNumberSize', v)} /></Row>
           </div>
         )}
-        <div className="sub-title">Número nas costas</div>
-        <Row label="Altura"><Slider invert value={cfg('BackNumberY', NUMBER_DEFAULTS.BackNumberY)} min={0} max={29} onChange={(v) => setCfg('BackNumberY', v)} /></Row>
-        <Row label="Tamanho"><Slider value={cfg('BackNumberSize', NUMBER_DEFAULTS.BackNumberSize)} min={0} max={28} onChange={(v) => setCfg('BackNumberSize', v)} /></Row>
-        <Row label="Espaçamento"><Slider value={cfg('BackNumberSpacing', NUMBER_DEFAULTS.BackNumberSpacing)} min={0} max={14} onChange={(v) => setCfg('BackNumberSpacing', v)} /></Row>
         <div className="sub-title">Nome</div>
         <Row label="Mostrar nome"><Select value={String(cfg('Name', 0))} options={[['0', 'Sim'], ['1', 'Não']]} onChange={(v) => setCfg('Name', Number(v))} /></Row>
         <Row label="Posição"><Select value={kit.numbers.nameBelow ? 'below' : 'above'} options={[['above', 'Em cima do número'], ['below', 'Em baixo do número']]} onChange={(v) => up((k) => ({ ...k, numbers: { ...k.numbers, nameBelow: v === 'below' } }))} /></Row>
@@ -1772,11 +1860,15 @@ export function Editor(): JSX.Element {
         <Row label="Tamanho"><Slider value={cfg('NameSize', NUMBER_DEFAULTS.NameSize)} min={0} max={20} onChange={(v) => setCfg('NameSize', v)} /></Row>
         <Row label="Espaçamento"><Slider value={cfg('NameStretch', NUMBER_DEFAULTS.NameStretch)} min={0} max={3} onChange={(v) => setCfg('NameStretch', v)} /></Row>
         <Row label="Arco"><Select value={String(cfg('NameShape', 1))} options={[['0', 'Reto'], ['1', 'Curva ligeira'], ['2', 'Curva média'], ['3', 'Curva forte']]} onChange={(v) => setCfg('NameShape', Number(v))} /></Row>
+        <div className="sub-title">Número nas costas</div>
+        <Row label="Altura"><Slider invert value={cfg('BackNumberY', NUMBER_DEFAULTS.BackNumberY)} min={0} max={29} onChange={(v) => setCfg('BackNumberY', v)} /></Row>
+        <Row label="Tamanho"><Slider value={cfg('BackNumberSize', NUMBER_DEFAULTS.BackNumberSize)} min={0} max={28} onChange={(v) => setCfg('BackNumberSize', v)} /></Row>
+        <Row label="Espaçamento"><Slider value={cfg('BackNumberSpacing', NUMBER_DEFAULTS.BackNumberSpacing)} min={0} max={14} onChange={(v) => setCfg('BackNumberSpacing', v)} /></Row>
       
       <div className="sub-title">Número nos calções</div>
       <div onPointerDown={at('shorts')}>
 
-        <Row label="Perna"><Select value={String(cfg('ShortsNumberSide', NUMBER_DEFAULTS.ShortsNumberSide))} options={[['0', 'Direita'], ['1', 'Esquerda']]} onChange={(v) => setCfg('ShortsNumberSide', Number(v))} /></Row>
+        <Row label="Perna"><Select value={String(cfg('ShortsNumberSide', NUMBER_DEFAULTS.ShortsNumberSide))} options={[['1', 'Direita'], ['0', 'Esquerda']]} onChange={(v) => setCfg('ShortsNumberSide', Number(v))} /></Row>
         <Row label="Tamanho (0 = sem)"><Slider value={cfg('ShortsNumberSize', NUMBER_DEFAULTS.ShortsNumberSize)} min={0} max={28} onChange={(v) => setCfg('ShortsNumberSize', v)} /></Row>
         <Row label="Esquerda / direita"><Slider value={cfg('ShortsNumberX', NUMBER_DEFAULTS.ShortsNumberX)} min={0} max={14} onChange={(v) => setCfg('ShortsNumberX', v)} /></Row>
         <Row label="Baixo / cima"><Slider value={cfg('ShortsNumberY', NUMBER_DEFAULTS.ShortsNumberY)} min={0} max={15} onChange={(v) => setCfg('ShortsNumberY', v)} /></Row>
@@ -1911,7 +2003,7 @@ export function Editor(): JSX.Element {
         }))),
         // the cuffs of the kit itself (one colour band at the end of every sleeve)
         ...(P === 'torso' ? CUFF_STYLES.filter(([id]) => id !== 'none').map(([id, label]) => ({ id: 'cuffs:' + id, label: 'Punho do kit · ' + label, category: 'Punhos', load: () => kitPreview3d({ ...stripLogos(pvKit), cuffs: { c1: PV[0], c2: PV[1], width: kit.cuffs?.width ?? 60, style: id as 'solid' } }, assets, 'cuff', 'cs:' + id + JSON.stringify([kit.cuffs?.width, PV, PVB])) })) : []),
-        ...(P === 'torso' ? COLLAR_DESIGNS.map(([id, label]) => ({ id: 'collar:' + id, label, category: 'Gola', load: async () => {
+        ...(P === 'torso' ? COLLAR_DESIGNS.filter((c) => !c[3]).map(([id, label]) => ({ id: 'collar:' + id, label, category: 'Gola', load: async () => {
           const cs = { style: id, c1: PV[0], c2: PV[1], c3: PV[2] }
           const t = await composeKit({ ...stripLogos(pvKit), collar: cs }, assets, { scale: 0.25 })
           return collarPreview(cfg('Collar', 66), t, 'cd:' + id + JSON.stringify([cs, PVB]))

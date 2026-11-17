@@ -84,13 +84,35 @@ export function Slider({ value: raw, min, max, step = 1, onChange: emit, invert,
   // soft lock: dragging close to a snap value (within 2 % of the range) sticks to it
   const tol = (max - min) * 0.02
   const onChange = (v: number): void => { const t = invert ? min + max - v : v; emit(snaps?.find((s) => Math.abs(s - t) <= tol) ?? t) }
+  // the − / + buttons move exactly one step (no snapping: near a snap value it used to jump back and "do nothing");
+  // held down they repeat, faster after a while
+  const exact = (v: number): void => emit(invert ? min + max - v : v)
   const clamp = (v: number): number => Math.max(min, Math.min(max, Math.round(v / step) * step))
-  const nudge = Math.max(step, Math.round((max - min) / 200) || step)
+  const cur = useRef(value)
+  cur.current = value
+  const timer = useRef<number | null>(null)
+  const stop = (): void => { if (timer.current !== null) { clearTimeout(timer.current); timer.current = null } }
+  useEffect(() => stop, [])
+  const press = (dir: number) => (e: React.PointerEvent): void => {
+    if (e.button !== 0) return
+    e.preventDefault()
+    stop()
+    let n = 0
+    const tick = (): void => {
+      const v = clamp(cur.current + dir * step * (n > 25 ? 5 : 1))
+      if (v !== cur.current) { cur.current = v; exact(v) }
+      n++
+      timer.current = window.setTimeout(tick, n === 1 ? 380 : 55)
+    }
+    tick()
+    const up = (): void => { stop(); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up) }
+    window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up)
+  }
   return (
-    <span className="slider" onWheel={(e) => { if (document.activeElement === e.currentTarget.querySelector('input[type=range]')) { e.preventDefault(); onChange(clamp(value + (e.deltaY < 0 ? nudge : -nudge))) } }}>
-      <button type="button" className="nudge" onClick={() => onChange(clamp(value - nudge))}>−</button>
+    <span className="slider" onWheel={(e) => { if (document.activeElement === e.currentTarget.querySelector('input[type=range]')) { e.preventDefault(); exact(clamp(value + (e.deltaY < 0 ? step : -step))) } }}>
+      <button type="button" className="nudge" onPointerDown={press(-1)} onPointerLeave={stop}>−</button>
       <input type="range" value={value} min={min} max={max} step={step} onChange={(e) => onChange(Number(e.target.value))} />
-      <button type="button" className="nudge" onClick={() => onChange(clamp(value + nudge))}>+</button>
+      <button type="button" className="nudge" onPointerDown={press(1)} onPointerLeave={stop}>+</button>
       <NumBox value={value} min={min} max={max} step={step} onCommit={(v) => { const c = clamp(v); emit(invert ? min + max - c : c) }} />
     </span>
   )

@@ -249,8 +249,21 @@ function rng(seed: number): () => number {
 export type StrokeStyle = 'solid' | 'dashed' | 'dotted' | 'dashdot'
 export const STROKES: [StrokeStyle, string][] = [['solid', 'Contínuo'], ['dashed', 'Tracejado'], ['dotted', 'Pontilhado'], ['dashdot', 'Traço-ponto']]
 
-export function drawTexture(g: G, t: string, X0: number, Y0: number, X1: number, Y1: number, s: number, stroke: StrokeStyle = 'solid', widthPct = 100): void {
+export function drawTexture(g: G, t: string, X0: number, Y0: number, X1: number, Y1: number, s: number, stroke: StrokeStyle = 'solid', widthPct = 100, outline = false): void {
   s = Math.max(12, s)
+  // shape patterns (dots, stars, checks…): "only the outline" draws them with the line (its type and thickness);
+  // filled, a thicker line makes the shapes bolder
+  const fill0 = g.fill, fillRect0 = g.fillRect
+  const own = g as unknown as { fill: () => void; fillRect: (x: number, y: number, w: number, h: number) => void }
+  if (outline) { own.fill = () => g.stroke(); own.fillRect = (x, y, w, h) => g.strokeRect(x, y, w, h) }
+  else if (widthPct > 100) {
+    const extra = Math.max(1, s * 0.06 * (widthPct - 100) / 100)
+    own.fill = () => { (fill0 as unknown as () => void).call(g); const lw = g.lineWidth, ld = g.getLineDash(); g.lineWidth = extra; g.setLineDash([]); g.stroke(); g.lineWidth = lw; g.setLineDash(ld) }
+    own.fillRect = (x, y, w, h) => { fillRect0.call(g, x, y, w, h); const lw = g.lineWidth, ld = g.getLineDash(); g.lineWidth = extra; g.setLineDash([]); g.strokeRect(x, y, w, h); g.lineWidth = lw; g.setLineDash(ld) }
+  }
+  try { drawTextureInner(g, t, X0, Y0, X1, Y1, s, stroke, widthPct) } finally { delete (own as { fill?: unknown }).fill; delete (own as { fillRect?: unknown }).fillRect }
+}
+function drawTextureInner(g: G, t: string, X0: number, Y0: number, X1: number, Y1: number, s: number, stroke: StrokeStyle, widthPct: number): void {
   const LW = (v: number): number => Math.max(1, (v * widthPct) / 100)
   const d = Math.max(4, s * 0.12)
   g.setLineDash(stroke === 'dashed' ? [d * 2, d * 1.4] : stroke === 'dotted' ? [0.1, d * 1.3] : stroke === 'dashdot' ? [d * 2.2, d, 0.1, d] : [])

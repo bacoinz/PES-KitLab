@@ -39,7 +39,8 @@ export async function atlasImage(teamId: number, slot: string, part: NumberPart,
   const own = part === 'chest' ? spec.chest : part === 'leg' ? spec.leg : undefined
   if (part === 'chest' && (!own || own.mode === 'same')) return null // the game then uses the back numbers
   const origPart: NumberPart = part === 'chest' ? 'back' : part
-  const orig = await originalAtlas(teamId, slot, origPart)
+  let orig = await originalAtlas(teamId, slot, origPart)
+  if (!orig && part === 'leg') orig = await originalAtlas(teamId, slot, 'back')
   const eff = own && own.mode !== 'same'
     ? { ...spec, mode: own.mode as NumbersSpec['mode'], fill: own.fill, outline: own.outline, outlineWidth: own.outlineWidth, font: own.font, backAsset: own.asset, legAsset: own.asset, fileRecolor: own.recolor }
     : spec

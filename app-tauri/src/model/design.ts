@@ -30,6 +30,7 @@ export interface OverlayLayer {
   zones?: Zone[] // shirt layers: where to draw (default front+back)
   count?: number; width?: number // pattern layers
   stroke?: 'solid' | 'dashed' | 'dotted' | 'dashdot'; lineWidth?: number // graphic textures: line style and thickness (%)
+  texOutline?: boolean // built-in textures: shapes drawn as outlines (with the line style) instead of filled
   fromTemplate?: boolean
   part: Part | 'torso'
   visible: boolean
@@ -115,8 +116,50 @@ export function resolveGroups(layers: OverlayLayer[]): OverlayLayer[] {
   const groups = new Map(layers.filter((l) => l.kind === 'group').map((g) => [g.id, g]))
   return layers.filter((l) => l.kind !== 'group').map((l) => {
     const g = l.group ? groups.get(l.group) : undefined
-    return g ? { ...l, visible: l.visible && g.visible, opacity: l.opacity * g.opacity } : l
+    if (!g) return l
+    // the group's own placement goes onto every member: offset (added), size (multiplied), rotation (added, each about
+    // its own middle), blend mode and shine (when the group has one); panels and collar designs follow the seams
+    const out: OverlayLayer = { ...l, visible: l.visible && g.visible, opacity: l.opacity * g.opacity }
+    if (g.blend) out.blend = g.blend
+    if (g.shine != null) out.shine = g.shine
+    const fixed = l.kind === 'panel' || l.kind === 'collar' || (l.kind === 'image' && l.fit === 'uv')
+    if (!fixed) {
+      const gdx = g.dx ?? 0, gdy = g.dy ?? 0
+      if (gdx || gdy) {
+        const free = l.kind === 'text' || (l.kind === 'image' && l.fit !== 'part' && l.fit !== 'tile')
+        if (free) { out.x = (l.x ?? 1024) + gdx; out.y = (l.y ?? (l.kind === 'text' ? 1100 : 1300)) + gdy } else if (l.kind !== 'freeform') { out.dx = (l.dx ?? 0) + gdx; out.dy = (l.dy ?? 0) + gdy }
+      }
+      if (g.zoom && g.zoom !== 100) out.zoom = ((l.zoom ?? 100) * g.zoom) / 100
+      if (g.rotation) out.rotation = (l.rotation ?? 0) + g.rotation
+    }
+    return out
   })
+}
+
+/** Every colour the members of a group use (layer colour, colour slots, gradient stops, outlines). */
+export function groupColors(layers: OverlayLayer[], gid: string): string[] {
+  const set = new Set<string>()
+  const add = (c?: string): void => { if (c && /^#/.test(c)) set.add(c.toLowerCase()) }
+  for (const l of layers) {
+    if (l.group !== gid) continue
+    if (!(l.kind === 'design' && l.colors?.length)) add(l.color)
+    l.colors?.forEach(add)
+    l.stops?.forEach((s) => add(s.c))
+    if (l.fill?.kind === 'gradient') l.fill.stops.forEach((s) => add(s.color))
+    if (l.border) add(l.borderColor)
+  }
+  return [...set]
+}
+
+/** Replace one colour by another in every member of a group (all the places groupColors looks at). */
+export function swapGroupColor(layers: OverlayLayer[], gid: string, from: string, to: string): OverlayLayer[] {
+  const f = from.toLowerCase()
+  const sw = (c: string | undefined): string | undefined => (c && c.toLowerCase() === f ? to : c)
+  return layers.map((l) => (l.group !== gid ? l : {
+    ...l, color: sw(l.color)!, colors: l.colors?.map((c) => sw(c)!), stops: l.stops?.map((s) => ({ ...s, c: sw(s.c)! })),
+    fill: l.fill?.kind === 'gradient' ? { ...l.fill, stops: l.fill.stops.map((s) => ({ ...s, color: sw(s.color)! })) } : l.fill?.kind === 'solid' ? { ...l.fill, color: sw(l.fill.color)! } : l.fill,
+    borderColor: sw(l.borderColor)
+  }))
 }
 
 /** Keep every group's members right after it (relative order kept); members of missing groups are ungrouped. */
@@ -189,6 +232,7 @@ export interface LogoPlacement {
   outlineColor?: string
   outlineWidth?: number // 0 = none
   dx: number; dy: number // offset from default spot
+  rot?: number // own rotation (degrees), on top of the spot's
   side?: 'left' | 'right' | 'both' // sleeve badges; shorts logos: which leg
   spot?: 'front' | 'back' | 'middle' // shorts sponsor; back sponsors: 'top' | 'bottom' via place
   place?: 'top' | 'bottom' // back sponsors: above or below the name/number
@@ -222,8 +266,12 @@ export type CollarStyle = 'solid' | 'tipped' | 'twoTone' | 'stripes2' | 'stripes
  * Collar design. `front`: the part of the collar model that lies on the chest (flaps, lining) — 'base' paints it
  * in the shirt colour (default: no torso design showing through in pieces), 'design' leaves the shirt design.
  */
-export interface CollarSpec { style: CollarStyle; c1: string; c2: string; c3: string; front?: 'design' | 'base' | 'color'; frontColor?: string; width?: number }
-export interface CuffSpec { style: 'none' | 'solid' | 'tipped' | 'stripes2' | 'stripes3'; c1: string; c2: string; width: number; stitch?: StitchSpec }
+export interface CollarSpec { style: CollarStyle; c1: string; c2: string; c3: string; front?: 'design' | 'base' | 'color'; frontColor?: string; width?: number
+  /** own options of the collar design (rim / stripes / V / placket sizes), see COLLAR_PARAMS */
+  p?: Record<string, number | boolean | string> }
+export interface CuffSpec { style: 'none' | 'solid' | 'tipped' | 'stripes2' | 'stripes3'; c1: string; c2: string; width: number; stitch?: StitchSpec
+  /** stripes / tip: width of each stripe, space between stripes, distance of the first one from the cuff's edge (px) */
+  stripeW?: number; gap?: number; offset?: number }
 export interface FabricLayer { id: string; source: string /* builtin id or asset:<id> */; zones: FabricZone[]; opacity: number; scale: number; blend: GlobalCompositeOperation; visible: boolean; v2?: boolean /* zones include shorts / socks explicitly */ }
 export interface ArmbandSpec { all?: boolean /* same in every kit of the team */; show: boolean; fill: Fill; text: string; textColor: string; font: string; crest?: boolean; crestSize?: number; pattern?: string; patternColor?: string; patternScale?: number /* % */; patternAngle?: number; patternWidth?: number /* % */; patternDx?: number }
 
@@ -285,7 +333,7 @@ export interface KitDesign {
   logoShine?: { all: boolean; value: number }
   /** 3D shininess of the preview name and numbers: one value, or one per part */
   numberShine?: { all: boolean; value: number; back?: number; name?: number; chest?: number; leg?: number }
-  v?: 2 | 3 | 4 | 5
+  v?: 2 | 3 | 4 | 5 | 6
 }
 
 export interface Asset { id: string; name: string; dataUrl: string; w?: number; h?: number }
@@ -383,12 +431,13 @@ export function defaultDesign(slot: string, c1 = '#1f4fb4', c2 = '#ffffff'): Kit
     layers: [],
     logos: defaultLogos(),
     numbers: { mode: 'game', font: 'Impact', fill: contrastOn(c1), outline: c2, outlineWidth: 0 },
-    config: { Collar: 66, WinterCollar: 66, ShirtModel: 144, ShortsModel: 1, TightKit: 1, ...NUMBER_DEFAULTS }
+    // written in the old (pre-v6) sense: migrateKit flips it, so a new kit ends with NUMBER_DEFAULTS (1 = right leg)
+    config: { Collar: 66, WinterCollar: 66, ShirtModel: 144, ShortsModel: 1, TightKit: 1, ...NUMBER_DEFAULTS, ShortsNumberSide: 1 - NUMBER_DEFAULTS.ShortsNumberSide }
   })
 }
 
 /** Name / number defaults for new kits (the user's choice, 2026-11-14; the height sliders run inverted: shown 17 = BackNumberY 12, shown 7 = NameY 32). */
-export const NUMBER_DEFAULTS = { BackNumberY: 12, BackNumberSize: 24, BackNumberSpacing: 12, NameY: 32, NameSize: 5, NameStretch: 2, ShortsNumberSide: 0, ShortsNumberSize: 18, ShortsNumberX: 10, ShortsNumberY: 15 }
+export const NUMBER_DEFAULTS = { BackNumberY: 12, BackNumberSize: 24, BackNumberSpacing: 12, NameY: 32, NameSize: 5, NameStretch: 2, ShortsNumberSide: 1, ShortsNumberSize: 18, ShortsNumberX: 10, ShortsNumberY: 15 }
 
 export function defaultFabrics(): FabricLayer[] {
   return [
@@ -399,8 +448,20 @@ export function defaultFabrics(): FabricLayer[] {
 
 /** Bring any saved design up to the current model (v2): torso pattern → layer, single logos → lists, defaults. */
 export function migrateKit(k: KitDesign): KitDesign {
-  if (k.v === 5) return k
-  return toV5(k.v === 4 ? k : toV4(migrateV3(k)))
+  if (k.v === 6) return k
+  return toV6(k.v === 5 ? k : toV5(k.v === 4 ? k : toV4(migrateV3(k))))
+}
+
+/**
+ * v6 (0.4.4): ShortsNumberSide follows the Sider (0 = left, 1 = right). The editor had them the other way round
+ * (0 shown as "Direita"), so the number went on the other leg in the game: saved values are flipped to keep the leg
+ * that was chosen in the editor.
+ */
+function toV6(k: KitDesign): KitDesign {
+  const v = k.config?.ShortsNumberSide
+  const d: KitDesign = { ...k, v: 6 }
+  if (v !== undefined && v !== null && v !== '') d.config = { ...k.config, ShortsNumberSide: Number(v) === 1 ? 0 : 1 }
+  return d
 }
 
 /** v5 (0.3): the collar row only holds the model and the base colour; a collar design becomes its own layer (on top). */

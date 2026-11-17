@@ -22,7 +22,7 @@ const TX = (pattern: string, role: Role, opacity: number, scale = 70, more: Part
 const D = (pattern: string, role: Role, count: number, width: number, more: Partial<OverlayLayer> = {}): TplLayer => ({ kind: 'pattern', pattern, role, count, width, zones: ['front', 'back'], ...more })
 
 export const TEMPLATES: Tpl[] = [
-  { id: 'classic', name: 'Clássico liso', sleeves: ['top', 'c2', 1, 20], socks: ['topBand', 'c2', 1, 20], collar: 66 },
+  { id: 'classic', name: 'Clássico liso', socks: ['topBand', 'c2', 1, 20], collar: 66 },
   { id: 'modern', name: 'Moderno', sleeves: ['end', 'c2', 1, 15], shorts: ['side', 'c2', 1, 30], socks: ['stripes', 'c2', 2, 30], collar: 12 },
   { id: 'stripes', name: 'Riscas', torso: ['stripes', 'c2', 3, 50], sleeveColor: 'c2', socks: ['hoops', 'c2', 2, 40], collar: 30 },
   { id: 'thinStripes', name: 'Riscas finas', torso: ['pinstripes', 'c2', 14, 40], socks: ['topBand', 'c2'], collar: 66 },

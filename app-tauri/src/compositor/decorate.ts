@@ -118,7 +118,8 @@ function draw(g: OffscreenCanvasRenderingContext2D, inp: DecorateInput): void {
   const legAtlas = inp.leg ?? inp.back
   if (legAtlas && inp.number && shortsSize > 0 && want('leg')) {
     const h = 26 + shortsSize * 4
-    const left = num(c, 'ShortsNumberSide', ND.ShortsNumberSide) === 1
+    // Sider: 0 = left, 1 = right (the player's legs; left = the island at texture x > 1024, as for the shorts logos)
+    const left = num(c, 'ShortsNumberSide', ND.ShortsNumberSide) === 0
     g.save()
     if (left) { g.translate(1898 - (num(c, 'ShortsNumberY', ND.ShortsNumberY) - 7) * 10, 1745 + (num(c, 'ShortsNumberX', ND.ShortsNumberX) - 7) * 10); g.rotate(-Math.PI / 2) }
     else { g.translate(150 + (num(c, 'ShortsNumberY', ND.ShortsNumberY) - 7) * 10, 1745 - (num(c, 'ShortsNumberX', ND.ShortsNumberX) - 7) * 10); g.rotate(Math.PI / 2) }

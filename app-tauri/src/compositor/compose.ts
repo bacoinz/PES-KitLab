@@ -4,7 +4,7 @@
  * and placement are GPU work, so editing a colour or moving a logo is instant.
  */
 import type { CollarStyle, CollarSpec, KitDesign, Asset, LogoPlacement, OverlayLayer, Fill, PatternSpec } from '../model/design'
-import { contrastOn, migrateKit, solid, fillMain, luminance, resolveGroups, LOGO_BASE, shortsBase } from '../model/design'
+import { contrastOn, migrateKit, solid, fillMain, luminance, resolveGroups, LOGO_BASE, shortsBase, NUMBER_DEFAULTS } from '../model/design'
 import { S, REGIONS, SPOTS, CLEAN_RECTS, pathOf, TORSO, SEAM, SHORTS_FRAME, SOCK_FRAME, LEGS, sleeveSeam, SLEEVE_SEAMS, PANEL, NECK_HOLE, BACK_AXIS, backY, mirrorX, type Pt } from './uv'
 import { drawTorsoPattern, drawSleevePattern, drawShortsPattern, drawSocksPattern, drawTexture } from './patterns'
 import { loadAsset, recolor, cleanRects, imgW, imgH, canvas, ctx2d } from './images'
@@ -118,10 +118,11 @@ function drawPanelBand(l: G, L: OverlayLayer, a: number, b: number): void {
   const w = Math.max(2, L.size ?? 60)
   // rotation turns each band about its own centre (the mirrored band the other way)
   const ang = ((L.rotation ?? 0) * Math.PI) / 180
-  const both = (pts: Pt[], flipAng = false): void => {
-    for (const [k, p] of [pts, mirrorX(pts)].entries()) {
+  // `other`: the second copy's own points (default: the mirror image of the first)
+  const both = (pts: Pt[], flipAng = false, other?: Pt[], sameAng = false): void => {
+    for (const [k, p] of [pts, other ?? mirrorX(pts)].entries()) {
       l.save()
-      const a = (k ? -ang : ang) * (flipAng ? -1 : 1)
+      const a = (k && !sameAng ? -ang : ang) * (flipAng ? -1 : 1)
       if (ang) { const cx = p.reduce((s, q) => s + q[0], 0) / p.length, cy = p.reduce((s, q) => s + q[1], 0) / p.length; l.translate(cx, cy); l.rotate(a); l.translate(-cx, -cy) }
       l.beginPath(); p.forEach(([x, y], i) => (i ? l.lineTo(x, y) : l.moveTo(x, y))); l.closePath(); l.fill()
       l.restore()
@@ -172,7 +173,15 @@ function drawPanelBand(l: G, L: OverlayLayer, a: number, b: number): void {
       both(rect(a ? PANEL.longCuff + a : 0, 170, PANEL.longCuff + b, 610))
       break
     case 'shortsHem': both(rect(a ? LEGS[0].hem + a : 0, SHORTS_FRAME.innerTop - 10, LEGS[0].hem + b, SHORTS_FRAME.innerBottom + 10)); break
-    case 'shortsSides': both(rect(0, SHORTS_FRAME.side + u0, LEGS[0].waist + 40, SHORTS_FRAME.side + u1)); break
+    case 'shortsSides': {
+      // the two legs' islands are turned 180° to each other: the plain mirror copy moved the right leg's stripe the
+      // opposite way (symmetric). Without "Espelhar" the right leg gets the same stripe moved the same way (offset and
+      // rotation); with "Espelhar" both legs mirror each other as before
+      const left = rect(0, SHORTS_FRAME.side + u0, LEGS[0].waist + 40, SHORTS_FRAME.side + u1)
+      if (L.mirrorCenter) both(left)
+      else both(left, false, mirrorX(rect(0, SHORTS_FRAME.side - u1, LEGS[0].waist + 40, SHORTS_FRAME.side - u0)), true)
+      break
+    }
     case 'sockFold': both(rect(0, a ? 640 + a : 630, SOCK_FRAME[0].x1 + 10, 640 + b)); break
     case 'sockTrim': { const y = 640 + (L.y ?? 84); both(rect(0, y + u0, SOCK_FRAME[0].x1 + 10, y + u1)); break }
   }
@@ -184,7 +193,8 @@ function panelBands(L: OverlayLayer): [number, number][][] {
   const n = Math.max(1, L.pcount ?? 3), gap = Math.max(0, L.pgap ?? Math.round(w / (n * 3)))
   switch (L.pstyle ?? 'solid') {
     case 'stripes': case 'stripes2c': {
-      const sw = Math.max(1, (w - gap * (n - 1)) / n)
+      // own width per stripe (stripeW), else the stripes share the panel width
+      const sw = L.stripeW ? Math.max(1, L.stripeW) : Math.max(1, (w - gap * (n - 1)) / n)
       const c0: [number, number][] = [], c1: [number, number][] = []
       for (let i = 0; i < n; i++) (L.pstyle === 'stripes2c' && i % 2 ? c1 : c0).push([i * (sw + gap), i * (sw + gap) + sw])
       return [c0, c1]
@@ -210,19 +220,34 @@ const tileCells = new Map<string, OffscreenCanvas>()
 function tileCell(L: OverlayLayer): OffscreenCanvas | null {
   const img = L.assetId ? tileImgs.get(L.assetId) : undefined
   if (!img) return null
-  const size = Math.max(8, L.size ?? 160), gap = Math.max(0, L.gap ?? 0)
-  const key = [L.assetId, size, gap].join(':')
+  // the cell is made at the size it will end up on the texture (layer size × zoom), so a big motif is not blown
+  // up from a small copy; the pattern is then scaled back by `tileScale` (cellK)
+  const z = ((L.zoom ?? 100) / 100) * Math.max(L.sx ?? 1, L.sy ?? 1)
+  const k = Math.max(1, Math.min(6, z))
+  const size = Math.max(8, (L.size ?? 160) * k), gap = Math.max(0, (L.gap ?? 0) * k)
+  const key = [L.assetId, Math.round(size), Math.round(gap)].join(':')
   let c = tileCells.get(key)
   if (!c) {
     const iw = imgW(img), ih = imgH(img), r = Math.min(size / Math.max(1, iw), size / Math.max(1, ih))
     const w = Math.max(1, Math.round(iw * r)), h = Math.max(1, Math.round(ih * r))
-    c = new OffscreenCanvas(w + gap, h + gap)
-    c.getContext('2d')!.drawImage(img as CanvasImageSource, gap / 2, gap / 2, w, h)
+    // downscale in halves with high-quality smoothing (one big step from 1200 px to ~160 px aliases badly)
+    let src: CanvasImageSource = img as CanvasImageSource, sw = iw, sh = ih
+    while (sw / 2 >= w * 1.5 && sh / 2 >= h) {
+      const nw = Math.round(sw / 2), nh = Math.round(sh / 2), t = new OffscreenCanvas(nw, nh), tg = t.getContext('2d')!
+      tg.imageSmoothingQuality = 'high'; tg.drawImage(src, 0, 0, nw, nh)
+      src = t; sw = nw; sh = nh
+    }
+    c = new OffscreenCanvas(w + Math.round(gap), h + Math.round(gap))
+    const cg = c.getContext('2d')!
+    cg.imageSmoothingQuality = 'high'
+    cg.drawImage(src, gap / 2, gap / 2, w, h)
     if (tileCells.size > 40) tileCells.clear()
     tileCells.set(key, c)
   }
+  cellK = k
   return c
 }
+let cellK = 1
 
 /** Free drawing: round strokes in texture space (erase strokes paint black = no layer), optional symmetric copy. */
 function drawStrokes(l: G, L: OverlayLayer): void {
@@ -277,8 +302,8 @@ export function drawVector(l: G, L: OverlayLayer): void {
 let paintColors = false
 /** True while drawing into a mirrored part frame (right sock): text is flipped back so it reads the right way. */
 let unflipText = false
-/** The kit's "sleeves with shoulders" shape (default when off): sleeves-zone layers also cover that shoulder area. */
-let shoulderShape: NonNullable<KitDesign['raglan']> = {}
+/** The kit's "sleeves with shoulders" shape, null when the sleeves have no shoulders. */
+let shoulderShape: NonNullable<KitDesign['raglan']> | null = null
 
 /** White content of a non-image layer in the torso FRONT frame. */
 function frontContent(l: G, L: OverlayLayer): void {
@@ -294,8 +319,8 @@ function frontContent(l: G, L: OverlayLayer): void {
     l.restore()
   } else if (L.kind === 'image' && L.fit === 'tile') {
     const cell = tileCell(L)
-    if (cell) { l.fillStyle = l.createPattern(cell, 'repeat')!; l.fillRect(TORSO.x0 - 1400, SEAM - 1400, TORSO.x1 - TORSO.x0 + 2800, 3800) }
-  } else if (L.kind === 'texture' && L.pattern) drawTexture(l, L.pattern, TORSO.x0 - 700, SEAM - 700, TORSO.x1 + 700, TORSO.hem + 700, L.scale ?? 70, L.stroke, L.lineWidth)
+    if (cell) { const pt = l.createPattern(cell, 'repeat')!; if (cellK !== 1) pt.setTransform(new DOMMatrix().scale(1 / cellK)); l.fillStyle = pt; l.imageSmoothingQuality = 'high'; l.fillRect(TORSO.x0 - 1400, SEAM - 1400, TORSO.x1 - TORSO.x0 + 2800, 3800) }
+  } else if (L.kind === 'texture' && L.pattern) drawTexture(l, L.pattern, TORSO.x0 - 700, SEAM - 700, TORSO.x1 + 700, TORSO.hem + 700, L.scale ?? 70, L.stroke, L.lineWidth, !!L.texOutline)
   else if (L.kind === 'shape') drawShape(l, L)
   else if (L.kind === 'text' && L.text) {
     l.save()
@@ -431,7 +456,9 @@ async function logoPassesOne(out: Pass[], lp: LogoPlacement | undefined, assets:
     // offsets are in the logo's own upright frame; mirrored spots flip dx so "forward" is the same on both sides
     const dx = (s.flipDx ? -1 : 1) * (lp.dx + (s.ox ?? 0)), dy = (lp.dy + (s.oy ?? 0)) * (s.ky ?? 1)
     const c = Math.cos(s.rot), sn = Math.sin(s.rot)
-    const f = fitted(img, s.x + dx * c - dy * sn, s.y + dx * sn + dy * c, lp.size, s.rot)
+    // the logo's own rotation turns it about its centre (mirrored spots the other way, like dx)
+    const own = (((lp.rot ?? 0) * Math.PI) / 180) * (s.flipDx ? -1 : 1)
+    const f = fitted(img, s.x + dx * c - dy * sn, s.y + dx * sn + dy * c, lp.size, s.rot + own)
     f.h *= s.ky ?? 1
     const place = { img, ...f, ...t, outlineWidth: ow, outlineColor: lp.outlineColor ?? contrastOn(bg) }
     out.push({ t: 'image', clip, place })
@@ -458,7 +485,8 @@ function shortsSpots(lp: LogoPlacement, kind: 'leg' | 'back' | 'middle' | 'backL
   const left = (d: number, y: number): Spot => ({ x: LEGS[1].waist + d, y, rot: -Math.PI / 2, ...o('left') })
   // dx is "to the viewer's right" on both legs (as seen from the front)
   const right = (d: number, y: number): Spot => ({ x: LEGS[0].waist - d, y, rot: Math.PI / 2, ...o('right') })
-  const sides = (d: number, y: number): Spot[] => (side === 'both' ? [left(d, y), right(d, y)] : side === 'left' ? [left(d, y)] : [right(d, y)])
+  // both legs = mirrored: the right leg's offset (and rotation) go the other way, so the logos sit alike on each leg
+  const sides = (d: number, y: number): Spot[] => (side === 'both' ? [left(d, y), { ...right(d, y), flipDx: true }] : side === 'left' ? [left(d, y)] : [right(d, y)])
   switch (kind) {
     case 'back': return [left(60 + h / 2, F.bumSeam), right(60 + h / 2, F.bumSeam)]
     case 'middle': return [left(70 + h / 2, F.flySeam), right(70 + h / 2, F.flySeam)]
@@ -620,12 +648,22 @@ function sleeveFrameDraw(l: G, L: OverlayLayer, i: number): void {
  */
 function withShoulder(draw: ((l: G) => void) | null, L: OverlayLayer, front: boolean): ((l: G) => void) | null {
   const zones = L.zones ?? ['front', 'back']
-  if (!zones.includes('sleeves') || zones.includes('front') || zones.includes('back') || L.kind === 'text' || L.sleeveMap === 'continue') return draw
+  // follows the sleeves row: with "Mangas com ombros" the shoulder (raglan) area belongs to the sleeves — a layer
+  // with "Mangas" goes on over it (the sleeve's own drawing, past the armhole), a chest / back layer stops at the
+  // raglan seam; without shoulders nothing changes
+  const rg = shoulderShape
+  const sl = zones.includes('sleeves')
+  if (!rg || L.kind === 'text' || L.sleeveMap === 'continue' || (!sl && !draw)) return draw
   return (l) => {
-    if (draw) { l.save(); draw(l); l.restore() }
-    for (let i = 0; i < 2; i++) {
+    if (draw) {
       l.save()
-      l.beginPath(); raglanPath(l, shoulderShape, front, i === 1); l.clip()
+      l.beginPath(); l.rect(-S, -S, 3 * S, 3 * S); raglanPath(l, rg, front, false); raglanPath(l, rg, front, true); l.clip('evenodd')
+      draw(l)
+      l.restore()
+    }
+    if (sl) for (let i = 0; i < 2; i++) {
+      l.save()
+      l.beginPath(); raglanPath(l, rg, front, i === 1); l.clip()
       sleeveFrameDraw(l, L, i)
       l.restore()
     }
@@ -686,8 +724,20 @@ function partDraw(L: OverlayLayer, part: string): (l: G) => void {
  * The mask a layer uses ("Máscara"): another layer, or a group = all its visible members together (the groups
  * themselves are gone from the resolved list, their members keep the group id).
  */
+export const SLEEVES_MASK = '__sleeves'
 function refMask(L: OverlayLayer, all: OverlayLayer[], s2s: boolean): MaskSrc | undefined {
   if (!L.maskLayer) return undefined
+  if (L.maskLayer === SLEEVES_MASK) {
+    const rg = shoulderShape
+    return {
+      key: 'sleevesMask:' + JSON.stringify(rg), zones: true,
+      draw: (g) => zoneChannels(g, [
+        rg ? (l) => { for (const r of [false, true]) { l.beginPath(); raglanPath(l, rg, true, r); l.fill() } } : null,
+        rg ? (l) => { for (const r of [false, true]) { l.beginPath(); raglanPath(l, rg, false, r); l.fill() } } : null,
+        (l) => { l.fillRect(0, 0, S, S) }
+      ])
+    }
+  }
   const one = all.find((x) => x.id === L.maskLayer && x.id !== L.id)
   if (one) return layerMask(one, s2s) ?? undefined
   const masks = all.filter((x) => x.group === L.maskLayer && x.id !== L.id && x.visible).map((x) => layerMask(x, s2s)).filter((m): m is MaskSrc => !!m)
@@ -715,7 +765,7 @@ function layerMask(L: OverlayLayer, s2s: boolean): MaskSrc | null {
   const part = L.part === 'shirt' ? 'torso' : L.part
   if (part === 'torso') {
     const zones = L.zones ?? ['front', 'back']
-    return { key: 'layer:' + geomKey(L, [zones, s2s, zones.length === 1 && zones[0] === 'sleeves' ? shoulderShape : 0]), zones: true, draw: blurred(L, (g) => zoneChannels(g, zoneDraws(L))) }
+    return { key: 'layer:' + geomKey(L, [zones, s2s, JSON.stringify(shoulderShape)]), zones: true, draw: blurred(L, (g) => zoneChannels(g, zoneDraws(L))) }
   }
   return { key: 'part2:' + geomKey(L, s2s), draw: blurred(L, partDraw(L, part)) }
 }
@@ -731,7 +781,9 @@ function tileRgbaPasses(out: Pass[], L: OverlayLayer, part: string, op: number, 
     bg.filter = `blur(${L.blur}px)`; bg.drawImage(c, 0, 0)
     return b
   }
-  const key = 'tileRGBA:' + geomKey(L, 0)
+  // the shoulder (raglan) shape changes what each zone draws: part of the cache key (it was missing: after turning
+  // "Mangas com ombros" on, designs / patterns kept the old drawing without the shoulders)
+  const key = 'tileRGBA:' + geomKey(L, part === 'torso' ? JSON.stringify(shoulderShape) : 0)
   if (part === 'torso') {
     const clips: Clip[] = ['front', 'back', 'sleeves']
     zoneDraws(L).forEach((d, i) => { if (d) out.push({ t: 'rgba', key: key + i, img: () => paint(d), clip: clips[i], opacity: op, blend, mask2, mask2Invert }) })
@@ -917,22 +969,81 @@ async function layerPassesRaw(out: Pass[], L: OverlayLayer, all: OverlayLayer[],
   }
   if (part === 'torso') {
     const zones = L.zones ?? ['front', 'back']
-    out.push({ t: 'fill', fill, mask, mask2, mask2Invert: L.maskInvert, clip: 'zones', zoneSel: [zones.includes('front') ? 1 : 0, zones.includes('back') ? 1 : 0, zones.includes('sleeves') ? 1 : 0], opacity: op, blend })
+    // with "Mangas com ombros" a sleeves layer also draws the shoulders in its front / back channels (withShoulder):
+    // those channels must pass too (one-colour patterns / graphics were cut at the armhole)
+    const sh = !!shoulderShape && zones.includes('sleeves') && L.kind !== 'text'
+    out.push({ t: 'fill', fill, mask, mask2, mask2Invert: L.maskInvert, clip: 'zones', zoneSel: [zones.includes('front') || sh ? 1 : 0, zones.includes('back') || sh ? 1 : 0, zones.includes('sleeves') ? 1 : 0], opacity: op, blend })
     return
   }
   out.push({ t: 'fill', fill, mask, mask2, mask2Invert: L.maskInvert, clip: (part === 'shorts' ? 'shorts' : part === 'socks' ? 'socks' : 'sleeves'), opacity: op, blend })
 }
 
 // ---------------------------------------------------------------- collar, cuffs, armband
-export const COLLAR_DESIGNS: [CollarStyle, string, number][] = [
-  ['solid', 'Lisa', 1], ['twoTone', 'Duas cores (fora / dentro)', 2], ['threeColor', 'Três cores', 3], ['tipped', 'Rebordo', 2],
-  ['stripes2', 'Duas riscas', 2], ['stripes3', 'Três riscas', 3], ['half', 'Meia gola', 2], ['front', 'Frente de outra cor', 2],
-  ['back', 'Nuca de outra cor', 2], ['halftone', 'Degradê meio-tom', 2], ['vInsert', 'V sobreposto', 2], ['vInsert3', 'V sobreposto (3 cores)', 3],
-  ['vSlim', 'V fino', 2], ['placket', 'Peitilho', 2],
-  ['front1', 'Frente estreita', 2], ['front2', 'Frente média', 2], ['front3', 'Frente larga', 2], ['innerTrim', 'Rebordo de dentro', 2], ['outerTrim', 'Rebordo por fora', 2],
-  ['doubleTrim', 'Dois rebordos', 2], ['stripes4', 'Quatro riscas finas', 2], ['vSlimL', 'V cruzado (esquerda)', 2], ['vSlimR', 'V cruzado (direita)', 2],
-  ['vInsertR3', 'V cruzado (3 cores)', 3], ['vLine', 'V com debrum', 2], ['placketStripe', 'Peitilho com risca', 3], ['placketWide', 'Peitilho largo', 2]
+/** Collar designs: id, name, colours, shown in the Designs menu (old ones that became options of another stay for saved kits). */
+export const COLLAR_DESIGNS: [CollarStyle, string, number, boolean?][] = [
+  ['solid', 'Lisa', 1], ['tipped', 'Rebordo', 2], ['stripes2', 'Riscas', 3], ['twoTone', 'Duas faixas', 2], ['threeColor', 'Três faixas', 3],
+  ['front', 'Frente de outra cor', 2], ['back', 'Nuca de outra cor', 2], ['half', 'Meia gola', 2], ['halftone', 'Degradê meio-tom', 2],
+  ['vInsert', 'V sobreposto', 2], ['vInsert3', 'V sobreposto (3 cores)', 3], ['vSlim', 'V fino', 2], ['vLine', 'V com debrum', 2],
+  ['vSlimL', 'V cruzado (esquerda)', 2], ['vSlimR', 'V cruzado (direita)', 2], ['vInsertR3', 'V cruzado (3 cores)', 3],
+  ['placket', 'Peitilho', 2], ['placketStripe', 'Peitilho com risca', 3],
+  // folded into the ones above (options), kept so saved kits still draw
+  ['outerTrim', 'Rebordo por fora', 2, true], ['innerTrim', 'Rebordo junto à camisola', 2, true], ['doubleTrim', 'Dois rebordos', 2, true],
+  ['stripes3', 'Três riscas', 3, true], ['stripes4', 'Quatro riscas finas', 2, true],
+  ['front1', 'Frente estreita', 2, true], ['front2', 'Frente média', 2, true], ['front3', 'Frente larga', 2, true], ['placketWide', 'Peitilho largo', 2, true]
 ]
+export interface CollarParam { key: string; label: string; min?: number; max?: number; options?: [string, string][] }
+/**
+ * The collar is a strip folded in two: on the texture the fold (the collar's top edge, v ≈ 1920 in every model) is
+ * the middle and the two faces run away from it, ~40 px each — one is the outside of the collar, the other the inside
+ * (seen from the neck). Every measure below is the distance from the fold, so what the sliders say is what the 3D
+ * shows (the PES Master "Collar" stripe is centred on the same line).
+ */
+export const COLLAR_FOLD = 1920, COLLAR_HALF = 40
+const FACES: CollarParam = { key: 'faces', label: 'Lados', options: [['both', 'Fora e dentro'], ['out', 'Só por fora'], ['in', 'Só por dentro']] }
+/** Own options of each collar design (values in the layer's `p`; defaults in collarDefaults). */
+export function collarParams(st: CollarStyle): CollarParam[] {
+  const rim: CollarParam[] = [{ key: 'pos', label: 'Onde', options: [['fold', 'Na borda da gola (dobra)'], ['seam', 'Junto à camisola (costura)'], ['both', 'Nas duas']] }, { key: 'trimW', label: 'Largura do rebordo', min: 2, max: 80 }, { key: 'trimOff', label: 'Distância da costura', min: 0, max: 20 }, FACES]
+  switch (st) {
+    case 'tipped': case 'outerTrim': case 'innerTrim': case 'doubleTrim': return rim
+    case 'stripes2': case 'stripes3': case 'stripes4': return [{ key: 'alt', label: 'Cores das riscas', options: [['0', 'Todas na cor 2'], ['1', 'Alternar cor 2 e cor 3']] }, { key: 'count', label: 'Número de riscas', min: 1, max: 6 }, { key: 'lineW', label: 'Largura de cada risca', min: 1, max: 20 }, { key: 'gap', label: 'Espaçamento', min: 0, max: 20 }, { key: 'offset', label: 'Distância da dobra', min: 0, max: 38 }, FACES]
+    case 'twoTone': return [{ key: 'side', label: 'Cor 2 vai para', options: [['in', 'O lado de dentro'], ['out', 'O lado de fora']] }]
+    case 'threeColor': return [{ key: 'mid', label: 'Largura da faixa do meio (%)', min: 5, max: 90 }, { key: 'side', label: 'Cor 3 vai para', options: [['in', 'O lado de dentro'], ['out', 'O lado de fora']] }]
+    case 'front': case 'front1': case 'front2': case 'front3': return [{ key: 'fw', label: 'Largura da frente (%)', min: 4, max: 90 }]
+    case 'back': return [{ key: 'bw', label: 'Largura da nuca (%)', min: 4, max: 90 }]
+    case 'vInsert': case 'vInsert3': case 'vSlim': case 'vLine': case 'vSlimL': case 'vSlimR': case 'vInsertR3':
+      return [{ key: 'depth', label: 'Profundidade do V', min: 60, max: 420 }, { key: 'vw', label: 'Abertura do V (%)', min: 40, max: 160 }, { key: 'rim', label: 'Largura do rebordo', min: 2, max: 60 }]
+    case 'placket': case 'placketWide': case 'placketStripe': return [{ key: 'pw', label: 'Largura do peitilho', min: 10, max: 140 }, { key: 'pl', label: 'Comprimento', min: 60, max: 420 }, ...(st === 'placketStripe' ? [{ key: 'lineW', label: 'Largura da risca', min: 2, max: 60 }] : [])]
+    default: return []
+  }
+}
+/** Defaults of a design's options (they fit inside the ±40 px faces). */
+export function collarDefaults(st: CollarStyle, width?: number): Record<string, number | string> {
+  switch (st) {
+    case 'tipped': return { pos: 'fold', trimW: 14, trimOff: 0, faces: 'both' }
+    case 'outerTrim': return { pos: 'fold', trimW: 20, trimOff: 0, faces: 'both' }
+    case 'innerTrim': return { pos: 'seam', trimW: 8, trimOff: 0, faces: 'both' }
+    case 'doubleTrim': return { pos: 'both', trimW: 8, trimOff: 0, faces: 'both' }
+    case 'stripes2': return { alt: '0', count: 2, lineW: 5, gap: 6, offset: 8, faces: 'both' }
+    case 'stripes3': return { alt: '1', count: 3, lineW: 4, gap: 5, offset: 6, faces: 'both' }
+    case 'stripes4': return { alt: '0', count: 4, lineW: 3, gap: 4, offset: 4, faces: 'both' }
+    case 'twoTone': return { side: 'in' }
+    case 'threeColor': return { mid: 34, side: 'in' }
+    case 'front': return { fw: width ?? 30 }
+    case 'front1': return { fw: 18 }
+    case 'front2': return { fw: 32 }
+    case 'front3': return { fw: 50 }
+    case 'back': return { bw: width ?? 40 }
+    case 'vInsert': case 'vInsert3': return { depth: 250, vw: 100, rim: 28 }
+    case 'vSlim': return { depth: 250, vw: 100, rim: 14 }
+    case 'vLine': return { depth: 250, vw: 100, rim: 12 }
+    case 'vSlimL': case 'vSlimR': case 'vInsertR3': return { depth: 250, vw: 100, rim: 22 }
+    case 'placket': return { pw: 40, pl: 255 }
+    case 'placketWide': return { pw: 70, pl: 270 }
+    case 'placketStripe': return { pw: 56, pl: 260, lineW: 12 }
+    default: return {}
+  }
+}
+
 /**
  * Collar band (measured on the collar models): x box from the model (both ends = front centre, middle = nape),
  * y 1866 → fold ≈1918 = outer face, below the fold = inner face. The chest part (flaps / lining) is drawn with the
@@ -944,49 +1055,74 @@ async function collarPasses(out: Pass[], d: KitDesign, layersDrawn: boolean, lay
   if (!cs || d.base.kind === 'image') return
   const m = await collarModel(Number(d.config.Collar ?? 66))
   const [bx0, , bx1] = m?.box ?? [664, 1866, 1384, 2034]
-  const x0 = bx0 - 8, x1 = bx1 + 8, w = x1 - x0, mid = (x0 + x1) / 2, top = 1860, fold = 1918, bot = 2040
+  // the collar band starts at y 1866 (region of the collar models): the designs are measured from there
+  const x0 = bx0 - 8, x1 = bx1 + 8, w = x1 - x0, mid = (x0 + x1) / 2
+  const st = cs.style
+  const P = { ...collarDefaults(st, cs.width), ...(cs.p ?? {}) }
+  const n = (k: string): number => Number(P[k] ?? 0)
+  const F = COLLAR_FOLD, HF = COLLAR_HALF
   if (!layersDrawn) {
-    // 1. the band itself, before the layers (layers may still paint over the collar region)
-    // the band in colour 1 (a collar-design layer too: its first colour covers the whole collar, the other colours go on top)
-    out.push({ t: 'fill', fill: solid(cs.c1), clip: 'collar' })
-    const band = (key: string, color: string, draw: (g: G) => void): void => { out.push({ t: 'fill', fill: solid(color), clip: 'collar', mask: { key: 'collar:' + key + ':' + x0 + ':' + x1, draw } }) }
-    const st = cs.style
-    if (st === 'twoTone') band('inner', cs.c2, (g) => g.fillRect(x0, fold, w, bot - fold))
-    if (st === 'threeColor') { band('3a', cs.c2, (g) => g.fillRect(x0, fold - 18, w, 36)); band('3b', cs.c3, (g) => g.fillRect(x0, fold + 18, w, bot - fold)) }
-    if (st === 'tipped') band('tip', cs.c2, (g) => { g.fillRect(x0, fold - 9, w, 18); g.fillRect(x0, top, w, 12) })
-    if (st === 'stripes2') band('s2', cs.c2, (g) => { g.fillRect(x0, 1878, w, 8); g.fillRect(x0, 1896, w, 8) })
-    if (st === 'stripes3') { band('s3', cs.c2, (g) => { g.fillRect(x0, 1874, w, 7); g.fillRect(x0, 1902, w, 7) }); band('s3m', cs.c3, (g) => g.fillRect(x0, 1888, w, 7)) }
-    if (st === 'half') band('half', cs.c2, (g) => g.fillRect(mid, top, x1 - mid, bot - top))
-    if (st === 'front') { const k = w * ((cs.width ?? 30) / 100) / 2; band('front' + k, cs.c2, (g) => { g.fillRect(x0, top, k, bot - top); g.fillRect(x1 - k, top, k, bot - top) }) }
-    if (st === 'back') { const k = w * ((cs.width ?? 40) / 100) / 2; band('back' + k, cs.c2, (g) => g.fillRect(mid - k, top, 2 * k, bot - top)) }
-    const fw = st === 'front1' ? 18 : st === 'front2' ? 32 : st === 'front3' ? 50 : 0
-    if (fw) { const k = (w * fw) / 200; band('fr' + fw, cs.c2, (g) => { g.fillRect(x0, top, k, bot - top); g.fillRect(x1 - k, top, k, bot - top) }) }
-    if (st === 'innerTrim') band('itrim', cs.c2, (g) => g.fillRect(x0, bot - 16, w, 16))
-    if (st === 'outerTrim') band('otrim', cs.c2, (g) => g.fillRect(x0, fold - 16, w, 18))
-    if (st === 'doubleTrim') band('dtrim', cs.c2, (g) => { g.fillRect(x0, top, w, 10); g.fillRect(x0, fold - 6, w, 12) })
-    if (st === 'stripes4') band('s4', cs.c2, (g) => { for (const y of [1870, 1882, 1894, 1906]) g.fillRect(x0, y, w, 5) })
-    if (st === 'halftone') band('ht', cs.c2, (g) => { for (let y = top; y < fold; y += 6) { const t = (y - top) / (fold - top); g.fillRect(x0, y, w, 6 * t) } })
+    // 1. the band, before the layers. Folded strip: the fold (F) is the middle and both faces run away from it (below
+    // = outside, above = inside, as seen from the neck); a design is measured as the distance d from the fold and drawn
+    // on both faces (or just one: option "Lados"), so the inside of the collar shows it too
+    const band = (key: string, color: string, draw: (g: G) => void): void => { out.push({ t: 'fill', fill: solid(color), clip: 'collar', mask: { key: 'collar3:' + key + ':' + x0 + ':' + x1, draw } }) }
+    // rows between distances d0 … d1 from the fold, on the faces asked for
+    const rows = (d0: number, d1: number, faces = 'both') => (g: G): void => {
+      const a = Math.max(0, d0), b = Math.min(d1, HF + 6)
+      if (b <= a) return
+      if (faces !== 'in') g.fillRect(x0, F + a, w, b - a)
+      if (faces !== 'out') g.fillRect(x0, F - b, w, b - a)
+    }
+    const centre = (r: number) => (g: G): void => { g.fillRect(x0, F - r, w, 2 * r) }
+    const fc = String(P.faces ?? 'both')
+    if (!layer) out.push({ t: 'fill', fill: solid(cs.c1), clip: 'collar' })
+    else band('face', cs.c1, centre(HF + 4))
+    // rims: centred on the fold, next to the shirt (the seam, at the far end of each face), or both
+    if (st === 'tipped' || st === 'outerTrim' || st === 'innerTrim' || st === 'doubleTrim') {
+      const tw = n('trimW'), off = n('trimOff'), pos = String(P.pos) === 'edge' ? 'fold' : String(P.pos) // 'edge': saved by 0.4.6/7
+      band('rim' + JSON.stringify(P), cs.c2, (g) => {
+        if (pos !== 'seam') { const r = tw / 2; if (fc === 'both') centre(r)(g); else rows(0, r, fc)(g) }
+        if (pos !== 'fold') rows(HF - off - tw, HF - off, fc)(g)
+      })
+    }
+    if (st === 'stripes2' || st === 'stripes3' || st === 'stripes4') {
+      // stripes away from the fold; colour 2, or alternating colour 2 / colour 3
+      const k = Math.max(1, Math.round(n('count'))), lw = n('lineW'), gp = n('gap'), off = n('offset')
+      const ds = Array.from({ length: k }, (_, i) => off + i * (lw + gp))
+      const alt = String(P.alt) === '1'
+      band('st2' + JSON.stringify(P), cs.c2, (g) => ds.forEach((d, i) => { if (!alt || i % 2 === 0) rows(d, d + lw, fc)(g) }))
+      if (alt) band('st3' + JSON.stringify(P), cs.c3, (g) => ds.forEach((d, i) => { if (i % 2 === 1) rows(d, d + lw, fc)(g) }))
+    }
+    if (st === 'twoTone') band('two' + P.side, cs.c2, rows(0, HF + 4, String(P.side)))
+    if (st === 'threeColor') { const r = (HF * n('mid')) / 100; band('3t' + P.side, cs.c3, rows(0, HF + 4, String(P.side))); band('3m' + n('mid'), cs.c2, centre(r)) }
+    if (st === 'half') band('half', cs.c2, (g) => g.fillRect(mid, F - HF - 4, x1 - mid, 2 * HF + 8))
+    if (st === 'front' || st === 'front1' || st === 'front2' || st === 'front3') { const k = (w * n('fw')) / 200; band('front' + k, cs.c2, (g) => { g.fillRect(x0, F - HF - 4, k, 2 * HF + 8); g.fillRect(x1 - k, F - HF - 4, k, 2 * HF + 8) }) }
+    if (st === 'back') { const k = (w * n('bw')) / 200; band('back' + k, cs.c2, (g) => g.fillRect(mid - k, F - HF - 4, 2 * k, 2 * HF + 8)) }
+    // halftone: colour 2 grows from the fold out to the seams
+    if (st === 'halftone') band('ht', cs.c2, (g) => { for (let d = 0; d < HF; d += 4) { const t = d / HF; g.fillRect(x0, F + d, w, 4 * t); g.fillRect(x0, F - d - 4 * t, w, 4 * t) } })
     return
   }
-  // 2. after the layers: V inserts / placket are drawn on the chest at the neck (the game's collar flaps show
-  // whatever the shirt has there, so the texture itself stays a normal shirt texture)
-  const V = (key: string, color: string, draw: (g: G) => void): void => { out.push({ t: 'fill', fill: solid(color), clip: 'front', mask: { key: 'collarV:' + key, draw } }) }
-  const vPath = (g: G, inset: number, depth: number): void => { g.beginPath(); g.moveTo(887 + inset, 960); g.lineTo(1024, 960 + depth); g.lineTo(1156 - inset, 960); g.closePath(); g.fill() }
-  if (cs.style === 'vInsert' || cs.style === 'vInsert3') { V('v1', cs.c1, (g) => vPath(g, 0, 250)); V('v2', cs.c2, (g) => vPath(g, 28, 190)) }
-  if (cs.style === 'vInsert3') V('v3', cs.c3, (g) => vPath(g, 52, 140))
-  if (cs.style === 'vSlim') { V('vs1', cs.c1, (g) => vPath(g, 0, 250)); V('vs2', cs.c2, (g) => vPath(g, 14, 220)) }
-  if (cs.style === 'placket') V('pl', cs.c1, (g) => g.fillRect(1004, 960, 40, 255))
-  if (cs.style === 'placketWide') V('plw', cs.c1, (g) => g.fillRect(989, 960, 70, 270))
-  if (cs.style === 'placketStripe') { V('pls', cs.c1, (g) => g.fillRect(996, 960, 56, 260)); V('pls2', cs.c3, (g) => g.fillRect(1018, 960, 12, 260)) }
+  // 2. after the layers: V inserts / placket on the chest at the neck (the game's collar flaps show whatever the
+  // shirt has there, so the texture itself stays a normal shirt texture); depth, opening and rim are options
+  const V = (key: string, color: string, draw: (g: G) => void): void => { out.push({ t: 'fill', fill: solid(color), clip: 'front', mask: { key: 'collarV:' + key + JSON.stringify(P), draw } }) }
+  const depth = n('depth') || 250, open = (n('vw') || 100) / 100, rim = n('rim') || 20
+  const L0 = 1024 - 137 * open, R0 = 1024 + 132 * open
+  const vPath = (g: G, inset: number, dp: number): void => { g.beginPath(); g.moveTo(L0 + inset, 960); g.lineTo(1024, 960 + dp); g.lineTo(R0 - inset, 960); g.closePath(); g.fill() }
+  const inner = (k: number): number => depth * (1 - (k * rim) / Math.max(1, 137 * open))
+  if (st === 'vInsert' || st === 'vInsert3') { V('v1', cs.c1, (g) => vPath(g, 0, depth)); V('v2', cs.c2, (g) => vPath(g, rim, inner(1))) }
+  if (st === 'vInsert3') V('v3', cs.c3, (g) => vPath(g, rim * 1.9, inner(1.9)))
+  if (st === 'vSlim') { V('vs1', cs.c1, (g) => vPath(g, 0, depth)); V('vs2', cs.c2, (g) => vPath(g, rim, inner(1))) }
+  if (st === 'vLine') { V('vl1', cs.c2, (g) => vPath(g, 0, depth)); V('vl2', cs.c1, (g) => vPath(g, rim, inner(1))) }
+  if (st === 'placket' || st === 'placketWide') { const pw = n('pw'), pl = n('pl'); V('pl', cs.c1, (g) => g.fillRect(1024 - pw / 2, 960, pw, pl)) }
+  if (st === 'placketStripe') { const pw = n('pw'), pl = n('pl'), lw = n('lineW'); V('pls', cs.c1, (g) => g.fillRect(1024 - pw / 2, 960, pw, pl)); V('pls2', cs.c3, (g) => g.fillRect(1024 - lw / 2, 960, lw, pl)) }
   // crossed V: one side of the V runs over the other (left / right)
-  const half = (g: G, right: boolean, inset: number, depth: number): void => { g.beginPath(); if (right) { g.moveTo(1024 - 40 + inset, 960); g.lineTo(1024 + 18, 960 + depth); g.lineTo(1156 - inset, 960) } else { g.moveTo(887 + inset, 960); g.lineTo(1024 - 18, 960 + depth); g.lineTo(1024 + 40 - inset, 960) } g.closePath(); g.fill() }
-  if (cs.style === 'vSlimL' || cs.style === 'vSlimR' || cs.style === 'vInsertR3') {
-    const r = cs.style !== 'vSlimL'
-    V('vc1', cs.c1, (g) => vPath(g, 0, 250))
-    V('vc2' + r, cs.c2, (g) => half(g, r, 0, 236))
-    if (cs.style === 'vInsertR3') V('vc3', cs.c3, (g) => half(g, r, 22, 200))
+  const half = (g: G, right: boolean, inset: number, dp: number): void => { g.beginPath(); if (right) { g.moveTo(1024 - 40 * open + inset, 960); g.lineTo(1024 + 18, 960 + dp); g.lineTo(R0 - inset, 960) } else { g.moveTo(L0 + inset, 960); g.lineTo(1024 - 18, 960 + dp); g.lineTo(1024 + 40 * open - inset, 960) } g.closePath(); g.fill() }
+  if (st === 'vSlimL' || st === 'vSlimR' || st === 'vInsertR3') {
+    const r = st !== 'vSlimL'
+    V('vc1', cs.c1, (g) => vPath(g, 0, depth))
+    V('vc2' + r, cs.c2, (g) => half(g, r, 0, depth * 0.944))
+    if (st === 'vInsertR3') V('vc3', cs.c3, (g) => half(g, r, rim, inner(1)))
   }
-  if (cs.style === 'vLine') { V('vl1', cs.c2, (g) => vPath(g, 0, 250)); V('vl2', cs.c1, (g) => vPath(g, 12, 226)) }
 }
 
 /**
@@ -1026,14 +1162,18 @@ function cuffPasses(out: Pass[], d: KitDesign): void {
       const h = y0 === 684 ? 534 : 528
       const band = (from: number, to: number): void => { const a = xe + dir * from, b = xe + dir * to; g.fillRect(Math.min(a, b), y0, Math.abs(b - a), h) }
       const w = cf.width
+      // stripes: own width, spacing and start (defaults = the old fixed layout)
+      const n = cf.style === 'stripes3' ? 3 : 2
+      const sw = cf.stripeW ?? (cf.style === 'tipped' ? 10 : n === 3 ? 7 : 8)
+      const start = cf.offset ?? (n === 3 ? w * 0.2 : w * 0.25)
+      const gap = cf.gap ?? (n === 3 ? w * 0.25 - sw : w * 0.35 - sw)
       if (which === 1) band(-80, w) // also covers the turned-up hem beyond the cuff line
-      else if (cf.style === 'tipped') band(w - 10, w)
-      else if (cf.style === 'stripes2') { band(w * 0.25, w * 0.25 + 8); band(w * 0.6, w * 0.6 + 8) }
-      else if (cf.style === 'stripes3') { for (const t of [0.2, 0.45, 0.7]) band(w * t, w * t + 7) }
+      else if (cf.style === 'tipped') band(w - sw - (cf.offset ?? 0), w - (cf.offset ?? 0))
+      else if (cf.style === 'stripes2' || cf.style === 'stripes3') { for (let i = 0; i < n; i++) band(start + i * (sw + gap), start + i * (sw + gap) + sw) }
     }
   }
   out.push({ t: 'fill', fill: solid(cf.c1), clip: 'sleeves', mask: { key: 'cuff1:' + cf.width, draw: (g) => draw(g, 1) } })
-  if (cf.style !== 'solid') out.push({ t: 'fill', fill: solid(cf.c2), clip: 'sleeves', mask: { key: 'cuff2:' + cf.style + cf.width, draw: (g) => draw(g, 2) } })
+  if (cf.style !== 'solid') out.push({ t: 'fill', fill: solid(cf.c2), clip: 'sleeves', mask: { key: 'cuff2:' + JSON.stringify([cf.style, cf.width, cf.stripeW, cf.gap, cf.offset]), draw: (g) => draw(g, 2) } })
 }
 
 async function armbandPasses(out: Pass[], d: KitDesign, assets: Record<string, Asset>, crestId?: string): Promise<void> {
@@ -1146,7 +1286,7 @@ export interface ComposeOptions { size?: number; scale?: number; skipLogos?: boo
 
 export async function buildPasses(design: KitDesign, assets: Record<string, Asset>, opt: ComposeOptions = {}): Promise<{ passes: Pass[]; s2s: boolean }> {
   const d = migrateKit(design)
-  shoulderShape = d.raglan ?? {}
+  shoulderShape = d.raglan && d.base.kind !== 'image' ? d.raglan : null
   const s2s = d.sleeveToShoulder !== false
   const out: Pass[] = []
   let sleeveOver: Pass[] = []
@@ -1209,7 +1349,10 @@ export async function buildPasses(design: KitDesign, assets: Record<string, Asse
     const rg = d.raglan
     for (const front of [true, false]) raglan.push({ t: 'fill', fill: F.sleeves ?? solid(c.sleeves), clip: front ? 'front' : 'back', mask: { key: 'raglan:' + front + JSON.stringify(rg), draw: (g) => drawRaglan(g, rg, front) } })
   }
-  if (raglan.length) sleeveOver = [...raglan, ...sleeveOver]
+  // with the sleeves row in its default place the shoulders take the sleeve colour under every layer, like the
+  // sleeves themselves (on top they cut off the layers that go on from the sleeves over the shoulders); dragged
+  // among the layers, they go where the row is
+  if (raglan.length) { if (d.sleeveAfter === undefined) out.push(...raglan); else sleeveOver = [...raglan, ...sleeveOver] }
   // the sleeves row placed among the layers: the sleeves themselves (their colour) also go there, over the layers
   // below it (e.g. stripes on the sleeves)
   if (d.sleeveAfter !== undefined && d.base.kind !== 'image') sleeveOver = [{ t: 'fill', fill: F.sleeves ?? solid(c.sleeves), clip: 'sleeves', s2s: false }, ...sleeveOver]
@@ -1237,7 +1380,7 @@ export async function buildPasses(design: KitDesign, assets: Record<string, Asse
       // a collar design: the band and its chest part (V, placket) right here among the layers
       if (L.visible && L.collarStyle && d.base.kind !== 'image') {
         const cc = L.colors ?? []
-        const cs: CollarSpec = { style: L.collarStyle, c1: cc[0] ?? L.color, c2: cc[1] ?? contrastOn(cc[0] ?? L.color), c3: cc[2] ?? d.colors.shirt2, width: L.width }
+        const cs: CollarSpec = { style: L.collarStyle, c1: cc[0] ?? L.color, c2: cc[1] ?? contrastOn(cc[0] ?? L.color), c3: cc[2] ?? d.colors.shirt2, width: L.width, p: L.p }
         await collarPasses(out, d, false, cs)
         await collarPasses(out, d, true, cs)
       }
@@ -1405,6 +1548,10 @@ export function designConfig(design: KitDesign): Record<string, string | number>
   const d = migrateKit(design)
   const F = d.fills ?? {}
   return {
+    // the values the editor shows when a setting was never touched (its defaults) go to the game too: before, a kit
+    // without them kept the team's old config.txt values, so names / numbers / the shorts number side differed
+    // from the preview
+    ...NUMBER_DEFAULTS, Name: 0, NameShape: 1, ChestNumberX: 15, ChestNumberY: 15,
     ...d.config,
     ShirtColor1: fillMain(F.shirt, d.colors.shirt),
     ShirtColor2: d.colors.shirt2,
