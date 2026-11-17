@@ -2,6 +2,12 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+### Added
+- New "Export" button (header, for the selected teams, and on each team card) that saves the kits in the Sider kit-server layout (`p1/`, `g1/`…, `order.ini`, `gk_order.ini`) to a folder you choose; with several teams, one sub-folder per club.
+### Changed
+- The old "Export changes" / "Export" buttons are now "Import into the game" / "Import" (they write to the game).
+
 ## [0.4.8] - 2026-11-17
 ### Changed
 - Collars are now drawn symmetrically around the fold line (the collar is a folded strip), on both the outside and the inside face.

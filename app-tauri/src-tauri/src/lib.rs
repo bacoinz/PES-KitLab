@@ -470,6 +470,26 @@ async fn export_team(app: AppHandle, request: Request<'_>) -> R<ExportResult> {
     }).await
 }
 
+/// Exports a team's kits in the Sider kit-server layout into `dest` (p1/, g1/…, order.ini, gk_order.ini) without touching the game.
+#[tauri::command]
+async fn export_kitserver(app: AppHandle, request: Request<'_>) -> R<String> {
+    let body = raw_body(&request)?.to_vec();
+    blocking(move || {
+        let (h, blobs) = unpack(&body)?;
+        let t: TeamExport = serde_json::from_value(h["team"].clone()).map_err(e2s)?;
+        let dest = std::path::PathBuf::from(h["dest"].as_str().ok_or("pasta em falta")?);
+        let st = app.state::<AppState>();
+        let fmt = st.settings.lock().unwrap()["defaultFormat"].as_str().unwrap_or("DXT5").to_string();
+        let a2 = app.clone();
+        let p = move |m: &str| progress(&a2, m);
+        fs::create_dir_all(&dest).map_err(e2s)?;
+        let r = st.store()?.write_kits(&t, &blobs, &fmt, &p, &dest).map_err(e2s);
+        progress(&app, "");
+        r?;
+        Ok(dest.to_string_lossy().into_owned())
+    }).await
+}
+
 #[tauri::command]
 async fn restore_original(app: AppHandle, team_id: u32) -> R<ExportResult> {
     blocking(move || app.state::<AppState>().store()?.restore_original(team_id).map_err(e2s)).await
@@ -711,7 +731,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState { data_dir: dir, settings: Mutex::new(settings), gi: Mutex::new(None), teams: Mutex::new(vec![]) })
         .invoke_handler(tauri::generate_handler![
-            get_settings, get_version, save_settings, pick_folder, pick_files, save_file, open_game, list_teams, read_kit_texture,
+            get_settings, get_version, save_settings, pick_folder, export_kitserver, pick_files, save_file, open_game, list_teams, read_kit_texture,
             read_emblem, read_model, list_collars, list_number_sets, read_file, decode_image_file, fetch_url, list_library, list_textures, export_team,
             restore_original, list_snapshots, save_snapshot, rename_snapshot, delete_snapshot, activate_snapshot, load_snapshot_project,
             export_snapshot_zip, backup_original_zip, open_path, save_draft, load_draft, delete_draft, list_drafts, launch_game, save_user_template, list_user_templates, delete_user_template, list_template_images, template_dir_path, screen_pixel, licence_hint,

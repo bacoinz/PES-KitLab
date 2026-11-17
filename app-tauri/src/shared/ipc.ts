@@ -63,6 +63,8 @@ export interface KcApi {
   listTextures(kind: 'patterns' | 'graphics'): Promise<{ root: string; categories: string[]; items: { path: string; name: string; category: string }[] }>
 
   exportTeam(t: TeamExport, projectJson: string, thumbPng?: Uint8Array): Promise<ExportResult>
+  /** writes the team's kits in the Sider kit-server layout into `dest` (does not touch the game) */
+  exportKitserver(t: TeamExport, dest: string): Promise<string>
   restoreOriginal(teamId: number): Promise<ExportResult>
   listSnapshots(teamId: number): Promise<SnapshotInfo[]>
   saveSnapshot(teamId: number, name: string, fromSnapshot?: string): Promise<SnapshotInfo>

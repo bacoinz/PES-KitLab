@@ -205,59 +205,65 @@ impl Store {
     }
 
     // ------------------------------------------------------------ export
+    /// Writes the kit-server layout (p1/, p2/, g1/… each with its textures + config.txt, plus order.ini / gk_order.ini).
+    pub fn write_kits(&self, t: &TeamExport, blobs: &[&[u8]], default_format: &str, progress: &(dyn Fn(&str) + Sync), kits_dir: &Path) -> Result<()> {
+        // every texture of every kit is encoded in parallel
+        struct Job<'a> { path: PathBuf, img: ImgRef, fmt: TexFormat, label: &'a str }
+        let mut jobs: Vec<Job> = vec![];
+        for k in &t.kits {
+            let file = kit_tex_name(t.team_id, &k.slot);
+            let kd = kits_dir.join(&k.slot);
+            fs::create_dir_all(&kd)?;
+            let fmt = match k.format.as_deref().unwrap_or(default_format) { "BC7" => TexFormat::Bc7, _ => TexFormat::Dxt5 };
+            jobs.push(Job { path: kd.join(format!("{file}.ftex")), img: k.kit, fmt, label: &k.slot });
+            for (part, img) in [("back", k.back), ("leg", k.leg), ("name", k.name), ("chest", k.chest)] {
+                if let Some(img) = img { jobs.push(Job { path: kd.join(format!("{file}_{part}.ftex")), img, fmt: TexFormat::Bc7, label: &k.slot }); }
+            }
+        }
+        progress(&format!("A codificar {} texturas…", jobs.len()));
+        jobs.par_iter().try_for_each(|j| -> Result<()> {
+            let data = blobs.get(j.img.blob).ok_or_else(|| anyhow!("textura em falta ({})", j.label))?;
+            fs::write(&j.path, encode_ftex(data, j.img.width, j.img.height, j.fmt))?;
+            Ok(())
+        })?;
+        for k in &t.kits {
+            let file = kit_tex_name(t.team_id, &k.slot);
+            let kd = kits_dir.join(&k.slot);
+            let mut present = BTreeMap::new();
+            for (part, img) in [("back", k.back), ("leg", k.leg), ("name", k.name)] {
+                if img.is_some() { present.insert(part, true); continue; }
+                if let Some(b) = self.original_part(t.team_id, &k.slot, part) {
+                    fs::write(kd.join(format!("{file}_{part}.ftex")), b)?;
+                    present.insert(part, true);
+                }
+            }
+            let mut cfg = self.original_config(t.team_id, &k.slot).unwrap_or_else(|| default_kit_config(&file, k.slot.starts_with('g')));
+            cfg.set("KitFile", &file);
+            for (key, part) in [("BackNumbersFile", "back"), ("LegNumbersFile", "leg"), ("NameFontFile", "name")] {
+                cfg.set(key, &if present.contains_key(part) { format!("{file}_{part}") } else { String::new() });
+            }
+            if k.chest.is_some() { cfg.set("ChestNumbersFile", &format!("{file}_chest")); } else if cfg.get("ChestNumbersFile").map(|v| !v.is_empty()).unwrap_or(false) { cfg.set("ChestNumbersFile", ""); }
+            for (key, v) in &k.config {
+                let s = match v { serde_json::Value::String(s) => s.clone(), other => other.to_string() };
+                cfg.set(key, &s);
+            }
+            fs::write(kd.join("config.txt"), cfg.to_text())?;
+        }
+        let mut players: Vec<&str> = t.kits.iter().filter(|k| k.slot.starts_with('p')).map(|k| k.slot.as_str()).collect();
+        let mut gks: Vec<&str> = t.kits.iter().filter(|k| k.slot.starts_with('g')).map(|k| k.slot.as_str()).collect();
+        players.sort();
+        gks.sort();
+        fs::write(kits_dir.join("order.ini"), players.join("\r\n") + "\r\n")?;
+        if !gks.is_empty() { fs::write(kits_dir.join("gk_order.ini"), gks.join("\r\n") + "\r\n")?; }
+        Ok(())
+    }
+
     pub fn export_team(&self, t: &TeamExport, blobs: &[&[u8]], project_json: &str, thumb_png: Option<&[u8]>, default_format: &str, progress: &(dyn Fn(&str) + Sync)) -> Result<ExportResult> {
         let snap_id = now_id();
         let dir = self.snap_dir(t.team_id, &snap_id);
         fs::create_dir_all(&dir)?;
         let r = (|| -> Result<()> {
-            // every texture of every kit is encoded in parallel
-            struct Job<'a> { path: PathBuf, img: ImgRef, fmt: TexFormat, label: &'a str }
-            let mut jobs: Vec<Job> = vec![];
-            for k in &t.kits {
-                let file = kit_tex_name(t.team_id, &k.slot);
-                let kd = dir.join("kits").join(&k.slot);
-                fs::create_dir_all(&kd)?;
-                let fmt = match k.format.as_deref().unwrap_or(default_format) { "BC7" => TexFormat::Bc7, _ => TexFormat::Dxt5 };
-                jobs.push(Job { path: kd.join(format!("{file}.ftex")), img: k.kit, fmt, label: &k.slot });
-                for (part, img) in [("back", k.back), ("leg", k.leg), ("name", k.name), ("chest", k.chest)] {
-                    if let Some(img) = img { jobs.push(Job { path: kd.join(format!("{file}_{part}.ftex")), img, fmt: TexFormat::Bc7, label: &k.slot }); }
-                }
-            }
-            progress(&format!("A codificar {} texturas…", jobs.len()));
-            jobs.par_iter().try_for_each(|j| -> Result<()> {
-                let data = blobs.get(j.img.blob).ok_or_else(|| anyhow!("textura em falta ({})", j.label))?;
-                fs::write(&j.path, encode_ftex(data, j.img.width, j.img.height, j.fmt))?;
-                Ok(())
-            })?;
-            for k in &t.kits {
-                let file = kit_tex_name(t.team_id, &k.slot);
-                let kd = dir.join("kits").join(&k.slot);
-                let mut present = BTreeMap::new();
-                for (part, img) in [("back", k.back), ("leg", k.leg), ("name", k.name)] {
-                    if img.is_some() { present.insert(part, true); continue; }
-                    if let Some(b) = self.original_part(t.team_id, &k.slot, part) {
-                        fs::write(kd.join(format!("{file}_{part}.ftex")), b)?;
-                        present.insert(part, true);
-                    }
-                }
-                let mut cfg = self.original_config(t.team_id, &k.slot).unwrap_or_else(|| default_kit_config(&file, k.slot.starts_with('g')));
-                cfg.set("KitFile", &file);
-                for (key, part) in [("BackNumbersFile", "back"), ("LegNumbersFile", "leg"), ("NameFontFile", "name")] {
-                    cfg.set(key, &if present.contains_key(part) { format!("{file}_{part}") } else { String::new() });
-                }
-                if k.chest.is_some() { cfg.set("ChestNumbersFile", &format!("{file}_chest")); } else if cfg.get("ChestNumbersFile").map(|v| !v.is_empty()).unwrap_or(false) { cfg.set("ChestNumbersFile", ""); }
-                for (key, v) in &k.config {
-                    let s = match v { serde_json::Value::String(s) => s.clone(), other => other.to_string() };
-                    cfg.set(key, &s);
-                }
-                fs::write(kd.join("config.txt"), cfg.to_text())?;
-            }
-            let mut players: Vec<&str> = t.kits.iter().filter(|k| k.slot.starts_with('p')).map(|k| k.slot.as_str()).collect();
-            let mut gks: Vec<&str> = t.kits.iter().filter(|k| k.slot.starts_with('g')).map(|k| k.slot.as_str()).collect();
-            players.sort();
-            gks.sort();
-            fs::write(dir.join("kits").join("order.ini"), players.join("\r\n") + "\r\n")?;
-            if !gks.is_empty() { fs::write(dir.join("kits").join("gk_order.ini"), gks.join("\r\n") + "\r\n")?; }
+            self.write_kits(t, blobs, default_format, progress, &dir.join("kits"))?;
             if let Some(e) = t.emblem {
                 let data = blobs.get(e.blob).ok_or_else(|| anyhow!("emblema em falta"))?;
                 let ed = dir.join("emblem");

@@ -38,6 +38,7 @@ UI automática: `KC_SCRIPT=passos.json` (+ `KC_DATA=<pasta>`) corre passos `{wai
 - O 2D é a fonte; o 3D só embrulha. A textura 2D nunca muda por causa do 3D.
 - Só se escreve o que é da app: secção KitCreator no fim de `map.txt`, `content\kits\KitCreator\…`, raiz `livecpk\KitCreator`, linha `cpk.root` no `sider.ini`. Dados em `KitCreatorData\` ao lado do exe (debug: `app-tauri/KitCreatorData` ou `KC_DATA`); o nome interno `KitCreatorData`/`pt.kitcreator.pes` não muda.
 - `loadModel` devolve arrays em cache: nunca lhes fazer push.
-- **Git/release**: commit, push e releases só quando o utilizador disser. Cada alteração entra no `CHANGELOG.md`; este ficheiro mantém-se curto (sem histórico).
+- **Testes**: depois de alterações podes correr a app (`KC_SCRIPT`) e testar a escrita de ficheiros sem pedir licença.
+- **Git/release**: depois de alterações podes fazer commit da versão sem pedir. Push, tags e releases no GitHub só quando o utilizador disser. Cada alteração entra no `CHANGELOG.md`; este ficheiro mantém-se curto (sem histórico).
 - O email do utilizador é privado (repositório público: autor com o email noreply do GitHub).
 - Jogo: `D:\Games\SP Football Life 2027`.

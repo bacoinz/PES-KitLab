@@ -29,6 +29,20 @@ function pack(header: Record<string, unknown>, blobs: Uint8Array[]): Uint8Array 
   return out
 }
 
+function packTeam(t: TeamExport): { team: object; blobs: Uint8Array[] } {
+  const blobs: Uint8Array[] = []
+  const ref = (img?: RgbaImage): { width: number; height: number; blob: number } | undefined => {
+    if (!img) return undefined
+    blobs.push(bytes(img.data as Uint8Array))
+    return { width: img.width, height: img.height, blob: blobs.length - 1 }
+  }
+  const team = {
+    teamId: t.teamId, teamName: t.teamName, league: t.league, emblem: ref(t.emblem),
+    kits: t.kits.map((k) => ({ slot: k.slot, kit: ref(k.kit), back: ref(k.back), leg: ref(k.leg), name: ref(k.name), chest: ref(k.chest), config: k.config, format: k.format }))
+  }
+  return { team, blobs }
+}
+
 const call = <T>(cmd: string, args?: Record<string, unknown>): Promise<T> => invoke<T>(cmd, args)
 
 export const kc: KcApi & { launchGame(): Promise<string> } = {
@@ -67,19 +81,14 @@ export const kc: KcApi & { launchGame(): Promise<string> } = {
   listTextures: (kind) => call('list_textures', { kind }),
 
   exportTeam: (t: TeamExport, projectJson, thumbPng) => {
-    const blobs: Uint8Array[] = []
-    const ref = (img?: RgbaImage) => {
-      if (!img) return undefined
-      blobs.push(bytes(img.data as Uint8Array))
-      return { width: img.width, height: img.height, blob: blobs.length - 1 }
-    }
-    const team = {
-      teamId: t.teamId, teamName: t.teamName, league: t.league, emblem: ref(t.emblem),
-      kits: t.kits.map((k) => ({ slot: k.slot, kit: ref(k.kit), back: ref(k.back), leg: ref(k.leg), name: ref(k.name), chest: ref(k.chest), config: k.config, format: k.format }))
-    }
+    const { team, blobs } = packTeam(t)
     let thumb: number | undefined
     if (thumbPng) { blobs.push(thumbPng); thumb = blobs.length - 1 }
     return invoke('export_team', pack({ team, project: projectJson, thumb }, blobs))
+  },
+  exportKitserver: (t: TeamExport, dest) => {
+    const { team, blobs } = packTeam(t)
+    return invoke('export_kitserver', pack({ team, dest }, blobs))
   },
   restoreOriginal: (teamId) => call('restore_original', { teamId }),
   listSnapshots: (teamId) => call('list_snapshots', { teamId }),

@@ -414,7 +414,7 @@ export async function emblemImage(p: TeamProject): Promise<{ width: number; heig
   return { width: 512, height: 512, data: canvasRgba(c) }
 }
 
-export async function exportProject(p: TeamProject, onStep?: (m: string) => void): Promise<string> {
+async function buildTeamExport(p: TeamProject, onStep?: (m: string) => void): Promise<{ t: TeamExport; thumb?: Uint8Array }> {
   const kits: KitExport[] = []
   let thumb: Uint8Array | undefined
   const size = useApp.getState().settings?.exportSize ?? 2048
@@ -435,9 +435,46 @@ export async function exportProject(p: TeamProject, onStep?: (m: string) => void
       config: designConfig(k)
     })
   }
-  const t: TeamExport = { teamId: p.teamId, teamName: p.teamName, league: p.league, kits, emblem: await emblemImage(p) }
+  return { t: { teamId: p.teamId, teamName: p.teamName, league: p.league, kits, emblem: await emblemImage(p) }, thumb }
+}
+
+export async function exportProject(p: TeamProject, onStep?: (m: string) => void): Promise<string> {
+  const { t, thumb } = await buildTeamExport(p, onStep)
   const r = await window.kc.exportTeam(t, JSON.stringify(p), thumb)
   return r.message
+}
+
+/** Export the kits of these teams (their saved work) in the kit-server layout, into a folder the user picks.
+ *  One team → files straight in the folder; several → one sub-folder per club. */
+export async function exportKitserverTeams(ids: number[], destFolder?: string): Promise<void> {
+  const st = useApp.getState()
+  const dest = destFolder ?? await window.kc.pickFolder('Pasta onde guardar os kits (formato kitserver)')
+  if (!dest) return
+  const used = new Set<string>()
+  let ok = 0, skipped = 0
+  const errors: string[] = []
+  for (const [i, id] of ids.entries()) {
+    const j = await window.kc.loadDraft(id)
+    if (!j) { skipped++; continue }
+    const p = JSON.parse(j) as TeamProject
+    useApp.setState({ progress: `A exportar ${i + 1}/${ids.length}: ${p.teamName}` })
+    try {
+      let folder = dest
+      if (ids.length > 1) {
+        let n = p.teamName.replace(/[<>:"/|?*#\x00-\x1f]|\\/g, '_').trim().replace(/\.+$/, '') || String(id)
+        if (used.has(n.toLowerCase())) n = `${n} (${id})`
+        used.add(n.toLowerCase())
+        folder = dest.replace(/[\\/]+$/, '') + '\\' + n
+      }
+      const { t } = await buildTeamExport(p)
+      await window.kc.exportKitserver(t, folder)
+      ok++
+    } catch (e) { errors.push(`${p.teamName}: ${String((e as Error).message ?? e)}`) }
+  }
+  useApp.setState({ progress: '' })
+  if (errors.length) st.notify('err', errors.join(' · '))
+  else if (!ok) st.notify('err', 'Nenhuma das equipas tem trabalho guardado para exportar')
+  else st.notify('ok', `${ok} equipa(s) exportada(s) em formato kitserver para ${dest}${skipped ? ` (${skipped} sem trabalho guardado)` : ''}`)
 }
 
 // exposed for scripted verification runs (KC_SCRIPT)
@@ -452,4 +489,4 @@ const refreshLib = (): void => {
 }
 window.addEventListener('focus', refreshLib)
 setInterval(() => { if (document.visibilityState === 'visible') refreshLib() }, 4000)
-;(window as unknown as { __kcTest: object }).__kcTest = { applyTemplate, TEMPLATES, frontThumb, composeKit, composeRgba, composeLive, renderNumbers, findBoxes, recolorNumbers, canvasToDataUrl, rgbaToCanvas }
+;(window as unknown as { __kcTest: object }).__kcTest = { applyTemplate, TEMPLATES, frontThumb, composeKit, composeRgba, composeLive, renderNumbers, findBoxes, recolorNumbers, canvasToDataUrl, rgbaToCanvas, exportKitserverTeams }

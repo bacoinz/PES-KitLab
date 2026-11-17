@@ -4,6 +4,7 @@ import { useApp } from '../state'
 import { rgbaToCanvas } from '../compositor/images'
 import { frontThumb } from '../compositor/compose'
 import { Snapshots } from './Snapshots'
+import { exportKitserverTeams } from '../state'
 
 const thumbCache = new Map<string, string>()
 const emblemCache = new Map<number, string | null>()
@@ -145,8 +146,9 @@ export function Teams(): JSX.Element {
           {bulkSelection.length > 0 && <button className="btn" onClick={() => setBulk([])}>Limpar seleção</button>}
           <button className="btn primary" disabled={!bulkSelection.length} onClick={() => setView('bulk')}>Gerar em massa ({bulkSelection.length}) →</button>
           <button className="btn primary" disabled={!pendingIds.length || !!progress} title="Escreve no jogo todas as equipas com alterações guardadas" onClick={() => {
-            if (confirm(`Exportar ${pendingIds.length} equipa(s) com alterações para o jogo? Os originais podem ser repostos em "Versões".`)) exportTeams(pendingIds)
-          }}>⬆ Exportar alterações ({pendingIds.length})</button>
+            if (confirm(`Importar ${pendingIds.length} equipa(s) com alterações para o jogo? Os originais podem ser repostos em "Versões".`)) exportTeams(pendingIds)
+          }}>⬆ Importar para o jogo ({pendingIds.length})</button>
+          <button className="btn" disabled={!bulkSelection.length || !!progress} title="Guarda os kits das equipas selecionadas numa pasta, no formato do Sider kit-server (uma pasta por clube se forem várias)" onClick={() => exportKitserverTeams(bulkSelection)}>Exportar ({bulkSelection.length})</button>
           <button className="btn play" title="Arranca o Sider (se não estiver aberto) e depois o jogo" onClick={() => {
             window.kc.launchGame().then((m) => notify('ok', m), (e) => notify('err', String((e as Error)?.message ?? e)))
           }}>▶ ABRIR JOGO</button>
@@ -160,7 +162,7 @@ export function Teams(): JSX.Element {
                 <div className="team-name">
                   <b>{t.name}</b>
                   <span className="muted">#{t.id} · {t.league}{t.managedByUs ? ' · ✓ no jogo (KitCreator)' : ''}</span>
-                  {isPending(t.id) && <span className="pending">● alterações por exportar</span>}
+                  {isPending(t.id) && <span className="pending">● alterações por importar</span>}
                 </div>
               </div>
               <div className="kits-row">
@@ -173,7 +175,8 @@ export function Teams(): JSX.Element {
                 {draftOf.has(t.id) ? (
                   <>
                     <button className="btn small primary" onClick={() => { if (leaveOk()) openDraft(t.id) }}>Continuar edição</button>
-                    {isPending(t.id) && <button className="btn small" disabled={!!progress} onClick={() => exportTeams([t.id])}>⬆ Exportar</button>}
+                    {isPending(t.id) && <button className="btn small" title="Escreve esta equipa no jogo" disabled={!!progress} onClick={() => exportTeams([t.id])}>⬆ Importar</button>}
+                    <button className="btn small" title="Guarda os kits desta equipa numa pasta, no formato kitserver" disabled={!!progress} onClick={() => exportKitserverTeams([t.id])}>Exportar</button>
                     <button className="btn small ghost" title="Apaga o rascunho guardado (não mexe no jogo nem nas versões exportadas)" onClick={async () => {
                       if (!confirm(`Apagar o trabalho guardado de ${t.name}? O que já estiver exportado no jogo não muda.`)) return
                       await window.kc.deleteDraft(t.id); await refreshDrafts()
