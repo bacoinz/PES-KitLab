@@ -106,11 +106,12 @@ export interface OverlayLayer {
   fabricSlots?: number[]
   /** embroidery texture over an image / text layer (on top of the outline / stitching options) */
   embroidery?: TextureSpec
+  outlineRelief?: number // 0 … 100: a layer with an outline (text border, design outline) stands out from the fabric (3D preview only)
 }
 /** A texture laid over a layer, badge or cuff: built-in id (compositor/fabric.ts), size % and angle (degrees), strength 0 … 1 (default per texture). */
 export interface TextureSpec { id: string; scale?: number; angle?: number; opacity?: number }
 export type StitchKind = 'dashed' | 'dotted' | 'double' | 'solid' | 'zigzag' | 'cross'
-export interface StitchSpec { kind: StitchKind; side: 'in' | 'out' | 'center'; opacity: number /* 0..1 */; scale: number /* % */; color?: string /* thread colour; default = shadow */ }
+export interface StitchSpec { kind: StitchKind; side: 'in' | 'out' | 'center'; opacity: number /* 0..1 */; scale: number /* % */; color?: string /* thread colour; default = shadow */; relief?: number /* 0 … 100: raised fabric along the seam (3D preview only) */ }
 export const STITCH_KINDS: [StitchKind, string][] = [['dashed', 'Pesponto (tracejado)'], ['double', 'Pesponto duplo'], ['dotted', 'Pontos'], ['solid', 'Linha contínua'], ['zigzag', 'Zigue-zague'], ['cross', 'Ponto cruz']]
 /** Anchor of a vector path; optional Bézier handles (absolute, same unit space). */
 export interface VPt { x: number; y: number; ix?: number; iy?: number; ox?: number; oy?: number }
@@ -249,6 +250,7 @@ export interface LogoPlacement {
   brand?: boolean // sleeve badge that follows the chest brand
   shine?: number // own shininess in the 3D preview (when the Logos tab's overall shininess is off)
   embroidery?: TextureSpec // embroidery texture over the logo
+  outlineRelief?: number // 0 … 100: the logo and its outline stand out from the fabric (3D preview only)
 }
 
 export interface Logos {
@@ -336,7 +338,7 @@ export interface KitDesign {
   baseAfter?: { shorts?: string; socks?: string }
   /** "Mangas com ombros": the sleeve colour also covers the shoulders up to the neck (raglan), with the seam bent by
    *  `curve` and its neck / armpit points moved */
-  raglan?: { curve?: number; bend?: number /* seam bend as an angle in degrees (replaces `curve`, in px, of older kits) */; neck?: number; arm?: number; down?: number; armX?: number /* armpit point X */; neckB?: number; downB?: number /* neck point of the back (X / Y); unset = like the front */ }
+  raglan?: { sharp?: number /* 0 … 100: how sharp the corner of the seam is (0 = smooth curve) */; curve?: number; bend?: number /* seam bend as an angle in degrees (replaces `curve`, in px, of older kits) */; neck?: number; arm?: number; down?: number; armX?: number /* armpit point X */; neckB?: number; downB?: number /* neck point of the back (X / Y); unset = like the front */ }
   /** stitching along the sleeves (the raglan seam, or the armhole) */
   sleeveStitch?: StitchSpec
   /** 3D shininess of the logos: one value for all (`all`), or each logo's own `shine` */

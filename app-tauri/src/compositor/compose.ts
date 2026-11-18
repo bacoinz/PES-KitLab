@@ -818,7 +818,7 @@ function tintImagePasses(out: Pass[], from: number, L: OverlayLayer): void {
  * own passes (masks, images, painted canvases), one coverage per clip zone, and traced into stitches (stitch.ts).
  */
 async function layerPasses(out: Pass[], L: OverlayLayer, all: OverlayLayer[], assets: Record<string, Asset>, s2s: boolean): Promise<void> {
-  if (!L.visible || (!L.stitch && !L.fabric && !L.embroidery)) { await layerPassesRaw(out, L, all, assets, s2s); return }
+  if (!L.visible || (!L.stitch && !L.fabric && !L.embroidery && !L.outlineRelief)) { await layerPassesRaw(out, L, all, assets, s2s); return }
   const first = out.length
   await layerPassesRaw(out, L, all, assets, s2s)
   const mine = out.slice(first)
@@ -826,18 +826,50 @@ async function layerPasses(out: Pass[], L: OverlayLayer, all: OverlayLayer[], as
   if (L.stitch) stitchPasses(out, mine, L.stitch, 'stitch:' + geomKey(L, [L.stitch.kind, L.stitch.side, L.stitch.scale, L.stitch.color]), L.opacity)
   // fabric over the layer's shape; embroidery only on images / text (the layers that are a logo or a lettering)
   texturePasses(out, mine, L.fabric, 'fab:' + gk, L.opacity)
+  if (L.outlineRelief && (L.border || L.kind === 'design')) outlineRelief(mine, L.outlineRelief, 'l' + gk)
   if (L.kind === 'image' || L.kind === 'text') texturePasses(out, mine, L.embroidery, 'emb:' + gk, L.opacity)
 }
 
 /** Stitches round the shape a set of passes covers (one layer, or every member of a group). */
 function stitchPasses(out: Pass[], mine: Pass[], sp: NonNullable<OverlayLayer['stitch']>, key: string, opacity: number): void {
   const { clips, coverage } = coverageOf(mine)
+  if (sp.relief && reliefSink) for (const clip of clips) reliefSink.set('st:' + key + clip, { amount: sp.relief, cover: () => coverage(clip), lines: () => stitchCanvas(coverage(clip), sp) ?? new OffscreenCanvas(1, 1) })
   for (const clip of clips) {
     out.push({
       t: 'rgba', key: key + clip, clip, opacity: Math.max(0, Math.min(1, sp.opacity ?? 0.8)) * opacity,
       img: () => stitchCanvas(coverage(clip), sp) ?? new OffscreenCanvas(1, 1)
     })
   }
+}
+
+/**
+ * Relief for the 3D preview (never in the texture): each source is a shape (the fabric around a seam / outline stands
+ * out) and optionally its stitch lines (a raised thread). composeRelief() draws them into one height map.
+ */
+interface ReliefSrc { amount: number; cover: () => OffscreenCanvas; lines?: () => OffscreenCanvas }
+let reliefSink: Map<string, ReliefSrc> | null = null
+function outlineRelief(mine: Pass[], amount: number | undefined, key: string): void {
+  if (!amount || !reliefSink) return
+  const { clips, coverage } = coverageOf(mine)
+  for (const clip of clips) reliefSink.set('ol:' + key + clip, { amount, cover: () => coverage(clip) })
+}
+/** Height map (white = raised) of everything with "Relevo", at 2048², or null when nothing has relief. */
+export async function composeRelief(design: KitDesign, assets: Record<string, Asset>): Promise<OffscreenCanvas | null> {
+  const mine = new Map<string, ReliefSrc>()
+  reliefSink = mine
+  try { await buildPasses(design, assets, { skipFabric: true }) } finally { reliefSink = null }
+  if (!mine.size) return null
+  const out = new OffscreenCanvas(S, S), g = out.getContext('2d')!
+  g.fillStyle = '#000'; g.fillRect(0, 0, S, S)
+  g.globalCompositeOperation = 'lighter'
+  const white = (c: OffscreenCanvas): OffscreenCanvas => { const w = new OffscreenCanvas(S, S), t = w.getContext('2d')!; t.drawImage(c, 0, 0); t.globalCompositeOperation = 'source-in'; t.fillStyle = '#fff'; t.fillRect(0, 0, S, S); return w }
+  for (const r of mine.values()) {
+    const k = Math.min(1, r.amount / 100)
+    // the fabric next to the seam lifts: the shape, softly blurred, rises a little
+    g.save(); g.filter = 'blur(10px)'; g.globalAlpha = 0.45 * k; g.drawImage(white(r.cover()), 0, 0); g.restore()
+    if (r.lines) { g.save(); g.filter = 'blur(2px)'; g.globalAlpha = 0.9 * k; g.drawImage(white(r.lines()), 0, 0); g.restore() }
+  }
+  return out
 }
 
 /**
@@ -1223,7 +1255,21 @@ function raglanPath(g: G, rg: NonNullable<KitDesign['raglan']>, front: boolean, 
   const out = front ? SEAM - 80 : SEAM + 80
   const X = (x: number): number => (flip ? S - x : x)
   g.moveTo(X(N[0]), out); g.lineTo(X(N[0]), N[1])
-  g.quadraticCurveTo(X(C[0]), C[1], X(A[0]), A[1])
+  const sh = Math.max(0, Math.min(1, (rg.sharp ?? 0) / 100))
+  if (!sh) g.quadraticCurveTo(X(C[0]), C[1], X(A[0]), A[1])
+  else {
+    // two cubic halves through the middle of the curve K; their handles go from the smooth curve (sharp = 0) to
+    // straight lines (sharp = 1), so the corner at K gets sharper
+    const K: Pt = [(N[0] + 2 * C[0] + A[0]) / 4, (N[1] + 2 * C[1] + A[1]) / 4]
+    const Q1: Pt = [(N[0] + C[0]) / 2, (N[1] + C[1]) / 2], Q2: Pt = [(A[0] + C[0]) / 2, (A[1] + C[1]) / 2]
+    const mix = (P: Pt, Qm: Pt, E: Pt): Pt => { // handle at P towards Qm (smooth) or towards E (straight)
+      const sm: Pt = [P[0] + (2 / 3) * (Qm[0] - P[0]), P[1] + (2 / 3) * (Qm[1] - P[1])], st: Pt = [P[0] + (E[0] - P[0]) / 3, P[1] + (E[1] - P[1]) / 3]
+      return [sm[0] + (st[0] - sm[0]) * sh, sm[1] + (st[1] - sm[1]) * sh]
+    }
+    const h1 = mix(N, Q1, K), h2 = mix(K, Q1, N), h3 = mix(K, Q2, A), h4 = mix(A, Q2, K)
+    g.bezierCurveTo(X(h1[0]), h1[1], X(h2[0]), h2[1], X(K[0]), K[1])
+    g.bezierCurveTo(X(h3[0]), h3[1], X(h4[0]), h4[1], X(A[0]), A[1])
+  }
   g.lineTo(X(600), A[1]); g.lineTo(X(600), out)
   g.closePath()
 }
@@ -1499,6 +1545,7 @@ export async function buildPasses(design: KitDesign, assets: Record<string, Asse
   // 3. logos (flat in 2D, in each part's own frame)
   if (!opt.skipLogos) for (const g of await allLogoPasses(d, assets)) {
     out.push(...g.passes)
+    if (g.lp.outlineRelief && (g.lp.outlineWidth ?? 0) > 0) outlineRelief(g.passes, g.lp.outlineRelief, 'lg' + JSON.stringify([g.lp.assetId, g.lp.size, g.lp.dx, g.lp.dy, g.lp.rot, g.lp.side, g.lp.spot, g.lp.place]))
     if (g.lp.embroidery) texturePasses(out, g.passes, g.lp.embroidery, 'lemb:' + JSON.stringify([g.lp.assetId, g.lp.size, g.lp.dx, g.lp.dy, g.lp.rot, g.lp.side, g.lp.spot, g.lp.place, g.passes.length]), 1)
   }
 

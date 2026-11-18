@@ -486,3 +486,6 @@ button.lr-mask { background: none; border: 0; color: var(--accent); cursor: poin
 .hist-item.fut { opacity: 0.5; }
 
 .warn-box { margin: 8px 10px; padding: 8px 10px; border-radius: 8px; background: #8a5a0026; border: 1px solid #c98a1a; color: #f3c46b; font-size: 12px; line-height: 1.4; }
+
+.subsec { margin: 4px 0 6px 8px; padding: 6px 8px; border-left: 2px solid var(--accent, #3ddc84); background: rgba(255,255,255,0.03); border-radius: 0 6px 6px 0; }
+.subsec-title { font-size: 11px; opacity: 0.7; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }

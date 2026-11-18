@@ -5,7 +5,7 @@ import type { TeamProject, KitDesign, KitColors, Asset, Logos } from './model/de
 import { defaultLogos, uid, slotOrder, migrateProject, migrateKit } from './model/design'
 import { generateSet, teamColorsFromPalette, applyTemplate, TEMPLATES } from './model/templates'
 import { luminance, colorDist, defaultDesign } from './model/design'
-import { composeKit, composeRgba, composeLive, designConfig, frontThumb } from './compositor/compose'
+import { composeKit, composeRgba, composeLive, composeRelief, designConfig, frontThumb } from './compositor/compose'
 import { palette, dataUrlFromBytes, rgbaToCanvas, canvasToDataUrl, canvasRgba, loadAsset, canvas, ctx2d, trim } from './compositor/images'
 import { findBoxes, recolorNumbers, renderNumbers, type NumberPart } from './compositor/numbers'
 import { atlasImage } from './compositor/atlases'
@@ -491,4 +491,4 @@ const refreshLib = (): void => {
 }
 window.addEventListener('focus', refreshLib)
 setInterval(() => { if (document.visibilityState === 'visible') refreshLib() }, 4000)
-;(window as unknown as { __kcTest: object }).__kcTest = { applyTemplate, TEMPLATES, frontThumb, composeKit, composeRgba, composeLive, renderNumbers, findBoxes, recolorNumbers, canvasToDataUrl, rgbaToCanvas, exportKitserverTeams, defaultDesign }
+;(window as unknown as { __kcTest: object }).__kcTest = { applyTemplate, TEMPLATES, frontThumb, composeKit, composeRgba, composeLive, renderNumbers, findBoxes, recolorNumbers, canvasToDataUrl, rgbaToCanvas, exportKitserverTeams, defaultDesign, composeRelief }

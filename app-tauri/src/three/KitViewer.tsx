@@ -9,7 +9,7 @@ import { shineToRoughness } from '../compositor/compose'
 const modelCache = new Map<string, Promise<MeshDto[]>>()
 
 /** Fine fabric relief (tileable noise) so the shirt doesn't look like plastic. */
-function fabricBump(): THREE.Texture {
+function fabricNoise(): HTMLCanvasElement {
   const n = 128, c = document.createElement('canvas'); c.width = c.height = n
   const g = c.getContext('2d')!, id = g.createImageData(n, n)
   for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
@@ -17,7 +17,10 @@ function fabricBump(): THREE.Texture {
     const o = (y * n + x) * 4; id.data[o] = id.data[o + 1] = id.data[o + 2] = v; id.data[o + 3] = 255
   }
   g.putImageData(id, 0, 0)
-  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(90, 90)
+  return c
+}
+function fabricBump(): THREE.Texture {
+  const t = new THREE.CanvasTexture(fabricNoise()); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(90, 90)
   return t
 }
 /** Stretchy sock knit (3D preview only, never in the texture): fine ribs running down the leg (along the texture's v). */
@@ -303,6 +306,7 @@ export interface ViewerProps {
   kappa?: boolean // ShortSleevesModel=2
   height?: number | string
   shine?: number // kit shininess 0..100
+  relief?: OffscreenCanvas | null // height map (white = raised): seams / outlines with "Relevo"
   shineMap?: { width: number; height: number; data: Uint8Array } | null // per-texel roughness (layers with own shininess)
   autoRotate?: boolean
   light?: number // 0 (dim) … 100 (bright); 40 = default
@@ -315,7 +319,7 @@ export interface ViewerProps {
   snapshot?: (take: () => Promise<Blob | null>) => void
 }
 
-export function KitViewer({ texture, version = 0, collar, longSleeves, shortsModel = 1, camera, armband = false, tucked = false, tight = true, kappa = false, height = '100%', shine = 0, shineMap = null, autoRotate = false, snapshot, light = 40, lightPreset = 'hdri', env = 'room', background = null, hideShorts = false, hideSocks = false }: ViewerProps): JSX.Element {
+export function KitViewer({ texture, version = 0, collar, longSleeves, shortsModel = 1, camera, armband = false, tucked = false, tight = true, kappa = false, height = '100%', shine = 0, shineMap = null, relief = null, autoRotate = false, snapshot, light = 40, lightPreset = 'hdri', env = 'room', background = null, hideShorts = false, hideSocks = false }: ViewerProps): JSX.Element {
   const host = useRef<HTMLDivElement>(null)
   const st = useRef<{ renderer: THREE.WebGLRenderer; scene: THREE.Scene; cam: THREE.PerspectiveCamera; ctl: OrbitControls; mat: THREE.MeshStandardMaterial; tex: THREE.Texture; group: THREE.Group; raf: number; fly: { pos: THREE.Vector3; target: THREE.Vector3; t: number } | null; key: THREE.DirectionalLight; fill: THREE.DirectionalLight; pmrem: THREE.PMREMGenerator; envMul: number; envTex: THREE.Texture | null; front: THREE.MeshStandardMaterial; sock: THREE.MeshStandardMaterial } | null>(null)
   const [noModels, setNoModels] = useState(false)
@@ -381,6 +385,8 @@ export function KitViewer({ texture, version = 0, collar, longSleeves, shortsMod
       const f = s.front, m = s.mat
       if (f.map !== m.map || f.roughnessMap !== m.roughnessMap) { f.map = m.map; f.roughnessMap = m.roughnessMap; f.needsUpdate = true }
       f.roughness = m.roughness; f.envMapIntensity = m.envMapIntensity
+      if (f.bumpMap !== m.bumpMap) { f.bumpMap = m.bumpMap; f.needsUpdate = true }
+      f.bumpScale = m.bumpScale
       const k = s.sock
       if (k.map !== m.map || k.roughnessMap !== m.roughnessMap) { k.map = m.map; k.roughnessMap = m.roughnessMap; k.needsUpdate = true }
       k.roughness = m.roughness; k.envMapIntensity = m.envMapIntensity
@@ -564,6 +570,25 @@ export function KitViewer({ texture, version = 0, collar, longSleeves, shortsMod
       s.mat.map = t; s.tex.dispose(); s.tex = t; s.mat.needsUpdate = true
     } else { s.tex.image = texture; s.tex.needsUpdate = true }
   }, [texture, version])
+
+  // relief: the fabric grain and the raised seams / outlines in one height map (the plain repeating grain without any)
+  useEffect(() => {
+    const s = st.current
+    if (!s) return
+    const old = s.mat.bumpMap
+    if (relief) {
+      const c = document.createElement('canvas'); c.width = c.height = 2048
+      const g = c.getContext('2d')!
+      g.fillStyle = '#808080'; g.fillRect(0, 0, 2048, 2048)
+      const pat = g.createPattern(fabricNoise(), 'repeat')
+      if (pat) { pat.setTransform(new DOMMatrix().scale(2048 / 90 / 128, 2048 / 90 / 128)); g.globalAlpha = 0.33; g.fillStyle = pat; g.fillRect(0, 0, 2048, 2048); g.globalAlpha = 1 }
+      g.globalCompositeOperation = 'lighter'; g.drawImage(relief, 0, 0)
+      const t = new THREE.CanvasTexture(c); t.flipY = false; t.anisotropy = 8
+      s.mat.bumpMap = t; s.mat.bumpScale = 2.2
+    } else { s.mat.bumpMap = fabricBump(); s.mat.bumpScale = 0.6 }
+    s.mat.needsUpdate = true
+    old?.dispose()
+  }, [relief])
 
   // shininess: one roughness for the whole kit, or a per-texel map when layers have their own
   useEffect(() => {

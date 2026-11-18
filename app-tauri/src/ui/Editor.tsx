@@ -5,7 +5,7 @@ import { describeStep } from './history'
 import { PANEL_STYLES, SLOT_LABEL, uid, defaultDesign, contrastOn, slotOrder, solid, fillMain, normalizeGroups, dropLayer, migrateKit, LOGO_SIZES, NUMBER_DEFAULTS, STITCH_KINDS, mergeLogos, copyNumbers, groupColors, swapGroupColor, resolveGroups } from '../model/design'
 import { TEMPLATES, applyTemplate } from '../model/templates'
 import { TORSO_PATTERNS, SLEEVE_PATTERNS, SHORTS_PATTERNS, SOCKS_PATTERNS, TEXTURES, STROKES } from '../compositor/patterns'
-import { composeKit, composeLive, composeShine, COLLAR_DESIGNS, collarParams, collarDefaults, frontThumb, raglanBend } from '../compositor/compose'
+import { composeKit, composeLive, composeShine, composeRelief, COLLAR_DESIGNS, collarParams, collarDefaults, frontThumb, raglanBend } from '../compositor/compose'
 import { decorationOverlay, type GlyphAtlas } from '../compositor/decorate'
 import { loadAtlases } from '../compositor/atlases'
 import { FABRICS, LAYER_FABRICS, EMBROIDERIES, TEXTURE_LOOK } from '../compositor/fabric'
@@ -13,6 +13,7 @@ import { palette, loadAsset, rgbaToCanvas, canvasToDataUrl, canvas, ctx2d, type 
 import { partAt, REGIONS, pathOf } from '../compositor/uv'
 import { SYSTEM_FONTS, registerFont, findBoxes } from '../compositor/numbers'
 import { KitViewer, LIGHT_PRESETS, ENVS, type CamView, type LightPreset, type EnvKind } from '../three/KitViewer'
+import { uvWireframe } from '../compositor/uvmesh'
 import { kitTemplate } from '../compositor/template'
 import { TexView, type Tool2D } from './TexView'
 import { Icon, type IconName } from './icons'
@@ -121,18 +122,19 @@ const LogoShineCtx = createContext<number | undefined>(undefined)
  * A texture over a layer / logo / cuff: type (list), size, angle and strength. Used for the fabric ("Tecido") of layers,
  * collars and cuffs and for the embroidery ("Bordado") of logos, images and text. `slots` adds "only on these colours".
  */
-function TextureRow({ label, list, value, onChange, angle = true, slots }: {
-  label: string; list: [string, string][]; value?: TextureSpec; onChange: (v?: TextureSpec) => void; angle?: boolean
+function TextureRow({ label, list, value, onChange, angle = true, slots, defaults }: {
+  label: string; list: [string, string][]; value?: TextureSpec; onChange: (v?: TextureSpec) => void; angle?: boolean; defaults?: Omit<TextureSpec, 'id'>
   slots?: { names: string[]; value?: number[]; onChange: (v?: number[]) => void }
 }): JSX.Element {
   const look = value ? TEXTURE_LOOK[value.id] : undefined
   return (
     <>
-      <Row label={label}><Select value={value?.id ?? ''} options={[['', 'Nenhum'], ...list]} onChange={(id) => onChange(id ? { ...value, id } : undefined)} /></Row>
+      <Row label={label}><Select value={value?.id ?? ''} options={[['', 'Nenhum'], ...list]} onChange={(id) => onChange(id ? { ...defaults, ...value, id } : undefined)} /></Row>
       {value && (
-        <>
-          <Row label="Escala"><Slider value={value.scale ?? 100} min={20} max={500} onChange={(scale) => onChange({ ...value, scale: scale === 100 ? undefined : scale })} /></Row>
-          {angle && <Row label="Ângulo"><Slider value={value.angle ?? 0} min={-180} max={180} snaps={ROT_SNAPS} onChange={(a) => onChange({ ...value, angle: a || undefined })} /></Row>}
+        <div className="subsec">
+          <div className="subsec-title">{label} · {list.find((x) => x[0] === value.id)?.[1]}</div>
+          <Row label="Escala"><Slider value={value.scale ?? 100} min={20} max={500} onChange={(scale) => onChange({ ...value, scale })} /></Row>
+          {angle && <Row label="Ângulo"><Slider value={value.angle ?? 0} min={-180} max={180} snaps={ROT_SNAPS} onChange={(a) => onChange({ ...value, angle: a })} /></Row>}
           <Row label="Intensidade"><Slider value={Math.round((value.opacity ?? look?.opacity ?? 0.5) * 100)} min={5} max={100} onChange={(o) => onChange({ ...value, opacity: o / 100 })} /></Row>
           {slots && (
             <Row label="Só nas cores">
@@ -146,11 +148,17 @@ function TextureRow({ label, list, value, onChange, angle = true, slots }: {
               })}</span>
             </Row>
           )}
-        </>
+        </div>
       )}
     </>
   )
 }
+
+/** A new "Mangas com ombros": the user's preferred starting values. */
+const RAGLAN_DEFAULT = { bend: -93, armX: 50, arm: -4, neck: 69, down: 68, neckB: 88, downB: 44 }
+
+/** Embroidery defaults (when a texture is picked). */
+const EMB_DEFAULTS = { scale: 70, angle: 45, opacity: 0.49 }
 
 function LogoBlock({ title, lp, assets, onChange, onAsset, folderHint, onRemove, extra }: {
   title: string; lp: LogoPlacement; assets: Record<string, Asset>; onChange: (lp: LogoPlacement) => void; onAsset: (a: Asset) => void; folderHint?: string; onRemove?: () => void; extra?: JSX.Element
@@ -185,7 +193,8 @@ function LogoBlock({ title, lp, assets, onChange, onAsset, folderHint, onRemove,
           {lp.tint === 'mono' && <Row label="Cor do logo"><ColorInput value={lp.color ?? '#ffffff'} onChange={(color) => onChange({ ...lp, color })} /></Row>}
           <Row label="Contorno"><Slider value={lp.outlineWidth ?? 0} min={0} max={30} onChange={(outlineWidth) => onChange({ ...lp, outlineWidth })} /></Row>
           {(lp.outlineWidth ?? 0) > 0 && <Row label="Cor do contorno"><ColorInput value={lp.outlineColor ?? '#ffffff'} onChange={(outlineColor) => onChange({ ...lp, outlineColor })} /></Row>}
-          <TextureRow label="Bordado" list={EMBROIDERIES} value={lp.embroidery} onChange={(embroidery) => onChange({ ...lp, embroidery })} />
+          {(lp.outlineWidth ?? 0) > 0 && <Row label="Relevo"><Slider value={lp.outlineRelief ?? 0} min={0} max={100} onChange={(outlineRelief) => onChange({ ...lp, outlineRelief: outlineRelief || undefined })} /></Row>}
+          <TextureRow label="Bordado" list={EMBROIDERIES} defaults={EMB_DEFAULTS} value={lp.embroidery} onChange={(embroidery) => onChange({ ...lp, embroidery })} />
           <Row label="Tamanho"><Slider value={lp.size} min={30} max={700} onChange={(size) => onChange({ ...lp, size })} /></Row>
           <Row label="Esquerda / direita"><Slider value={lp.dx} min={-600} max={600} snaps={[0]} onChange={(dx) => onChange({ ...lp, dx })} /></Row>
           <Row label="Baixo / cima"><Slider invert value={lp.dy} min={-600} max={600} snaps={[0]} onChange={(dy) => onChange({ ...lp, dy })} /></Row>
@@ -286,10 +295,10 @@ function StitchEditor({ value: st, onChange }: { value: StitchSpec | undefined; 
   const setSt = (patch: Partial<StitchSpec>): void => onChange({ kind: 'dashed', side: 'center', opacity: 0.32, scale: 45, ...st, ...patch })
   return (
     <>
-      <Toggle on={!!st} label="Costura" onChange={(v) => (v ? setSt({}) : onChange(undefined))} />
+      <Row label="Costura"><Select value={st?.kind ?? ''} options={[['', 'Nenhum'], ...STITCH_KINDS]} onChange={(k) => (k ? setSt({ kind: k as StitchKind }) : onChange(undefined))} /></Row>
       {st && (
-        <>
-          <Row label="Tipo de costura"><Select value={st.kind} options={STITCH_KINDS} onChange={(kind) => setSt({ kind: kind as StitchKind })} /></Row>
+        <div className="subsec">
+          <div className="subsec-title">Costura · {STITCH_KINDS.find((x) => x[0] === st.kind)?.[1]}</div>
           <Row label="Lado"><Select value={st.side} options={[['center', 'Centrado'], ['in', 'Por dentro'], ['out', 'Por fora']]} onChange={(side) => setSt({ side: side as StitchSpec['side'] })} /></Row>
           <Row label="Intensidade"><Slider value={Math.round(st.opacity * 100)} min={0} max={100} onChange={(o) => setSt({ opacity: o / 100 })} /></Row>
           <Row label="Escala"><Slider value={st.scale} min={20} max={300} onChange={(scale) => setSt({ scale })} /></Row>
@@ -297,7 +306,8 @@ function StitchEditor({ value: st, onChange }: { value: StitchSpec | undefined; 
             <Select value={st.color ? 'color' : 'auto'} options={[['auto', 'Relevo (sombra e luz)'], ['color', 'Cor própria']]} onChange={(m) => setSt({ color: m === 'color' ? st.color ?? '#ffffff' : undefined })} />
             {st.color && <ColorInput value={st.color} onChange={(color) => setSt({ color })} />}
           </Row>
-        </>
+          <Row label="Relevo"><Slider value={st.relief ?? 0} min={0} max={100} onChange={(relief) => setSt({ relief: relief || undefined })} /></Row>
+        </div>
       )}
     </>
   )
@@ -307,7 +317,7 @@ function StitchEditor({ value: st, onChange }: { value: StitchSpec | undefined; 
 function ShineRow({ value, fallback, onChange, label = 'Brilho' }: { value: number | undefined; fallback: number; onChange: (v: number | undefined) => void; label?: string }): JSX.Element {
   return (
     <Row label={label}>
-      <label className="check" title="Só na pré-visualização 3D"><input type="checkbox" checked={value != null} onChange={(e) => onChange(e.target.checked ? fallback : undefined)} /> {value == null ? 'Igual ao tecido' : ''}</label>
+      <label className="check" title="Só na pré-visualização 3D"><input type="checkbox" checked={value != null} onChange={(e) => onChange(e.target.checked ? fallback : undefined)} /> {value == null ? 'Igual ao tecido da camisola' : ''}</label>
       {value != null && <Slider value={value} min={0} max={100} onChange={onChange} />}
     </Row>
   )
@@ -519,6 +529,15 @@ export function Editor(): JSX.Element {
     return () => { alive = false; clearTimeout(t) }
   }, [kit, project, mode, atlases, showNames, sampleName, sampleNum]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // relief (seams / outlines that stand out) for the 3D preview; null when nothing has relief
+  const [reliefMap, setReliefMap] = useState<OffscreenCanvas | null>(null)
+  useEffect(() => {
+    if (!kit || !project || mode !== '3d') return
+    let alive = true
+    const t = setTimeout(() => { composeRelief(kit, project.assets).then((m) => { if (alive) setReliefMap(m) }).catch(() => undefined) }, 300)
+    return () => { alive = false; clearTimeout(t) }
+  }, [kit, project, mode])
+
   // small copy for the collar / shorts picker previews (refreshed once edits settle)
   const [smallTex, setSmallTex] = useState<OffscreenCanvas | null>(null)
   useEffect(() => {
@@ -531,7 +550,12 @@ export function Editor(): JSX.Element {
   // the kit template (KIT Template.png): its parts are where the texture is used; the same for every kit
   const [islands, setIslands] = useState<OffscreenCanvas | null>(null)
   const [tplOutline, setTplOutline] = useState<OffscreenCanvas | null>(null)
-  const [showOutline, setShowOutline] = useState(() => { try { return localStorage.getItem('kc.tplOutline') === '1' } catch { return false } })
+  const [showOutline] = useState(() => { try { return localStorage.getItem('kc.tplOutline') === '1' } catch { return false } })
+  // the 3D model's mesh (UV wireframe) over the texture
+  const [showMesh, setShowMesh] = useState(() => { try { return localStorage.getItem('kc.mesh3d') === '1' } catch { return false } })
+  const [meshImg, setMeshImg] = useState<OffscreenCanvas | null>(null)
+  const collarId = Number(kit?.config.Collar ?? 66), shortsId = Number(kit?.config.ShortsModel ?? 1)
+  useEffect(() => { if (showMesh) uvWireframe(collarId, shortsId).then(setMeshImg).catch(() => setMeshImg(null)) }, [showMesh, collarId, shortsId])
   useEffect(() => { kitTemplate().then((t) => { setIslands(t?.mask ?? null); setTplOutline(t?.outline ?? null) }) }, [])
 
   const baseId = kit?.base.kind === 'image' ? kit.base.imageAssetId : undefined
@@ -720,7 +744,7 @@ export function Editor(): JSX.Element {
     const sameList = (x: OverlayLayer): boolean => x.part === L.part || (part === 'torso' && ['torso', 'shirt', 'sleeves'].includes(x.part))
     const shineRow = (
       <Row label="Brilho próprio">
-        <label className="check" title="Só na pré-visualização 3D: o jogo usa o seu próprio material"><input type="checkbox" checked={L.shine != null} onChange={(e) => ch({ shine: e.target.checked ? 70 : undefined })} /> {L.shine == null ? 'Igual ao tecido' : ''}</label>
+        <label className="check" title="Só na pré-visualização 3D: o jogo usa o seu próprio material"><input type="checkbox" checked={L.shine != null} onChange={(e) => ch({ shine: e.target.checked ? 70 : undefined })} /> {L.shine == null ? 'Igual ao tecido da camisola' : ''}</label>
         {L.shine != null && <Slider value={L.shine} min={0} max={100} onChange={(shine) => ch({ shine })} />}
       </Row>
     )
@@ -731,7 +755,7 @@ export function Editor(): JSX.Element {
       <TextureRow label="Tecido" list={LAYER_FABRICS} value={L.fabric} onChange={(fabric) => ch({ fabric })}
         slots={L.kind === 'collar' ? { names: ['Cor 1', 'Cor 2', 'Cor 3'].slice(0, (COLLAR_DESIGNS.find((x) => x[0] === L.collarStyle) ?? COLLAR_DESIGNS[0])[2]), value: L.fabricSlots, onChange: (fabricSlots) => ch({ fabricSlots }) } : undefined} />
     )
-    const embroRow = L.kind === 'image' || L.kind === 'text' ? <TextureRow label="Bordado" list={EMBROIDERIES} value={L.embroidery} onChange={(embroidery) => ch({ embroidery })} /> : null
+    const embroRow = L.kind === 'image' || L.kind === 'text' ? <TextureRow label="Bordado" list={EMBROIDERIES} defaults={EMB_DEFAULTS} value={L.embroidery} onChange={(embroidery) => ch({ embroidery })} /> : null
     // designs (base designs, shapes, panels, graphics): one card, 3D preview of this layer, opens the Designs panel to swap it
     const designCard = (label: string): JSX.Element => (
       <ThumbButton label={label} onClick={() => setTexPick({ kind: 'graphics', part, replace: L.id })}
@@ -959,6 +983,7 @@ export function Editor(): JSX.Element {
               {hasOutline && (
                 <>
                   <Row label="Espessura do contorno"><Slider value={Number(dp<number>(L, 'ow'))} min={0} max={120} onChange={(x) => setP('ow', x)} /></Row>
+                  {outlined && <Row label="Relevo"><Slider value={L.outlineRelief ?? 0} min={0} max={100} onChange={(outlineRelief) => ch({ outlineRelief: outlineRelief || undefined })} /></Row>}
                   {outlined && <Row label="Cor do contorno"><Swatch value={lineColor} title="Cor do contorno" onChange={(v) => { const n = [...(L.colors ?? cols)]; n[0] = n[0] ?? cols[0]; n[1] = v; ch({ colors: n }) }} /></Row>}
                   <Toggle on={!!dp<boolean>(L, 'outline')} label="Só o contorno" onChange={(x) => setP('outline', x)} />
                 </>
@@ -1032,6 +1057,7 @@ export function Editor(): JSX.Element {
               <>
                 <Row label="Cor do contorno"><ColorInput value={L.borderColor ?? contrastOn(fillMain(L.fill, L.color))} onChange={(borderColor) => ch({ borderColor })} /></Row>
                 <Row label="Espessura do contorno"><Slider value={L.borderW ?? 2} min={1} max={8} onChange={(borderW) => ch({ borderW })} /></Row>
+                <Row label="Relevo"><Slider value={L.outlineRelief ?? 0} min={0} max={100} onChange={(outlineRelief) => ch({ outlineRelief: outlineRelief || undefined })} /></Row>
               </>
             )}
           </>
@@ -1589,16 +1615,17 @@ export function Editor(): JSX.Element {
   const setRg = (patch: Partial<NonNullable<KitDesign['raglan']>>): void => up((k) => ({ ...k, raglan: { ...k.raglan, ...patch } }))
   const sleevesBody = (<>
         {kit.base.kind === 'template' && <FillRow label="Cor" value={F.sleeves ?? solid(kit.colors.sleeves)} onChange={(f) => setFill('sleeves', f)} />}
-        {kit.base.kind === 'template' && <Row label="Mangas"><Select value={rg ? 'with' : 'without'} options={[['without', 'Mangas sem ombros'], ['with', 'Mangas com ombros']]} onChange={(v) => up((k) => ({ ...k, raglan: v === 'with' ? { curve: 0 } : undefined }))} /></Row>}
+        {kit.base.kind === 'template' && <Row label="Mangas"><Select value={rg ? 'with' : 'without'} options={[['without', 'Mangas sem ombros'], ['with', 'Mangas com ombros']]} onChange={(v) => up((k) => ({ ...k, raglan: v === 'with' ? { ...RAGLAN_DEFAULT } : undefined }))} /></Row>}
         {rg && (
           <>
-            <Row label="Ângulo"><Slider value={raglanBend(rg)} min={-140} max={140} snaps={[0]} onChange={(bend) => setRg({ bend, curve: undefined })} /></Row>
-            <Row label="Ponto Braço X"><Slider value={rg.armX ?? 0} min={-100} max={100} snaps={[0]} onChange={(armX) => setRg({ armX: armX || undefined })} /></Row>
-            <Row label="Ponto Braço Y"><Slider value={rg.arm ?? 0} min={-200} max={200} snaps={[0]} onChange={(arm) => setRg({ arm: arm || undefined })} /></Row>
-            <Row label="Ponto Pescoço (Frente) X"><Slider value={rg.neck ?? 0} min={-150} max={400} snaps={[0]} onChange={(neck) => setRg({ neck: neck || undefined })} /></Row>
-            <Row label="Ponto Pescoço (Frente) Y"><Slider value={rg.down ?? 0} min={0} max={800} onChange={(down) => setRg({ down: down || undefined })} /></Row>
-            <Row label="Ponto Pescoço (Costas) X"><Slider value={rg.neckB ?? rg.neck ?? 0} min={-150} max={400} snaps={[0]} onChange={(neckB) => setRg({ neckB })} /></Row>
-            <Row label="Ponto Pescoço (Costas) Y"><Slider value={rg.downB ?? rg.down ?? 0} min={0} max={800} onChange={(downB) => setRg({ downB })} /></Row>
+            <Row label="Curva"><Slider value={raglanBend(rg)} min={-140} max={140} snaps={[0]} onChange={(bend) => setRg({ bend, curve: undefined })} /></Row>
+            <Row label="Ângulo"><Slider value={rg.sharp ?? 0} min={0} max={100} onChange={(sharp) => setRg({ sharp: sharp || undefined })} /></Row>
+            <Row label="Braço X"><Slider value={rg.armX ?? 0} min={-100} max={100} snaps={[0]} onChange={(armX) => setRg({ armX: armX || undefined })} /></Row>
+            <Row label="Braço Y"><Slider value={rg.arm ?? 0} min={-200} max={200} snaps={[0]} onChange={(arm) => setRg({ arm: arm || undefined })} /></Row>
+            <Row label="Pescoço (Frente) X"><Slider value={rg.neck ?? 0} min={-150} max={400} snaps={[0]} onChange={(neck) => setRg({ neck: neck || undefined })} /></Row>
+            <Row label="Pescoço (Frente) Y"><Slider value={rg.down ?? 0} min={0} max={800} onChange={(down) => setRg({ down: down || undefined })} /></Row>
+            <Row label="Pescoço (Costas) X"><Slider value={rg.neckB ?? rg.neck ?? 0} min={-150} max={400} snaps={[0]} onChange={(neckB) => setRg({ neckB })} /></Row>
+            <Row label="Pescoço (Costas) Y"><Slider value={rg.downB ?? rg.down ?? 0} min={0} max={800} onChange={(downB) => setRg({ downB })} /></Row>
           </>
         )}
         {kit.base.kind === 'template' && <StitchEditor value={kit.sleeveStitch} onChange={(sleeveStitch) => up((k) => ({ ...k, sleeveStitch }))} />}
@@ -2243,8 +2270,8 @@ export function Editor(): JSX.Element {
           </div>
           {mode === '2d' && (
             <div className="seg">
-              <button className={showOutline ? 'active' : ''} title="Mostrar ou esconder a malha (contornos) do modelo 3D sobre a textura"
-                onClick={() => { const v = !showOutline; setShowOutline(v); try { localStorage.setItem('kc.tplOutline', v ? '1' : '0') } catch { /* ignore */ } }}>Malha 3D</button>
+              <button className={showMesh ? 'active' : ''} title="Mostrar ou esconder a malha (contornos) do modelo 3D sobre a textura"
+                onClick={() => { const v = !showMesh; setShowMesh(v); try { localStorage.setItem('kc.mesh3d', v ? '1' : '0') } catch { /* ignore */ } }}>Malha 3D</button>
               <button className={showFabric ? 'active' : ''} title="Mostrar ou esconder a textura dos tecidos (no 3D e na textura)"
                 onClick={() => { const v = !showFabric; setShowFabric(v); try { localStorage.setItem('kc.showFabric', v ? '1' : '0') } catch { /* ignore */ } }}>Tecidos no 3D</button>
             </div>
@@ -2302,8 +2329,8 @@ export function Editor(): JSX.Element {
         </div>
         <div className="viewport">
           {mode === '3d'
-            ? <KitViewer texture={tex} version={texV} collar={cfg('Collar', 66)} longSleeves={longSleeves} shortsModel={cfg('ShortsModel', 1)} camera={cam} armband={!!ab.show} tucked={tucked} tight={cfg('TightKit', 1) === 1} kappa={cfg('ShortSleevesModel', 1) === 2} shine={kit.shine ?? 0} shineMap={shineMap} autoRotate={spin} snapshot={setShot3d} light={light} lightPreset={view3d.preset} env={view3d.env} background={view3d.bg || null} hideShorts={view3d.hideShorts} hideSocks={view3d.hideSocks} />
-            : <TexView tex={tex} version={texV} bg={texBg} showBg={showTexBg} islands={islands} outline={showOutline ? tplOutline : null} tool={tool} setTool={setTool} onPick={onPickColor}
+            ? <KitViewer texture={tex} version={texV} collar={cfg('Collar', 66)} longSleeves={longSleeves} shortsModel={cfg('ShortsModel', 1)} camera={cam} armband={!!ab.show} tucked={tucked} tight={cfg('TightKit', 1) === 1} kappa={cfg('ShortSleevesModel', 1) === 2} shine={kit.shine ?? 0} shineMap={shineMap} relief={reliefMap} autoRotate={spin} snapshot={setShot3d} light={light} lightPreset={view3d.preset} env={view3d.env} background={view3d.bg || null} hideShorts={view3d.hideShorts} hideSocks={view3d.hideSocks} />
+            : <TexView tex={tex} version={texV} bg={texBg} showBg={showTexBg} islands={islands} outline={showMesh ? meshImg : showOutline ? tplOutline : null} tool={tool} setTool={setTool} onPick={onPickColor}
               onBrush={(e) => {
                 if (e.type === 'down') {
                   // paint into the open drawing layer, or start a new one

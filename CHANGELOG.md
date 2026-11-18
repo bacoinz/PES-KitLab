@@ -2,6 +2,17 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.14] - 2026-11-19
+### Added
+- "Relief" option on stitching and on outlines (logo outline, text outline, design outline): the fabric around the seam / outline stands out in the 3D preview (3D only, not in the texture).
+- Sleeves with shoulders: new "Angle" slider (how sharp the seam's corner is); the old "Angle" is now "Curve". New sleeves start from the preferred default points.
+### Changed
+- Texture view: the "3D mesh" button now draws the 3D model's real mesh (UV wireframe) over the texture.
+- Stitching on every layer is a drop-down ("None" / stitch type) like Fabric; its options sit in their own sub-section. Embroidery and fabric options also sit in a sub-section.
+- Embroidery list order: chain, cross, satin, tatami; defaults scale 70, angle 45, strength 49.
+- Sleeve point sliders no longer say "point" (Arm X / Y, Neck (Front) X / Y, Neck (Back) X / Y).
+- Own shininess says "Same as the shirt fabric" when off.
+
 ## [0.4.13] - 2026-11-18
 ### Added
 - Texture view: "3D mesh" button (shows / hides the model's outlines over the texture) and "Fabrics in 3D" button (shows / hides the fabric textures in the preview) replace the "Long sleeve" button there.

@@ -14,7 +14,7 @@ export const LAYER_FABRICS: [string, string][] = [
   ['jacquard', 'Jacquard diagonal'], ['honeycomb', 'Favo (dri-fit)'], ['twill', 'Sarja']
 ]
 /** Embroidery textures for badges, brands, sponsors, images and text. */
-export const EMBROIDERIES: [string, string][] = [['satin', 'Cetim (linhas)'], ['tatami', 'Tatami (preenchimento)'], ['cross', 'Ponto cruz'], ['chain', 'Ponto corrente']]
+export const EMBROIDERIES: [string, string][] = [['chain', 'Ponto corrente'], ['cross', 'Ponto cruz'], ['satin', 'Cetim (linhas)'], ['tatami', 'Tatami (preenchimento)']]
 /** How a texture is laid over a layer: opacity and blend (the tiles are neutral grey, 128 = no change). */
 export const TEXTURE_LOOK: Record<string, { opacity: number; blend: GlobalCompositeOperation }> = {
   knit: { opacity: 0.4, blend: 'source-over' }, mesh: { opacity: 0.5, blend: 'source-over' }, pique: { opacity: 0.5, blend: 'source-over' }, rib: { opacity: 0.6, blend: 'source-over' },
