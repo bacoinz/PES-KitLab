@@ -101,7 +101,14 @@ export interface OverlayLayer {
   /** sleeves zone: default = the front drawn again on each sleeve; 'continue' = the shirt's drawing goes on into the
    *  sleeves (same texture coordinates at the armhole) */
   sleeveMap?: 'frame' | 'continue'
+  /** fabric texture ("Tecido") over what this layer draws; collar designs: only on the colour slots in `fabricSlots` */
+  fabric?: TextureSpec
+  fabricSlots?: number[]
+  /** embroidery texture over an image / text layer (on top of the outline / stitching options) */
+  embroidery?: TextureSpec
 }
+/** A texture laid over a layer, badge or cuff: built-in id (compositor/fabric.ts), size % and angle (degrees), strength 0 … 1 (default per texture). */
+export interface TextureSpec { id: string; scale?: number; angle?: number; opacity?: number }
 export type StitchKind = 'dashed' | 'dotted' | 'double' | 'solid' | 'zigzag' | 'cross'
 export interface StitchSpec { kind: StitchKind; side: 'in' | 'out' | 'center'; opacity: number /* 0..1 */; scale: number /* % */; color?: string /* thread colour; default = shadow */ }
 export const STITCH_KINDS: [StitchKind, string][] = [['dashed', 'Pesponto (tracejado)'], ['double', 'Pesponto duplo'], ['dotted', 'Pontos'], ['solid', 'Linha contínua'], ['zigzag', 'Zigue-zague'], ['cross', 'Ponto cruz']]
@@ -241,6 +248,7 @@ export interface LogoPlacement {
   alsoSleeves?: boolean // … on both sleeves (a sleeve badge marked `brand`)
   brand?: boolean // sleeve badge that follows the chest brand
   shine?: number // own shininess in the 3D preview (when the Logos tab's overall shininess is off)
+  embroidery?: TextureSpec // embroidery texture over the logo
 }
 
 export interface Logos {
@@ -270,6 +278,8 @@ export interface CollarSpec { style: CollarStyle; c1: string; c2: string; c3: st
   /** own options of the collar design (rim / stripes / V / placket sizes), see COLLAR_PARAMS */
   p?: Record<string, number | boolean | string> }
 export interface CuffSpec { style: 'none' | 'solid' | 'tipped' | 'stripes2' | 'stripes3'; c1: string; c2: string; width: number; stitch?: StitchSpec
+  /** fabric texture ("Tecido") on the cuffs, only on the colour slots in `fabricSlots` (0 = colour 1, 1 = colour 2; none = all) */
+  fabric?: TextureSpec; fabricSlots?: number[]
   /** stripes / tip: width of each stripe, space between stripes, distance of the first one from the cuff's edge (px) */
   stripeW?: number; gap?: number; offset?: number }
 export interface FabricLayer { id: string; source: string /* builtin id or asset:<id> */; zones: FabricZone[]; opacity: number; scale: number; blend: GlobalCompositeOperation; visible: boolean; v2?: boolean /* zones include shorts / socks explicitly */ }
@@ -326,7 +336,7 @@ export interface KitDesign {
   baseAfter?: { shorts?: string; socks?: string }
   /** "Mangas com ombros": the sleeve colour also covers the shoulders up to the neck (raglan), with the seam bent by
    *  `curve` and its neck / armpit points moved */
-  raglan?: { curve?: number; bend?: number /* seam bend as an angle in degrees (replaces `curve`, in px, of older kits) */; neck?: number; arm?: number; down?: number }
+  raglan?: { curve?: number; bend?: number /* seam bend as an angle in degrees (replaces `curve`, in px, of older kits) */; neck?: number; arm?: number; down?: number; armX?: number /* armpit point X */; neckB?: number; downB?: number /* neck point of the back (X / Y); unset = like the front */ }
   /** stitching along the sleeves (the raglan seam, or the armhole) */
   sleeveStitch?: StitchSpec
   /** 3D shininess of the logos: one value for all (`all`), or each logo's own `shine` */

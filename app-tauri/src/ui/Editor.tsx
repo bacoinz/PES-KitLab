@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp, assetFromFile, rawAssetFromFile, previewAssetFromFile, PRESET_TEAM, USER_TPL_TEAM, stepTime } from '../state'
-import type { PanelStyle, TextPlacement, PanelKind, KitDesign, OverlayLayer, Asset, LogoPlacement, LogoTint, Fill, PatternSpec, FabricLayer, FabricZone, Zone, Logos, StitchKind, StitchSpec } from '../model/design'
+import type { PanelStyle, TextPlacement, PanelKind, KitDesign, OverlayLayer, Asset, LogoPlacement, LogoTint, Fill, PatternSpec, FabricLayer, FabricZone, Zone, Logos, StitchKind, StitchSpec, TextureSpec } from '../model/design'
 import { describeStep } from './history'
 import { PANEL_STYLES, SLOT_LABEL, uid, defaultDesign, contrastOn, slotOrder, solid, fillMain, normalizeGroups, dropLayer, migrateKit, LOGO_SIZES, NUMBER_DEFAULTS, STITCH_KINDS, mergeLogos, copyNumbers, groupColors, swapGroupColor, resolveGroups } from '../model/design'
 import { TEMPLATES, applyTemplate } from '../model/templates'
@@ -8,7 +8,7 @@ import { TORSO_PATTERNS, SLEEVE_PATTERNS, SHORTS_PATTERNS, SOCKS_PATTERNS, TEXTU
 import { composeKit, composeLive, composeShine, COLLAR_DESIGNS, collarParams, collarDefaults, frontThumb, raglanBend } from '../compositor/compose'
 import { decorationOverlay, type GlyphAtlas } from '../compositor/decorate'
 import { loadAtlases } from '../compositor/atlases'
-import { FABRICS } from '../compositor/fabric'
+import { FABRICS, LAYER_FABRICS, EMBROIDERIES, TEXTURE_LOOK } from '../compositor/fabric'
 import { palette, loadAsset, rgbaToCanvas, canvasToDataUrl, canvas, ctx2d, type Img } from '../compositor/images'
 import { partAt, REGIONS, pathOf } from '../compositor/uv'
 import { SYSTEM_FONTS, registerFont, findBoxes } from '../compositor/numbers'
@@ -117,6 +117,41 @@ let logoClipboard: { lp: LogoPlacement; asset?: Asset } | null = null
 /** Logos tab with each logo's own shininess: the overall value new rows start from (undefined = not in that mode). */
 const LogoShineCtx = createContext<number | undefined>(undefined)
 
+/**
+ * A texture over a layer / logo / cuff: type (list), size, angle and strength. Used for the fabric ("Tecido") of layers,
+ * collars and cuffs and for the embroidery ("Bordado") of logos, images and text. `slots` adds "only on these colours".
+ */
+function TextureRow({ label, list, value, onChange, angle = true, slots }: {
+  label: string; list: [string, string][]; value?: TextureSpec; onChange: (v?: TextureSpec) => void; angle?: boolean
+  slots?: { names: string[]; value?: number[]; onChange: (v?: number[]) => void }
+}): JSX.Element {
+  const look = value ? TEXTURE_LOOK[value.id] : undefined
+  return (
+    <>
+      <Row label={label}><Select value={value?.id ?? ''} options={[['', 'Nenhum'], ...list]} onChange={(id) => onChange(id ? { ...value, id } : undefined)} /></Row>
+      {value && (
+        <>
+          <Row label="Escala"><Slider value={value.scale ?? 100} min={20} max={500} onChange={(scale) => onChange({ ...value, scale: scale === 100 ? undefined : scale })} /></Row>
+          {angle && <Row label="Ângulo"><Slider value={value.angle ?? 0} min={-180} max={180} snaps={ROT_SNAPS} onChange={(a) => onChange({ ...value, angle: a || undefined })} /></Row>}
+          <Row label="Intensidade"><Slider value={Math.round((value.opacity ?? look?.opacity ?? 0.5) * 100)} min={5} max={100} onChange={(o) => onChange({ ...value, opacity: o / 100 })} /></Row>
+          {slots && (
+            <Row label="Só nas cores">
+              <span className="sw-row">{slots.names.map((nm, i) => {
+                const on = !slots.value || slots.value.includes(i)
+                return <label key={i} className="check"><input type="checkbox" checked={on} onChange={(e) => {
+                  const cur = slots.value ?? slots.names.map((_, j) => j)
+                  const next = e.target.checked ? [...cur, i] : cur.filter((j) => j !== i)
+                  slots.onChange(next.length === slots.names.length ? undefined : next)
+                }} /> {nm}</label>
+              })}</span>
+            </Row>
+          )}
+        </>
+      )}
+    </>
+  )
+}
+
 function LogoBlock({ title, lp, assets, onChange, onAsset, folderHint, onRemove, extra }: {
   title: string; lp: LogoPlacement; assets: Record<string, Asset>; onChange: (lp: LogoPlacement) => void; onAsset: (a: Asset) => void; folderHint?: string; onRemove?: () => void; extra?: JSX.Element
 }): JSX.Element {
@@ -150,6 +185,7 @@ function LogoBlock({ title, lp, assets, onChange, onAsset, folderHint, onRemove,
           {lp.tint === 'mono' && <Row label="Cor do logo"><ColorInput value={lp.color ?? '#ffffff'} onChange={(color) => onChange({ ...lp, color })} /></Row>}
           <Row label="Contorno"><Slider value={lp.outlineWidth ?? 0} min={0} max={30} onChange={(outlineWidth) => onChange({ ...lp, outlineWidth })} /></Row>
           {(lp.outlineWidth ?? 0) > 0 && <Row label="Cor do contorno"><ColorInput value={lp.outlineColor ?? '#ffffff'} onChange={(outlineColor) => onChange({ ...lp, outlineColor })} /></Row>}
+          <TextureRow label="Bordado" list={EMBROIDERIES} value={lp.embroidery} onChange={(embroidery) => onChange({ ...lp, embroidery })} />
           <Row label="Tamanho"><Slider value={lp.size} min={30} max={700} onChange={(size) => onChange({ ...lp, size })} /></Row>
           <Row label="Esquerda / direita"><Slider value={lp.dx} min={-600} max={600} snaps={[0]} onChange={(dx) => onChange({ ...lp, dx })} /></Row>
           <Row label="Baixo / cima"><Slider invert value={lp.dy} min={-600} max={600} snaps={[0]} onChange={(dy) => onChange({ ...lp, dy })} /></Row>
@@ -372,6 +408,8 @@ export function Editor(): JSX.Element {
   const settings = useApp((st) => st.settings)
   const [texBg, setTexBg] = useState(() => { try { return localStorage.getItem('kc.texBg') ?? '#1b1e25' } catch { return '#1b1e25' } })
   const [showTexBg, setShowTexBg] = useState(() => { try { return localStorage.getItem('kc.showTexBg') !== '0' } catch { return true } })
+  // fabric textures in the preview (the 3D uses the same texture; export always has them)
+  const [showFabric, setShowFabric] = useState(() => { try { return localStorage.getItem('kc.showFabric') !== '0' } catch { return true } })
   const canvas2d = useRef<HTMLCanvasElement>(null)
   const kit = project?.kits.find((k) => k.slot === activeSlot) ?? project?.kits[0]
   const assets = useMemo(() => project?.assets ?? {}, [project?.assets])
@@ -390,12 +428,12 @@ export function Editor(): JSX.Element {
     if (!kit || !project) return
     const seq = ++renderSeq.current
     const raf = requestAnimationFrame(() => {
-      composeLive(kit, project.assets, { overlay: live })
+      composeLive(kit, project.assets, { overlay: live, skipFabric: !showFabric })
         .then((c) => { if (seq === renderSeq.current) { setTex(c); setTexV((v) => v + 1) } })
         .catch((e) => notify('err', 'Erro a desenhar: ' + e))
     })
     return () => cancelAnimationFrame(raf)
-  }, [kit, project, notify, live])
+  }, [kit, project, notify, live, showFabric])
 
   const numKey = kit ? JSON.stringify([project?.teamId, kit.slot, kit.numbers]) : ''
   useEffect(() => {
@@ -688,6 +726,12 @@ export function Editor(): JSX.Element {
     )
     // stitching along the edge of the layer's shape (or of everything a group draws)
     const stitchRow = <StitchEditor value={L.stitch} onChange={(stitch) => ch({ stitch })} />
+    // fabric ("Tecido") over the layer; collars choose which of their colours get it; images / text also get embroidery
+    const fabricRow = (
+      <TextureRow label="Tecido" list={LAYER_FABRICS} value={L.fabric} onChange={(fabric) => ch({ fabric })}
+        slots={L.kind === 'collar' ? { names: ['Cor 1', 'Cor 2', 'Cor 3'].slice(0, (COLLAR_DESIGNS.find((x) => x[0] === L.collarStyle) ?? COLLAR_DESIGNS[0])[2]), value: L.fabricSlots, onChange: (fabricSlots) => ch({ fabricSlots }) } : undefined} />
+    )
+    const embroRow = L.kind === 'image' || L.kind === 'text' ? <TextureRow label="Bordado" list={EMBROIDERIES} value={L.embroidery} onChange={(embroidery) => ch({ embroidery })} /> : null
     // designs (base designs, shapes, panels, graphics): one card, 3D preview of this layer, opens the Designs panel to swap it
     const designCard = (label: string): JSX.Element => (
       <ThumbButton label={label} onClick={() => setTexPick({ kind: 'graphics', part, replace: L.id })}
@@ -754,6 +798,7 @@ export function Editor(): JSX.Element {
             <span className="muted small">{strokes.length} traço(s)</span>
           </div>
           {stitchRow}
+          {fabricRow}
           {shineRow}
           <div className="pm-sep" />
           <label className="check"><input type="checkbox" checked={!!L.mirrorCenter} onChange={(e) => ch({ mirrorCenter: e.target.checked || undefined })} /> Simetria (esquerda ↔ direita)</label>
@@ -792,6 +837,7 @@ export function Editor(): JSX.Element {
               </>
             )
           })()}
+          {fabricRow}
         </div>
       )
     }
@@ -823,6 +869,7 @@ export function Editor(): JSX.Element {
           {L.panel === 'shoulders' && <label className="check"><input type="checkbox" checked={!!L.panelSleeve} onChange={(e) => ch({ panelSleeve: e.target.checked || undefined })} /> Continuar pelas mangas</label>}
           {L.panel === 'shortsSides' && <Toggle on={!!L.mirrorCenter} label="Espelhar (pernas iguais ao espelho)" onChange={(v) => ch({ mirrorCenter: v || undefined })} />}
           {stitchRow}
+          {fabricRow}
           {shineRow}
           <div className="pm-sep" />
           <Row label={L.panel === 'shoulders' ? 'Deslocamento (através)' : 'Deslocamento'}><Slider value={L.dx ?? 0} min={-300} max={300} snaps={[0]} onChange={(dx) => ch({ dx: dx || undefined })} /></Row>
@@ -990,6 +1037,8 @@ export function Editor(): JSX.Element {
           </>
         )}
         {stitchRow}
+        {embroRow}
+        {fabricRow}
         {shineRow}
 
         {/* 3. where it shows */}
@@ -1543,10 +1592,13 @@ export function Editor(): JSX.Element {
         {kit.base.kind === 'template' && <Row label="Mangas"><Select value={rg ? 'with' : 'without'} options={[['without', 'Mangas sem ombros'], ['with', 'Mangas com ombros']]} onChange={(v) => up((k) => ({ ...k, raglan: v === 'with' ? { curve: 0 } : undefined }))} /></Row>}
         {rg && (
           <>
-            <Row label="Curvar"><Slider value={raglanBend(rg)} min={-140} max={140} snaps={[0]} onChange={(bend) => setRg({ bend, curve: undefined })} /></Row>
-            <Row label="Ponto do pescoço X"><Slider value={rg.neck ?? 0} min={-150} max={400} snaps={[0]} onChange={(neck) => setRg({ neck: neck || undefined })} /></Row>
-            <Row label="Ponto do pescoço Y"><Slider value={rg.down ?? 0} min={0} max={800} onChange={(down) => setRg({ down: down || undefined })} /></Row>
-            <Row label="Ponto do sovaco"><Slider value={rg.arm ?? 0} min={-200} max={200} snaps={[0]} onChange={(arm) => setRg({ arm: arm || undefined })} /></Row>
+            <Row label="Ângulo"><Slider value={raglanBend(rg)} min={-140} max={140} snaps={[0]} onChange={(bend) => setRg({ bend, curve: undefined })} /></Row>
+            <Row label="Ponto Braço X"><Slider value={rg.armX ?? 0} min={-100} max={100} snaps={[0]} onChange={(armX) => setRg({ armX: armX || undefined })} /></Row>
+            <Row label="Ponto Braço Y"><Slider value={rg.arm ?? 0} min={-200} max={200} snaps={[0]} onChange={(arm) => setRg({ arm: arm || undefined })} /></Row>
+            <Row label="Ponto Pescoço (Frente) X"><Slider value={rg.neck ?? 0} min={-150} max={400} snaps={[0]} onChange={(neck) => setRg({ neck: neck || undefined })} /></Row>
+            <Row label="Ponto Pescoço (Frente) Y"><Slider value={rg.down ?? 0} min={0} max={800} onChange={(down) => setRg({ down: down || undefined })} /></Row>
+            <Row label="Ponto Pescoço (Costas) X"><Slider value={rg.neckB ?? rg.neck ?? 0} min={-150} max={400} snaps={[0]} onChange={(neckB) => setRg({ neckB })} /></Row>
+            <Row label="Ponto Pescoço (Costas) Y"><Slider value={rg.downB ?? rg.down ?? 0} min={0} max={800} onChange={(downB) => setRg({ downB })} /></Row>
           </>
         )}
         {kit.base.kind === 'template' && <StitchEditor value={kit.sleeveStitch} onChange={(sleeveStitch) => up((k) => ({ ...k, sleeveStitch }))} />}
@@ -1590,6 +1642,8 @@ export function Editor(): JSX.Element {
                   )
                 })()}
                 <StitchEditor value={kit.cuffs?.stitch} onChange={(stitch) => up((k) => ({ ...k, cuffs: { ...k.cuffs!, stitch } }))} />
+                <TextureRow label="Tecido" list={LAYER_FABRICS} value={kit.cuffs?.fabric} onChange={(fabric) => up((k) => ({ ...k, cuffs: { ...k.cuffs!, fabric } }))}
+                  slots={kit.cuffs?.style !== 'solid' ? { names: ['Cor 1', 'Cor 2'], value: kit.cuffs?.fabricSlots, onChange: (fabricSlots) => up((k) => ({ ...k, cuffs: { ...k.cuffs!, fabricSlots } })) } : undefined} />
               </>
             )}
           </>
@@ -2187,6 +2241,14 @@ export function Editor(): JSX.Element {
             <button className={mode === '3d' ? 'active' : ''} onClick={() => setMode('3d')}>3D</button>
             <button className={mode === '2d' ? 'active' : ''} onClick={() => setMode('2d')}>Textura</button>
           </div>
+          {mode === '2d' && (
+            <div className="seg">
+              <button className={showOutline ? 'active' : ''} title="Mostrar ou esconder a malha (contornos) do modelo 3D sobre a textura"
+                onClick={() => { const v = !showOutline; setShowOutline(v); try { localStorage.setItem('kc.tplOutline', v ? '1' : '0') } catch { /* ignore */ } }}>Malha 3D</button>
+              <button className={showFabric ? 'active' : ''} title="Mostrar ou esconder a textura dos tecidos (no 3D e na textura)"
+                onClick={() => { const v = !showFabric; setShowFabric(v); try { localStorage.setItem('kc.showFabric', v ? '1' : '0') } catch { /* ignore */ } }}>Tecidos no 3D</button>
+            </div>
+          )}
           {mode === '3d' && (
             <div className="seg">
               <button className={longSleeves ? 'active' : ''} onClick={() => setLongSleeves(!longSleeves)}>Manga comprida</button>

@@ -20,6 +20,20 @@ function fabricBump(): THREE.Texture {
   const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(90, 90)
   return t
 }
+/** Stretchy sock knit (3D preview only, never in the texture): fine ribs running down the leg (along the texture's v). */
+function sockBump(): THREE.Texture {
+  const w = 16, h = 8, c = document.createElement('canvas'); c.width = w; c.height = h
+  const g = c.getContext('2d')!, id = g.createImageData(w, h)
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const rib = Math.sin((x / w) * Math.PI * 2 * 2) * 0.5 + 0.5 // 2 ribs per tile
+    const v = 70 + rib * 150 + (y % 2 ? 12 : -12)
+    const o = (y * w + x) * 4; id.data[o] = id.data[o + 1] = id.data[o + 2] = v; id.data[o + 3] = 255
+  }
+  g.putImageData(id, 0, 0)
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(2048 / 8 / 2, 2048 / 5 / 2)
+  t.magFilter = THREE.LinearFilter
+  return t
+}
 function loadModel(name: string): Promise<MeshDto[]> {
   let p = modelCache.get(name)
   if (!p) { p = window.kc.readModel(name).catch(() => []); modelCache.set(name, p) }
@@ -303,7 +317,7 @@ export interface ViewerProps {
 
 export function KitViewer({ texture, version = 0, collar, longSleeves, shortsModel = 1, camera, armband = false, tucked = false, tight = true, kappa = false, height = '100%', shine = 0, shineMap = null, autoRotate = false, snapshot, light = 40, lightPreset = 'hdri', env = 'room', background = null, hideShorts = false, hideSocks = false }: ViewerProps): JSX.Element {
   const host = useRef<HTMLDivElement>(null)
-  const st = useRef<{ renderer: THREE.WebGLRenderer; scene: THREE.Scene; cam: THREE.PerspectiveCamera; ctl: OrbitControls; mat: THREE.MeshStandardMaterial; tex: THREE.Texture; group: THREE.Group; raf: number; fly: { pos: THREE.Vector3; target: THREE.Vector3; t: number } | null; key: THREE.DirectionalLight; fill: THREE.DirectionalLight; pmrem: THREE.PMREMGenerator; envMul: number; envTex: THREE.Texture | null; front: THREE.MeshStandardMaterial } | null>(null)
+  const st = useRef<{ renderer: THREE.WebGLRenderer; scene: THREE.Scene; cam: THREE.PerspectiveCamera; ctl: OrbitControls; mat: THREE.MeshStandardMaterial; tex: THREE.Texture; group: THREE.Group; raf: number; fly: { pos: THREE.Vector3; target: THREE.Vector3; t: number } | null; key: THREE.DirectionalLight; fill: THREE.DirectionalLight; pmrem: THREE.PMREMGenerator; envMul: number; envTex: THREE.Texture | null; front: THREE.MeshStandardMaterial; sock: THREE.MeshStandardMaterial } | null>(null)
   const [noModels, setNoModels] = useState(false)
 
   useEffect(() => {
@@ -367,12 +381,17 @@ export function KitViewer({ texture, version = 0, collar, longSleeves, shortsMod
       const f = s.front, m = s.mat
       if (f.map !== m.map || f.roughnessMap !== m.roughnessMap) { f.map = m.map; f.roughnessMap = m.roughnessMap; f.needsUpdate = true }
       f.roughness = m.roughness; f.envMapIntensity = m.envMapIntensity
+      const k = s.sock
+      if (k.map !== m.map || k.roughnessMap !== m.roughnessMap) { k.map = m.map; k.roughnessMap = m.roughnessMap; k.needsUpdate = true }
+      k.roughness = m.roughness; k.envMapIntensity = m.envMapIntensity
       ctl.update(); renderer.render(scene, cam); s.raf = requestAnimationFrame(loop)
     }
     // game pieces: front faces only, plus an inside-out copy lit like the outside (folds show the cloth's other side
     // with the same light instead of a dark gap)
     const front = mat.clone(); front.side = THREE.FrontSide
-    st.current = { renderer, scene, cam, ctl, mat, tex, group, raf: 0, fly: null, key, fill, pmrem, envMul: 1, envTex, front }
+    // socks: a stretchier knit than the shirt (own relief, 3D only)
+    const sock = mat.clone(); sock.bumpMap = sockBump(); sock.bumpScale = 1.4
+    st.current = { renderer, scene, cam, ctl, mat, tex, group, raf: 0, fly: null, key, fill, pmrem, envMul: 1, envTex, front, sock }
     // scripted checks: point the camera anywhere
     ;(window as unknown as { __kcView: unknown }).__kcView = (p: [number, number, number], t: [number, number, number]): void => {
       if (st.current) st.current.fly = { pos: new THREE.Vector3(...p), target: new THREE.Vector3(...t), t: 0 }
@@ -527,8 +546,8 @@ export function KitViewer({ texture, version = 0, collar, longSleeves, shortsMod
       s.group.clear()
       let count = 0
       for (const meshes of parts) for (const m of meshes) { s.group.add(new THREE.Mesh(toGeometry(m), s.mat)); count++ }
-      if (socks.length) for (const m of socks) s.group.add(new THREE.Mesh(toGeometry(m), s.mat))
-      else for (const side of [0, 1] as const) s.group.add(new THREE.Mesh(sockGeometry(side), s.mat))
+      if (socks.length) for (const m of socks) s.group.add(new THREE.Mesh(toGeometry(m), s.sock))
+      else for (const side of [0, 1] as const) s.group.add(new THREE.Mesh(sockGeometry(side), s.sock))
       if (armband) s.group.add(armbandMesh(s.mat))
       setNoModels(count === 0)
     })()

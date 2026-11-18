@@ -8,6 +8,20 @@ export const FABRICS: [string, string][] = [
   ['jacquard', 'Jacquard diagonal'], ['honeycomb', 'Favo (dri-fit)'], ['twill', 'Sarja']
 ]
 
+/** Fabric types a layer can have ("Tecido"): the knit fabrics plus the stretchy ones used on collars, cuffs and socks. */
+export const LAYER_FABRICS: [string, string][] = [
+  ['knit', 'Malha fina'], ['mesh', 'Malha furada'], ['pique', 'Piqué'], ['rib', 'Canelado'], ['ribfine', 'Canelado fino (elástico)'], ['elastic', 'Elástico de gola / punho'],
+  ['jacquard', 'Jacquard diagonal'], ['honeycomb', 'Favo (dri-fit)'], ['twill', 'Sarja']
+]
+/** Embroidery textures for badges, brands, sponsors, images and text. */
+export const EMBROIDERIES: [string, string][] = [['satin', 'Cetim (linhas)'], ['tatami', 'Tatami (preenchimento)'], ['cross', 'Ponto cruz'], ['chain', 'Ponto corrente']]
+/** How a texture is laid over a layer: opacity and blend (the tiles are neutral grey, 128 = no change). */
+export const TEXTURE_LOOK: Record<string, { opacity: number; blend: GlobalCompositeOperation }> = {
+  knit: { opacity: 0.4, blend: 'source-over' }, mesh: { opacity: 0.5, blend: 'source-over' }, pique: { opacity: 0.5, blend: 'source-over' }, rib: { opacity: 0.6, blend: 'source-over' },
+  ribfine: { opacity: 0.7, blend: 'source-over' }, elastic: { opacity: 0.8, blend: 'source-over' }, jacquard: { opacity: 0.5, blend: 'source-over' }, honeycomb: { opacity: 0.5, blend: 'source-over' }, twill: { opacity: 0.5, blend: 'source-over' },
+  satin: { opacity: 0.85, blend: 'source-over' }, tatami: { opacity: 0.85, blend: 'source-over' }, cross: { opacity: 0.85, blend: 'source-over' }, chain: { opacity: 0.85, blend: 'source-over' }
+}
+
 const tiles = new Map<string, OffscreenCanvas>()
 
 /** Small seamless tiles on a neutral grey (128 = no change in soft-light / overlay). */
@@ -34,6 +48,37 @@ export function fabricTile(id: string): OffscreenCanvas {
     for (let y = 0; y < n; y += 6) for (let x = 0; x < n; x += 6) { g.fillStyle = dark; g.fillRect(x, y, 3, 3); g.fillStyle = light; g.fillRect(x + 3, y + 3, 2, 2) }
   } else if (id === 'rib') {
     for (let x = 0; x < n; x += 4) { g.fillStyle = dark; g.fillRect(x, 0, 1.5, n); g.fillStyle = light; g.fillRect(x + 2, 0, 1, n) }
+  } else if (id === 'ribfine' || id === 'elastic') {
+    // stretchy rib: thin vertical ribs (elastic = deeper, with a 1×1 purl line between them)
+    const st = id === 'elastic' ? 3 : 2
+    for (let x = 0; x < n; x += st * 2) {
+      g.fillStyle = 'rgba(0,0,0,0.7)'; g.fillRect(x, 0, st * 0.6, n)
+      g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillRect(x + st, 0, st * 0.7, n)
+    }
+    if (id === 'elastic') for (let y = 0; y < n; y += 4) { g.fillStyle = 'rgba(0,0,0,0.2)'; g.fillRect(0, y, n, 1) }
+  } else if (id === 'satin') {
+    // long parallel threads (along x); the angle option turns them
+    for (let y = 0; y < n; y += 3) {
+      const gr = g.createLinearGradient(0, y, 0, y + 3)
+      gr.addColorStop(0, 'rgba(255,255,255,0.7)'); gr.addColorStop(0.6, 'rgba(0,0,0,0.05)'); gr.addColorStop(1, 'rgba(0,0,0,0.65)')
+      g.fillStyle = gr; g.fillRect(0, y, n, 3)
+    }
+  } else if (id === 'tatami') {
+    // fill stitch: rows of short threads in a brick pattern
+    for (let y = 0, r = 0; y < n; y += 4, r++) for (let x = (r % 3) * 6; x < n + 18; x += 18) {
+      g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(x, y + 3, 17, 1)
+      g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillRect(x, y, 17, 2)
+    }
+  } else if (id === 'cross') {
+    for (let y = 0; y < n; y += 4) for (let x = 0; x < n; x += 4) {
+      g.strokeStyle = 'rgba(0,0,0,0.6)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x, y); g.lineTo(x + 4, y + 4); g.stroke()
+      g.strokeStyle = 'rgba(255,255,255,0.6)'; g.beginPath(); g.moveTo(x + 4, y); g.lineTo(x, y + 4); g.stroke()
+    }
+  } else if (id === 'chain') {
+    for (let y = 0, r = 0; y < n; y += 5, r++) for (let x = (r % 2) * 3; x < n; x += 6) {
+      g.strokeStyle = 'rgba(0,0,0,0.6)'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(x, y); g.lineTo(x + 3, y + 4); g.lineTo(x + 6, y); g.stroke()
+      g.strokeStyle = 'rgba(255,255,255,0.55)'; g.beginPath(); g.moveTo(x + 0.5, y + 1.4); g.lineTo(x + 3, y + 4.8); g.lineTo(x + 5.5, y + 1.4); g.stroke()
+    }
   } else if (id === 'jacquard' || id === 'twill') {
     const step = id === 'twill' ? 6 : 16
     g.lineWidth = id === 'twill' ? 1.6 : 5
@@ -51,6 +96,40 @@ export function fabricTile(id: string): OffscreenCanvas {
     }
   }
   tiles.set(id, c)
+  return c
+}
+
+const reliefs = new Map<string, OffscreenCanvas>()
+/**
+ * The tile as relief on transparent (dark threads black, light ones white, by how far from the neutral grey): drawn
+ * normally it shows on any colour, which soft-light / overlay lose on pure white or black.
+ */
+function reliefTile(id: string): OffscreenCanvas {
+  const hit = reliefs.get(id)
+  if (hit) return hit
+  const src = fabricTile(id), n = src.width
+  const c = new OffscreenCanvas(n, n), g = c.getContext('2d', { willReadFrequently: true })!
+  g.drawImage(src, 0, 0)
+  const im = g.getImageData(0, 0, n, n), d = im.data
+  for (let i = 0; i < d.length; i += 4) {
+    const v = (d[i] - 128) / 128
+    d[i] = d[i + 1] = d[i + 2] = v < 0 ? 0 : 255
+    d[i + 3] = Math.min(255, Math.round(Math.abs(v) * 255))
+  }
+  g.putImageData(im, 0, 0)
+  reliefs.set(id, c)
+  return c
+}
+
+/** A built-in texture tile repeated over the whole texture (scale %, angle degrees), on a canvas. */
+export function texturePaint(id: string, scale: number, angle: number): OffscreenCanvas {
+  const c = new OffscreenCanvas(2048, 2048), g = c.getContext('2d')!
+  const pat = g.createPattern(reliefTile(id), 'repeat')
+  if (!pat) return c
+  const s = Math.max(0.1, scale / 100)
+  pat.setTransform(new DOMMatrix().rotate(angle).scale(s, s))
+  g.fillStyle = pat
+  g.fillRect(0, 0, 2048, 2048)
   return c
 }
 

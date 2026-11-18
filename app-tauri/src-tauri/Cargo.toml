@@ -1,6 +1,6 @@
 [package]
 name = "pes-kit-creator"
-version = "0.4.12"
+version = "0.4.13"
 edition = "2021"
 description = "Portable kit creator for PES 2021 / Football Life"
 

@@ -2,6 +2,16 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.13] - 2026-11-18
+### Added
+- Texture view: "3D mesh" button (shows / hides the model's outlines over the texture) and "Fabrics in 3D" button (shows / hides the fabric textures in the preview) replace the "Long sleeve" button there.
+- Sleeves with shoulders: separate back neck point; sliders "Arm point X / Y", "Neck point (Front) X / Y", "Neck point (Back) X / Y".
+- "Embroidery" texture (satin, tatami, cross stitch, chain stitch; size, angle, strength) on every emblem, brand, sponsor, image layer and text layer.
+- "Fabric" option on layers (knit, mesh, piqué, rib, fine rib, collar / cuff elastic, jacquard, honeycomb, twill) with size, angle and strength; collar layers and cuffs can limit it to chosen colours.
+- Socks have a stretchier knit relief in the 3D preview (3D only, not in the texture).
+### Changed
+- Sleeves with shoulders: "Bend" is now called "Angle".
+
 ## [0.4.12] - 2026-11-18
 ### Fixed
 - Free image layers set to show on "Sleeves" now appear on the sleeves (they were only drawn on the front and back); with "Short sleeves only" they stay off the long ones.
