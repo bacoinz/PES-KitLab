@@ -2,6 +2,13 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.12] - 2026-11-18
+### Fixed
+- Free image layers set to show on "Sleeves" now appear on the sleeves (they were only drawn on the front and back); with "Short sleeves only" they stay off the long ones.
+### Changed
+- Sleeves → "Sleeves with shoulders": "Bend" is now the angle between the seam's two ends (neck point and armpit point), in degrees; kits saved with the old pixel value keep their look.
+- "Neck point" is now "Neck point X" and "Lower the neck point" is "Neck point Y".
+
 ## [0.4.11] - 2026-11-17
 ### Changed
 - After exporting kits, the destination folder opens (the club's folder for one team, the export folder for several).

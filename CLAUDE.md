@@ -40,5 +40,6 @@ UI automática: `KC_SCRIPT=passos.json` (+ `KC_DATA=<pasta>`) corre passos `{wai
 - `loadModel` devolve arrays em cache: nunca lhes fazer push.
 - **Testes**: depois de alterações podes correr a app (`KC_SCRIPT`) e testar a escrita de ficheiros sem pedir licença.
 - **Git/release**: depois de alterações podes fazer commit da versão sem pedir. Sempre que fizeres uma alteração e deres commit, gera uma nova versão da app (`npm run dist`, que remove a anterior de `dist-portable/`) para o utilizador testar. Push, tags e releases no GitHub só quando o utilizador disser. Cada alteração entra no `CHANGELOG.md`; este ficheiro mantém-se curto (sem histórico).
+- **Changelog**: o `CHANGELOG.md` é escrito totalmente em inglês e descreve a versão em inglês (nomes de botões e opções como aparecem na UI em inglês, não em português).
 - O email do utilizador é privado (repositório público: autor com o email noreply do GitHub).
 - Jogo: `D:\Games\SP Football Life 2027`.

@@ -5,7 +5,7 @@ import { describeStep } from './history'
 import { PANEL_STYLES, SLOT_LABEL, uid, defaultDesign, contrastOn, slotOrder, solid, fillMain, normalizeGroups, dropLayer, migrateKit, LOGO_SIZES, NUMBER_DEFAULTS, STITCH_KINDS, mergeLogos, copyNumbers, groupColors, swapGroupColor, resolveGroups } from '../model/design'
 import { TEMPLATES, applyTemplate } from '../model/templates'
 import { TORSO_PATTERNS, SLEEVE_PATTERNS, SHORTS_PATTERNS, SOCKS_PATTERNS, TEXTURES, STROKES } from '../compositor/patterns'
-import { composeKit, composeLive, composeShine, COLLAR_DESIGNS, collarParams, collarDefaults, frontThumb } from '../compositor/compose'
+import { composeKit, composeLive, composeShine, COLLAR_DESIGNS, collarParams, collarDefaults, frontThumb, raglanBend } from '../compositor/compose'
 import { decorationOverlay, type GlyphAtlas } from '../compositor/decorate'
 import { loadAtlases } from '../compositor/atlases'
 import { FABRICS } from '../compositor/fabric'
@@ -1543,9 +1543,9 @@ export function Editor(): JSX.Element {
         {kit.base.kind === 'template' && <Row label="Mangas"><Select value={rg ? 'with' : 'without'} options={[['without', 'Mangas sem ombros'], ['with', 'Mangas com ombros']]} onChange={(v) => up((k) => ({ ...k, raglan: v === 'with' ? { curve: 0 } : undefined }))} /></Row>}
         {rg && (
           <>
-            <Row label="Curvar"><Slider value={rg.curve ?? 0} min={-600} max={600} snaps={[0]} onChange={(curve) => setRg({ curve })} /></Row>
-            <Row label="Ponto do pescoço"><Slider value={rg.neck ?? 0} min={-150} max={400} snaps={[0]} onChange={(neck) => setRg({ neck: neck || undefined })} /></Row>
-            <Row label="Descer o ponto do pescoço"><Slider value={rg.down ?? 0} min={0} max={800} onChange={(down) => setRg({ down: down || undefined })} /></Row>
+            <Row label="Curvar"><Slider value={raglanBend(rg)} min={-140} max={140} snaps={[0]} onChange={(bend) => setRg({ bend, curve: undefined })} /></Row>
+            <Row label="Ponto do pescoço X"><Slider value={rg.neck ?? 0} min={-150} max={400} snaps={[0]} onChange={(neck) => setRg({ neck: neck || undefined })} /></Row>
+            <Row label="Ponto do pescoço Y"><Slider value={rg.down ?? 0} min={0} max={800} onChange={(down) => setRg({ down: down || undefined })} /></Row>
             <Row label="Ponto do sovaco"><Slider value={rg.arm ?? 0} min={-200} max={200} snaps={[0]} onChange={(arm) => setRg({ arm: arm || undefined })} /></Row>
           </>
         )}

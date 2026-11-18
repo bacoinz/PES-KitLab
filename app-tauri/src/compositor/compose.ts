@@ -933,6 +933,35 @@ async function layerPassesRaw(out: Pass[], L: OverlayLayer, all: OverlayLayer[],
           out.push({ t: 'image', clip: 'back', opacity: op, blend, place })
         }
       }
+      // sleeves: the free image once on each sleeve (same frames as the other layers' sleeve drawing), kept to its island
+      if (zones.includes('sleeves')) {
+        const c = copies[0], asset = assets[L.assetId]
+        const tintCol = L.tileTint === 'color' ? fillMain(L.fill, L.color) : ''
+        const n = L.shortOnly ? 2 : SLEEVE_FRAMES.length
+        out.push({
+          t: 'rgba', clip: 'sleeves', opacity: op, blend,
+          key: 'sleeveImg:' + geomKey(L, [asset.id, asset.dataUrl.length, tintCol]),
+          img: () => {
+            const cv = canvas(S, S), g = ctx2d(cv)
+            for (let i = 0; i < n; i++) {
+              const [fa, fb, fc, fd, fe, ff] = SLEEVE_FRAMES[i], [sw, sh] = SLEEVE_SIZES[i]
+              const m = new DOMMatrix([fa, fb, fc, fd, fe, ff]).scale(sw / FW, sh / 1000).translate(-FX, -SEAM)
+              const mm = [m.a, m.b, m.c, m.d, m.e, m.f]
+              const [cx, cy] = apply(mm, c.x, y)
+              const ax = Math.hypot(mm[0], mm[1]), ay = Math.hypot(mm[2], mm[3])
+              const flip = mm[0] * mm[3] - mm[1] * mm[2] < 0 ? -1 : 1
+              const piece = canvas(S, S), pg = ctx2d(piece)
+              pg.save(); pg.translate(cx, cy); pg.rotate(c.rot + Math.atan2(mm[1], mm[0])); pg.scale(Math.sign(c.w) || 1, flip * (Math.sign(h) || 1))
+              pg.drawImage(img as CanvasImageSource, (-Math.abs(c.w) * ax) / 2, (-Math.abs(h) * ay) / 2, Math.abs(c.w) * ax, Math.abs(h) * ay)
+              pg.restore()
+              if (tintCol) { pg.globalCompositeOperation = 'source-in'; pg.fillStyle = tintCol; pg.fillRect(0, 0, S, S) }
+              const [x0, y0, x1, y1] = SLEEVE_RECTS[i]
+              g.save(); g.beginPath(); g.rect(x0, y0, x1 - x0, y1 - y0); g.clip(); g.drawImage(piece, 0, 0); g.restore()
+            }
+            return cv
+          }
+        })
+      }
       tintImagePasses(out, first, L)
       return
     }
@@ -1134,14 +1163,26 @@ function drawRaglan(g: G, rg: NonNullable<KitDesign['raglan']>, front: boolean):
   for (const flip of [false, true]) { g.beginPath(); raglanPath(g, rg, front, flip); g.fill() }
 }
 /** The raglan shoulder shape on one side (flip = right half), as a path (fill or clip). */
-function raglanPath(g: G, rg: NonNullable<KitDesign['raglan']>, front: boolean, flip: boolean): void {
-  // `down`: the neck end goes down the chest (up the back), e.g. a yoke line across the chest
+function raglanEnds(rg: NonNullable<KitDesign['raglan']>, front: boolean): [Pt, Pt] {
+  // `down`: the neck end (point A) goes down the chest (up the back), e.g. a yoke line across the chest
   const N: Pt = [900 + (rg.neck ?? 0), front ? SEAM + (rg.down ?? 0) : SEAM - (rg.down ?? 0)]
   const A: Pt = front ? [700, PANEL.armpitF + (rg.arm ?? 0)] : [700, PANEL.armpitB - (rg.arm ?? 0)]
+  return [N, A]
+}
+/** The seam bend of a raglan as an angle in degrees (older kits stored a distance in px: converted for the slider). */
+export function raglanBend(rg: NonNullable<KitDesign['raglan']>): number {
+  if (rg.bend !== undefined) return rg.bend
+  if (!rg.curve) return 0
+  const [N, A] = raglanEnds(rg, true)
+  return Math.round((2 * Math.atan((2 * rg.curve) / (Math.hypot(A[0] - N[0], A[1] - N[1]) || 1)) * 180) / Math.PI)
+}
+function raglanPath(g: G, rg: NonNullable<KitDesign['raglan']>, front: boolean, flip: boolean): void {
+  const [N, A] = raglanEnds(rg, front)
   const dx = A[0] - N[0], dy = A[1] - N[1], len = Math.hypot(dx, dy) || 1
   let nx = dy / len, ny = -dx / len
   if (nx < 0) { nx = -nx; ny = -ny }
-  const k = rg.curve ?? 0
+  // bend = angle between the straight line A→B and the seam where it leaves A / B (the control point sits at (len/2)·tan(bend/2))
+  const k = rg.bend !== undefined ? (len / 2) * Math.tan((Math.max(-140, Math.min(140, rg.bend)) * Math.PI) / 360) : rg.curve ?? 0
   const C: Pt = [(N[0] + A[0]) / 2 + nx * k, (N[1] + A[1]) / 2 + ny * k]
   // past the seam line (other zone) and past the side (the sleeve island): the clip keeps only this zone of the shirt
   const out = front ? SEAM - 80 : SEAM + 80

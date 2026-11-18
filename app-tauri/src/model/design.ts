@@ -326,7 +326,7 @@ export interface KitDesign {
   baseAfter?: { shorts?: string; socks?: string }
   /** "Mangas com ombros": the sleeve colour also covers the shoulders up to the neck (raglan), with the seam bent by
    *  `curve` and its neck / armpit points moved */
-  raglan?: { curve?: number; neck?: number; arm?: number; down?: number }
+  raglan?: { curve?: number; bend?: number /* seam bend as an angle in degrees (replaces `curve`, in px, of older kits) */; neck?: number; arm?: number; down?: number }
   /** stitching along the sleeves (the raglan seam, or the armhole) */
   sleeveStitch?: StitchSpec
   /** 3D shininess of the logos: one value for all (`all`), or each logo's own `shine` */
