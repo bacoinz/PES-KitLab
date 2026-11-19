@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useApp, assetFromFile, rawAssetFromFile, previewAssetFromFile, PRESET_TEAM, USER_TPL_TEAM, stepTime } from '../state'
 import type { PanelStyle, TextPlacement, PanelKind, KitDesign, OverlayLayer, Asset, LogoPlacement, LogoTint, Fill, PatternSpec, FabricLayer, FabricZone, Zone, Logos, StitchKind, StitchSpec, TextureSpec } from '../model/design'
 import { describeStep } from './history'
-import { PANEL_STYLES, SLOT_LABEL, uid, defaultDesign, contrastOn, slotOrder, solid, fillMain, normalizeGroups, dropLayer, migrateKit, LOGO_SIZES, NUMBER_DEFAULTS, STITCH_KINDS, FABRIC_COLLAR, FABRIC_SLEEVE, COLLAR_FABRIC, CUFF_FABRIC, FABRIC_CUFF, MAIN_FABRIC, HEM_STITCH, STITCH_DEFAULT, mergeLogos, copyNumbers, groupColors, swapGroupColor, resolveGroups } from '../model/design'
+import { PANEL_STYLES, SLOT_LABEL, uid, defaultDesign, contrastOn, slotOrder, solid, fillMain, normalizeGroups, dropLayer, migrateKit, LOGO_SIZES, NUMBER_DEFAULTS, STITCH_KINDS, FABRIC_COLLAR, FABRIC_SLEEVE, COLLAR_FABRIC, CUFF_FABRIC, FABRIC_CUFF, SOCK_LAYER_FABRIC, MAIN_FABRIC, HEM_STITCH, STITCH_DEFAULT, mergeLogos, copyNumbers, groupColors, swapGroupColor, resolveGroups } from '../model/design'
 import { TEMPLATES, applyTemplate } from '../model/templates'
 import { TORSO_PATTERNS, SLEEVE_PATTERNS, SHORTS_PATTERNS, SOCKS_PATTERNS, TEXTURES, STROKES } from '../compositor/patterns'
 import { composeKit, composeLive, composeShine, composeRelief, COLLAR_DESIGNS, collarParams, collarDefaults, frontThumb, raglanBend } from '../compositor/compose'
@@ -122,8 +122,8 @@ const LogoShineCtx = createContext<{ all: boolean; value: number } | undefined>(
  * A texture over a layer / logo / cuff: type (list), size, angle and strength. Used for the fabric ("Tecido") of layers,
  * collars and cuffs and for the embroidery ("Bordado") of logos, images and text. `slots` adds "only on these colours".
  */
-function TextureRow({ label, list, value, onChange, angle = true, slots, defaults }: {
-  label: string; list: [string, string][]; value?: TextureSpec; onChange: (v?: TextureSpec) => void; angle?: boolean; defaults?: Omit<TextureSpec, 'id'>
+function TextureRow({ label, list, value, onChange, angle = true, slots, defaults, mix }: {
+  label: string; list: [string, string][]; value?: TextureSpec; onChange: (v?: TextureSpec) => void; angle?: boolean; defaults?: Omit<TextureSpec, 'id'>; mix?: boolean
   slots?: { names: string[]; value?: number[]; onChange: (v?: number[]) => void }
 }): JSX.Element {
   const look = value ? TEXTURE_LOOK[value.id] : undefined
@@ -136,6 +136,7 @@ function TextureRow({ label, list, value, onChange, angle = true, slots, default
           <Row label="Escala"><Slider value={value.scale ?? 100} min={20} max={500} onChange={(scale) => onChange({ ...value, scale })} /></Row>
           {angle && <Row label="Ângulo"><Slider value={value.angle ?? 0} min={-180} max={180} snaps={ROT_SNAPS} onChange={(a) => onChange({ ...value, angle: a })} /></Row>}
           <Row label="Intensidade"><Slider value={Math.round((value.opacity ?? look?.opacity ?? 0.5) * 100)} min={5} max={100} onChange={(o) => onChange({ ...value, opacity: o / 100 })} /></Row>
+          {mix && <Row label="Mistura"><Slider value={value.mix ?? 85} min={0} max={100} onChange={(m) => onChange({ ...value, mix: m })} /></Row>}
           {slots && (
             <Row label="Só nas cores">
               <span className="sw-row">{slots.names.map((nm, i) => {
@@ -217,7 +218,7 @@ const TEXT_PLACEMENTS: [string, string][] = [
   ['front', 'Frente'], ['back', 'Costas'], ['frontBack', 'Frente e costas'], ['sleeveL', 'Manga esquerda'], ['sleeveR', 'Manga direita'],
   ['sleeves', 'Ambas as mangas'], ['sleevesMirror', 'Ambas as mangas (espelhadas)'], ['sleevesInv', 'Ambas as mangas (invertidas)'],
   ['sideR', 'Lado direito'], ['sideL', 'Lado esquerdo'], ['sides', 'Lados'], ['sidesMirror', 'Lados (espelhados)'], ['sidesMirrorInv', 'Lados (espelhados invertidos)'],
-  ['armband', 'Braçadeira de capitão'], ['backCollar', 'Gola de trás']
+  ['armband', 'Braçadeira de capitão'], ['backCollar', 'Gola']
 ]
 /** Font list with each name written in its own font. */
 function FontPicker({ value, onChange }: { value: string; onChange: (f: string) => void }): JSX.Element {
@@ -426,6 +427,7 @@ export function Editor(): JSX.Element {
   const [showTexBg, setShowTexBg] = useState(() => { try { return localStorage.getItem('kc.showTexBg') !== '0' } catch { return true } })
   // fabric textures in the preview (the 3D uses the same texture; export always has them)
   const [showFabric, setShowFabric] = useState(() => { try { return localStorage.getItem('kc.showFabric') !== '0' } catch { return true } })
+  const [showStitch, setShowStitch] = useState(() => { try { return localStorage.getItem('kc.showStitch') !== '0' } catch { return true } })
   const canvas2d = useRef<HTMLCanvasElement>(null)
   const kit = project?.kits.find((k) => k.slot === activeSlot) ?? project?.kits[0]
   const assets = useMemo(() => project?.assets ?? {}, [project?.assets])
@@ -444,12 +446,12 @@ export function Editor(): JSX.Element {
     if (!kit || !project) return
     const seq = ++renderSeq.current
     const raf = requestAnimationFrame(() => {
-      composeLive(kit, project.assets, { overlay: live, skipFabric: !showFabric })
+      composeLive(kit, project.assets, { overlay: live, skipFabric: !showFabric, skipStitch: !showStitch })
         .then((c) => { if (seq === renderSeq.current) { setTex(c); setTexV((v) => v + 1) } })
         .catch((e) => notify('err', 'Erro a desenhar: ' + e))
     })
     return () => cancelAnimationFrame(raf)
-  }, [kit, project, notify, live, showFabric])
+  }, [kit, project, notify, live, showFabric, showStitch])
 
   const numKey = kit ? JSON.stringify([project?.teamId, kit.slot, kit.numbers]) : ''
   useEffect(() => {
@@ -540,9 +542,9 @@ export function Editor(): JSX.Element {
   useEffect(() => {
     if (!kit || !project || mode !== '3d') return
     let alive = true
-    const t = setTimeout(() => { composeRelief(kit, project.assets).then((m) => { if (alive) setReliefMap(m) }).catch(() => undefined) }, 300)
+    const t = setTimeout(() => { (showStitch ? composeRelief(kit, project.assets) : Promise.resolve(null)).then((m) => { if (alive) setReliefMap(m) }).catch(() => undefined) }, 300)
     return () => { alive = false; clearTimeout(t) }
-  }, [kit, project, mode])
+  }, [kit, project, mode, showStitch])
 
   // small copy for the collar / shorts picker previews (refreshed once edits settle)
   const [smallTex, setSmallTex] = useState<OffscreenCanvas | null>(null)
@@ -1039,7 +1041,7 @@ export function Editor(): JSX.Element {
             <Row label="Texto"><input value={L.text ?? ''} onChange={(e) => ch({ text: e.target.value })} /></Row>
             {part === 'torso' && (
               <Row label="Posição"><Select value={L.placement ?? ((L.zones ?? ['front', 'back']).length > 1 ? 'frontBack' : (L.zones ?? ['front'])[0] === 'back' ? 'back' : 'front')} options={TEXT_PLACEMENTS}
-                onChange={(placement) => ch({ placement: placement as TextPlacement, ...(placement === 'front' ? { zones: ['front'] } : placement === 'back' ? { zones: ['back'] } : placement === 'frontBack' ? { zones: ['front', 'back'] } : {}) })} /></Row>
+                onChange={(placement) => ch({ placement: placement as TextPlacement, ...(placement === 'backCollar' ? { y: FRONT_Y + 54, size: 30 } : {}), ...(placement === 'front' ? { zones: ['front'] } : placement === 'back' ? { zones: ['back'] } : placement === 'frontBack' ? { zones: ['front', 'back'] } : {}) })} /></Row>
             )}
             <Row label="Espaçamento de letras"><Slider value={L.letterSpacing ?? 0} min={-50} max={1000} snaps={[0]} onChange={(letterSpacing) => ch({ letterSpacing: letterSpacing || undefined })} /></Row>
             <Toggle on={!!L.italic} label="Itálico" onChange={(v) => ch({ italic: v || undefined })} />
@@ -1083,7 +1085,7 @@ export function Editor(): JSX.Element {
               <Toggle on={!!L.flipX} label="Espelhar" onChange={(v) => ch({ flipX: v || undefined })} />
               <Toggle on={!!L.mirrorCenter} label="Espelhar (centro)" onChange={(v) => ch({ mirrorCenter: v || undefined })} />
               {part === 'torso' && <Toggle on={!!L.mirrorBack} label="Espelhar nas costas" onChange={(v) => ch({ mirrorBack: v || undefined })} />}
-              {part === 'socks' && <Toggle on={!!L.mirrorLegs} label="Espelhar entre as meias" onChange={(v) => ch({ mirrorLegs: v || undefined })} />}
+              {part === 'socks' && <Toggle on={!!L.mirrorLegs} label="Espelhar para o outro lado da meia" onChange={(v) => ch({ mirrorLegs: v || undefined })} />}
             </div>
 
             {/* 5. offset, size, rotation */}
@@ -1539,15 +1541,7 @@ export function Editor(): JSX.Element {
         </div>
       </Section>
       <Section group={tab} title="Pré-visualização 3D">
-        <Row label="Textura das meias"><Select value={view3d.sockKnit ? 'knit' : 'plain'} options={[['knit', 'Elástica (canelada)'], ['plain', 'Igual ao resto do kit']]} onChange={(v) => setView3d({ sockKnit: v === 'knit' })} /></Row>
-        {view3d.sockKnit && (
-          <div className="subsec">
-            <Row label="Escala"><Slider value={view3d.sockScale} min={20} max={500} onChange={(sockScale) => setView3d({ sockScale })} /></Row>
-            <Row label="Intensidade"><Slider value={view3d.sockStrength} min={0} max={300} onChange={(sockStrength) => setView3d({ sockStrength })} /></Row>
-            <Row label="Mistura"><Slider value={view3d.sockMix} min={0} max={100} onChange={(sockMix) => setView3d({ sockMix })} /></Row>
-          </div>
-        )}
-        <div className="muted small">Só na pré-visualização 3D; não muda a textura do kit. Tipo: canelado fino elástico; a mistura junta o relevo do resto do kit.</div>
+        <div className="muted small">A textura das meias está na base das meias (Tecido); o tecido do kit na camada "Tecido e costuras" da camisola.</div>
       </Section>
       <Section group={tab} title="Copiar para todos os kits">
         <div className="muted small">Copia deste kit ({SLOT_LABEL[kit.slot] ?? kit.slot}) para os outros equipamentos da equipa. Os logos que um kit já tem ficam como estão; só se acrescenta o que falta.</div>
@@ -1700,7 +1694,8 @@ export function Editor(): JSX.Element {
         <Row label="Brilho do tecido"><Slider value={kit.shine ?? 0} min={0} max={100} onChange={(shine) => up((k) => ({ ...k, shine: shine || undefined }))} /></Row>
         <div className="muted small">Brilho só na pré-visualização 3D (0 = mate, 100 = brilhante). Cada camada pode ter o seu em "Brilho próprio".</div>
         <TextureRow label="Tecido" list={LAYER_FABRICS} value={kit.fabric ?? undefined} defaults={{ scale: 48, opacity: 0.31 }} onChange={(fabric) => up((k) => ({ ...k, fabric: fabric ?? null }))} />
-        <div className="muted small">O tecido do kit cobre tudo (em luz suave), menos as camadas e logótipos com brilho próprio.</div>
+        {kit.fabric && <Toggle on={kit.fabricShorts !== false} label="Também nos calções" onChange={(v) => up((k) => ({ ...k, fabricShorts: v ? undefined : false }))} />}
+        <div className="muted small">O tecido do kit cobre tudo (em luz suave), menos as meias (têm o seu), e as camadas e logótipos com brilho próprio.</div>
         <StitchEditor label="Costura da bainha" def={HEM_STITCH} value={kit.hemStitch ?? undefined} onChange={(hemStitch) => up((k) => ({ ...k, hemStitch: hemStitch ?? null }))} />
         {(kit.fabrics ?? []).some((f) => f.visible) && <div className="muted small">Tecidos e costuras de versões anteriores deste kit:</div>}
         {(kit.fabrics ?? []).filter((f) => f.visible).map((f) => {
@@ -1745,15 +1740,17 @@ export function Editor(): JSX.Element {
     <>
       <div className="layers-panel">{layerList('shorts', [
         { id: 'shortsBase', label: 'Base', icon: 'base', movable: kit.base.kind === 'template', color: fillMain(F.shorts, kit.colors.shorts), setColor: (c) => setFill('shorts', solid(c)), body: (<>
-        <ThumbButton label={`Calções ${kit.config.ShortsModel ?? 1}`} onClick={() => setFly({ kind: 'shortsModel' })}
-          load={() => shortsPreview(cfg('ShortsModel', 1), smallTex, shortsKey)} deps={[kit.config.ShortsModel, shortsKey, !!smallTex]} />
         {kit.base.kind === 'template' ? (
           <>
             <FillRow label="Cor base" value={F.shorts ?? solid(kit.colors.shorts)} onChange={(f) => setFill('shorts', f)} />
-            {patternBlock('shorts', 'shortsPattern', 'Design')}
           </>
         ) : recolorRows('shorts')}
-      </>) }
+      </>) },
+      ...(kit.base.kind === 'template' ? [{ id: 'shortsSeams', label: 'Costuras dos calções', icon: 'fabric' as IconName, body: (<>
+        <StitchEditor label="Bainha" def={HEM_STITCH} value={kit.shortsHem ?? undefined} onChange={(shortsHem) => up((k) => ({ ...k, shortsHem: shortsHem ?? null }))} />
+        <StitchEditor label="Meio (braguilha e atrás)" def={HEM_STITCH} value={kit.shortsMid ?? undefined} onChange={(shortsMid) => up((k) => ({ ...k, shortsMid: shortsMid ?? null }))} />
+        <div className="muted small">O meio é a costura que une as duas partes dos calções na braguilha e atrás.</div>
+      </>) }] : [])
       ])}</div>
     </>
   )
@@ -1995,7 +1992,7 @@ export function Editor(): JSX.Element {
 
   const socksTab = (
     <div className="layers-panel">{layerList('socks', [
-      { id: 'socksBase', label: 'Base', icon: 'base', movable: kit.base.kind === 'template', color: fillMain(F.socks, kit.colors.socks), setColor: (c) => setFill('socks', solid(c)), body: (kit.base.kind === 'template' ? <><FillRow label="Cor" value={F.socks ?? solid(kit.colors.socks)} onChange={(f) => setFill('socks', f)} />{patternBlock('socks', 'socksPattern', 'Design')}</> : <>{recolorRows('socks')}</>) }
+      { id: 'socksBase', label: 'Base', icon: 'base', movable: kit.base.kind === 'template', color: fillMain(F.socks, kit.colors.socks), setColor: (c) => setFill('socks', solid(c)), body: (kit.base.kind === 'template' ? <><FillRow label="Cor" value={F.socks ?? solid(kit.colors.socks)} onChange={(f) => setFill('socks', f)} /><Toggle on={!!kit.socksColor2} label="Uma cor por meia" onChange={(v) => up((k) => ({ ...k, socksColor2: v ? k.socksColor2 ?? k.colors.shirt2 : undefined }))} />{kit.socksColor2 && <Row label="Cor da outra meia"><ColorInput value={kit.socksColor2} onChange={(socksColor2) => up((k) => ({ ...k, socksColor2 }))} /></Row>}<TextureRow label="Tecido" list={LAYER_FABRICS} value={kit.socksFabric ?? undefined} defaults={{ scale: 110, opacity: 0.2, mix: 85 }} mix onChange={(socksFabric) => up((k) => ({ ...k, socksFabric: socksFabric ?? null }))} /></> : <>{recolorRows('socks')}</>) }
     ])}</div>
   )
 
@@ -2070,7 +2067,8 @@ export function Editor(): JSX.Element {
         setLayer(target.id, () => ({ ...L, ...keep }))
         setOpenLayer(target.id); close(); return
       }
-      up((k) => ({ ...k, layers: [...k.layers, L] })); setOpenLayer(L.id); close()
+      const withFab = L.part === 'socks' && !L.fabric && ['design', 'panel', 'shape', 'pattern', 'texture'].includes(L.kind) ? { ...L, fabric: SOCK_LAYER_FABRIC } : L
+      up((k) => ({ ...k, layers: [...k.layers, withFab] })); setOpenLayer(L.id); close()
     }
     const fileItems: CatItem[] = texLib.items.map((f) => ({
       id: 'file:' + f.path, label: f.name, category: f.category,
@@ -2306,7 +2304,9 @@ export function Editor(): JSX.Element {
               <button className={showMesh ? 'active' : ''} title="Mostrar ou esconder a malha (contornos) do modelo 3D sobre a textura"
                 onClick={() => { const v = !showMesh; setShowMesh(v); try { localStorage.setItem('kc.mesh3d', v ? '1' : '0') } catch { /* ignore */ } }}>Malha 3D</button>
               <button className={showFabric ? 'active' : ''} title="Mostrar ou esconder a textura dos tecidos (no 3D e na textura)"
-                onClick={() => { const v = !showFabric; setShowFabric(v); try { localStorage.setItem('kc.showFabric', v ? '1' : '0') } catch { /* ignore */ } }}>Tecidos no 3D</button>
+                onClick={() => { const v = !showFabric; setShowFabric(v); try { localStorage.setItem('kc.showFabric', v ? '1' : '0') } catch { /* ignore */ } }}>Mostrar tecidos</button>
+              <button className={showStitch ? 'active' : ''} title="Mostrar ou esconder as costuras (no 3D e na textura)"
+                onClick={() => { const v = !showStitch; setShowStitch(v); try { localStorage.setItem('kc.showStitch', v ? '1' : '0') } catch { /* ignore */ } }}>Mostrar costuras</button>
             </div>
           )}
           {mode === '3d' && (
@@ -2362,7 +2362,7 @@ export function Editor(): JSX.Element {
         </div>
         <div className="viewport">
           {mode === '3d'
-            ? <KitViewer texture={tex} version={texV} collar={cfg('Collar', 66)} longSleeves={longSleeves} shortsModel={cfg('ShortsModel', 1)} camera={cam} armband={!!ab.show} tucked={tucked} tight={cfg('TightKit', 1) === 1} kappa={cfg('ShortSleevesModel', 1) === 2} shine={kit.shine ?? 0} shineMap={shineMap} relief={reliefMap} autoRotate={spin} snapshot={setShot3d} light={light} lightPreset={view3d.preset} env={view3d.env} background={view3d.bg || null} hideShorts={view3d.hideShorts} hideSocks={view3d.hideSocks} sockKnit={view3d.sockKnit} sockScale={view3d.sockScale} sockStrength={view3d.sockStrength} sockMix={view3d.sockMix} />
+            ? <KitViewer texture={tex} version={texV} collar={cfg('Collar', 66)} longSleeves={longSleeves} shortsModel={cfg('ShortsModel', 1)} camera={cam} armband={!!ab.show} tucked={tucked} tight={cfg('TightKit', 1) === 1} kappa={cfg('ShortSleevesModel', 1) === 2} shine={kit.shine ?? 0} shineMap={shineMap} relief={reliefMap} autoRotate={spin} snapshot={setShot3d} light={light} lightPreset={view3d.preset} env={view3d.env} background={view3d.bg || null} hideShorts={view3d.hideShorts} hideSocks={view3d.hideSocks} sockKnit={!!kit.socksFabric && showFabric} sockScale={kit.socksFabric?.scale ?? 100} sockStrength={Math.round(((kit.socksFabric?.opacity ?? 0.2) / 0.2) * 100)} sockMix={kit.socksFabric?.mix ?? 85} />
             : <TexView tex={tex} version={texV} bg={texBg} showBg={showTexBg} islands={islands} outline={showMesh ? meshImg : showOutline ? tplOutline : null} tool={tool} setTool={setTool} onPick={onPickColor}
               onBrush={(e) => {
                 if (e.type === 'down') {

@@ -113,7 +113,7 @@ export interface OverlayLayer {
   outlineRelief?: number // 0 … 100: a layer with an outline (text border, design outline) stands out from the fabric (3D preview only)
 }
 /** A texture laid over a layer, badge or cuff: built-in id (compositor/fabric.ts), size % and angle (degrees), strength 0 … 1 (default per texture). */
-export interface TextureSpec { id: string; scale?: number; angle?: number; opacity?: number }
+export interface TextureSpec { id: string; scale?: number; angle?: number; opacity?: number; mix?: number /* socks: mix (%) with the kit's own grain in the 3D relief */ }
 /** Starting values: fabric on collars / cuffs (fine stretchy rib) and on sleeves, stitching on sleeves and collars. */
 export const FABRIC_COLLAR: Omit<TextureSpec, 'id'> = { scale: 77, angle: 0, opacity: 0.25 }
 export const FABRIC_SLEEVE: Omit<TextureSpec, 'id'> = { scale: 77, angle: -90, opacity: 0.25 }
@@ -123,6 +123,8 @@ export const MAIN_FABRIC: TextureSpec = { id: 'knit', scale: 48, opacity: 0.31 }
 export const HEM_STITCH: StitchSpec = { kind: 'double', side: 'center', opacity: 0.5, scale: 45, relief: 10 }
 export const FABRIC_CUFF: Omit<TextureSpec, 'id'> = { scale: 77, angle: -90, opacity: 0.25 }
 export const CUFF_FABRIC: TextureSpec = { id: 'ribfine', ...FABRIC_CUFF }
+export const SOCKS_FABRIC: TextureSpec = { id: 'ribfine', scale: 110, opacity: 0.2, mix: 85 }
+export const SOCK_LAYER_FABRIC: TextureSpec = { id: 'ribfine', scale: 100, angle: 0, opacity: 0.15 }
 export const STITCH_DEFAULT: StitchSpec = { kind: 'dashed', side: 'center', opacity: 0.31, scale: 45, relief: 11 }
 export type StitchKind = 'dashed' | 'dotted' | 'double' | 'solid' | 'zigzag' | 'cross'
 export interface StitchSpec { kind: StitchKind; side: 'in' | 'out' | 'center'; opacity: number /* 0..1 */; scale: number /* % */; color?: string /* thread colour; default = shadow */; relief?: number /* 0 … 100: raised fabric along the seam (3D preview only) */ }
@@ -363,7 +365,13 @@ export interface KitDesign {
   /** the kit's main fabric over everything (null = none; new kits: fine knit) and the stitching of the hems (null = none) */
   fabric?: TextureSpec | null
   hemStitch?: StitchSpec | null
-  v?: 2 | 3 | 4 | 5 | 6 | 7
+  /** socks: the fabric on the base (null = none), a second base colour (one colour per sock), shorts seams: hem and the middle (fly / back) */
+  socksFabric?: TextureSpec | null
+  socksColor2?: string
+  fabricShorts?: boolean // the kit's main fabric on the shorts too (default yes)
+  shortsHem?: StitchSpec | null
+  shortsMid?: StitchSpec | null
+  v?: 2 | 3 | 4 | 5 | 6 | 7 | 8
 }
 
 export interface Asset { id: string; name: string; dataUrl: string; w?: number; h?: number }
@@ -464,7 +472,7 @@ export function defaultDesign(slot: string, c1 = '#1f4fb4', c2 = '#ffffff'): Kit
     // written in the old (pre-v6) sense: migrateKit flips it, so a new kit ends with NUMBER_DEFAULTS (1 = right leg)
     config: { Collar: 66, WinterCollar: 66, ShirtModel: 144, ShortsModel: 1, TightKit: 1, ...NUMBER_DEFAULTS, ShortsNumberSide: 1 - NUMBER_DEFAULTS.ShortsNumberSide }
   })
-  return { ...d, fabric: MAIN_FABRIC, hemStitch: HEM_STITCH }
+  return { ...d, fabric: MAIN_FABRIC, hemStitch: HEM_STITCH, shortsHem: HEM_STITCH, shortsMid: HEM_STITCH }
 }
 
 /** Name / number defaults for new kits (the user's choice, 2026-11-14; the height sliders run inverted: shown 17 = BackNumberY 12, shown 7 = NameY 32). */
@@ -479,8 +487,13 @@ export function defaultFabrics(): FabricLayer[] {
 
 /** Bring any saved design up to the current model (v2): torso pattern → layer, single logos → lists, defaults. */
 export function migrateKit(k: KitDesign): KitDesign {
-  if (k.v === 7) return k
-  return toV7(k.v === 6 ? k : toV6(k.v === 5 ? k : toV5(k.v === 4 ? k : toV4(migrateV3(k)))))
+  if (k.v === 8) return k
+  return toV8(k.v === 7 ? k : toV7(k.v === 6 ? k : toV6(k.v === 5 ? k : toV5(k.v === 4 ? k : toV4(migrateV3(k))))))
+}
+
+/** v8 (0.4.18): the sock texture is a fabric on the sock base (kits saved before get the former 3D look as a real fabric); shorts seams are options (none in older kits). */
+function toV8(k: KitDesign): KitDesign {
+  return { ...k, v: 8, socksFabric: k.socksFabric === undefined ? SOCKS_FABRIC : k.socksFabric, shortsHem: k.shortsHem ?? null, shortsMid: k.shortsMid ?? null }
 }
 
 /** v7 (0.4.16): the kit's main fabric and hem stitching are options; kits saved before keep neither (null). */

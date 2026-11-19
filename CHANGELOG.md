@@ -2,6 +2,20 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.18] - 2026-11-19
+### Added
+- Socks: the sock texture is now a real fabric on the sock base (on by default: fine rib, size 110, strength 20, mix 85), shown on the 2D texture too; it also drives the sock relief in 3D. Socks have no base design any more, only colour, with "One colour per sock" (a second base colour).
+- New sock design layers start with the fine stretchy rib (size 100, angle 0, strength 15).
+- Shorts: locked "Shorts stitching" row with Hem and Middle (fly and back seam) stitching (new kits: double stitch on both); the hem stitch of the kit no longer touches the shorts. The base is only the colour (shorts model picker removed).
+- Fabric and stitching switches in the texture view: "Show fabrics" (all fabrics) and "Show stitching" (all stitching and relief), both on by default.
+- Kit fabric: "Also on the shorts" switch (the socks have their own fabric).
+### Changed
+- "Mirror to the other side of the sock" now adds a mirrored copy on the opposite side of each sock.
+- Text placement "Back of collar" is now "Collar"; picking it starts at Y offset −54, size 30.
+### Fixed
+- Collar faces are back as they were: the outside is below the fold, the inside above it. The collar colour covers the outside; the inside is the shirt's primary colour.
+- "Fabrics in 3D" only hid some stitching; it now hides every fabric and no stitching.
+
 ## [0.4.17] - 2026-11-19
 ### Added
 - More than one sponsor on the socks ("+ Sponsor on the socks": both socks, left or right).

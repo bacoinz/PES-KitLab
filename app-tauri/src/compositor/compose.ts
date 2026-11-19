@@ -397,7 +397,7 @@ function textSpots(L: OverlayLayer): TextSpot[] {
     case 'sidesMirror': return [side('R'), side('L', { rot: -Math.PI / 2, flip: true })]
     case 'sidesMirrorInv': return [side('R'), side('L', { flip: true })]
     case 'armband': return [{ x: 256, y: 64, rot: 0, clip: 'armband' }]
-    case 'backCollar': return [{ x: 1024, y: 1895, rot: 0, clip: 'collar' }] // outer face (above the fold)
+    case 'backCollar': return [{ x: 1024, y: 1945, rot: 0, clip: 'collar' }] // outside (below the fold)
     default: return []
   }
 }
@@ -716,19 +716,22 @@ function partDraw(L: OverlayLayer, part: string): (l: G) => void {
   return (l) => {
     if (!frames) { l.save(); transform(l, L, 1024, 1024); frontContent(l, L); l.restore(); return }
     const even = (L.kind === 'image' && L.fit === 'tile') || L.kind === 'texture'
-    for (const m of frames) {
-      l.save(); l.transform(...m)
-      // "Espelhar entre as meias": on the right sock the layer lands on the opposite side of the leg
+    for (const [fi, m] of frames.entries()) {
       const mirrored = m[0] * m[3] - m[1] * m[2] < 0
-      if (L.mirrorLegs && mirrored) { l.translate(2 * FRONT_CENTER.x, 0); l.scale(-1, 1) }
-      if (even) {
-        const ax = Math.hypot(m[0], m[1]), ay = Math.hypot(m[2], m[3]), k = Math.sqrt(ax * ay)
-        l.translate(FRONT_CENTER.x, FRONT_CENTER.y); l.scale(k / ax, k / ay); l.translate(-FRONT_CENTER.x, -FRONT_CENTER.y)
+      // "Espelhar para o outro lado da meia": a second copy, mirrored about the front line of the sock
+      const xf = part === 'socks' ? (SOCK_FRAME[1 - fi].front - m[4]) / m[0] : 0
+      for (const copy of L.mirrorLegs && part === 'socks' ? [false, true] : [false]) {
+        l.save(); l.transform(...m)
+        if (copy) { l.translate(2 * xf, 0); l.scale(-1, 1) }
+        if (even) {
+          const ax = Math.hypot(m[0], m[1]), ay = Math.hypot(m[2], m[3]), k = Math.sqrt(ax * ay)
+          l.translate(FRONT_CENTER.x, FRONT_CENTER.y); l.scale(k / ax, k / ay); l.translate(-FRONT_CENTER.x, -FRONT_CENTER.y)
+        }
+        // mirrored frame (right sock): the layer lands on the same side of the leg, but text keeps reading normally
+        unflipText = mirrored !== copy
+        try { drawFrontLayer(l, L) } finally { unflipText = false }
+        l.restore()
       }
-      // mirrored frame (right sock): the layer lands on the same side of the leg, but text keeps reading normally
-      unflipText = mirrored && !L.mirrorLegs
-      try { drawFrontLayer(l, L) } finally { unflipText = false }
-      l.restore()
     }
   }
 }
@@ -848,7 +851,10 @@ async function layerPasses(out: Pass[], L: OverlayLayer, all: OverlayLayer[], as
 }
 
 /** Stitches round the shape a set of passes covers (one layer, or every member of a group). */
+/** Preview switches ("Mostrar tecidos" / "Mostrar costuras"), set at the start of each build. */
+let noFabric = false, noStitch = false
 function stitchPasses(out: Pass[], mine: Pass[], sp: NonNullable<OverlayLayer['stitch']>, key: string, opacity: number, base?: string): void {
+  if (noStitch) return
   const { clips, coverage } = coverageOf(mine, base)
   if (sp.relief) shadowPasses(out, clips, coverage, sp.relief, key)
   if (sp.relief && reliefSink) for (const clip of clips) reliefSink.set('st:' + key + clip, { amount: sp.relief, cover: () => coverage(clip), lines: () => stitchCanvas(coverage(clip), sp) ?? new OffscreenCanvas(1, 1) })
@@ -912,6 +918,8 @@ export async function composeRelief(design: KitDesign, assets: Record<string, As
  */
 function texturePasses(out: Pass[], mine: Pass[], spec: TextureSpec | undefined, key: string, opacity: number, base?: string): void {
   if (!spec || !mine.length) return
+  // embroidery is not a fabric: it stays when the fabrics are hidden
+  if (noFabric && !key.startsWith('emb:') && !key.startsWith('lemb:')) return
   const look = TEXTURE_LOOK[spec.id] ?? { opacity: 0.5, blend: 'source-over' as GlobalCompositeOperation }
   const { clips, coverage } = coverageOf(mine, base)
   const tk = JSON.stringify([spec.id, spec.scale ?? 100, spec.angle ?? 0, base])
@@ -1106,10 +1114,10 @@ async function layerPassesRaw(out: Pass[], L: OverlayLayer, all: OverlayLayer[],
     }
     const frames = part === 'shorts' || part === 'socks' ? PART_FRAMES[part] : null
     if (!frames) return
-    for (const m of frames) for (const c of copies) {
+    for (const [fi, m] of frames.entries()) for (const c of L.mirrorLegs && part === 'socks' ? [...copies, ...copies.map((q) => ({ x: 2 * ((SOCK_FRAME[1 - fi].front - m[4]) / m[0]) - q.x, w: -q.w, rot: -q.rot }))] : copies) {
       // frames are not similarities (legs are narrower than tall): map the box axes separately
       const det = m[0] * m[3] - m[1] * m[2]
-      const [cx, cy] = apply(m, L.mirrorLegs && det < 0 ? 2 * FRONT_CENTER.x - c.x : c.x, y)
+      const [cx, cy] = apply(m, c.x, y)
       const ax = Math.hypot(m[0], m[1]), ay = Math.hypot(m[2], m[3])
       // a mirrored frame (right sock) moves the image to the mirrored spot but does not flip the image itself
       const place = det < 0 ? { img, cx, cy, w: c.w * ax, h: h * ay, rot: c.rot } : { img, cx, cy, w: c.w * ax, h: h * ay, rot: c.rot + Math.atan2(m[1], m[0]) }
@@ -1239,17 +1247,16 @@ async function collarPasses(out: Pass[], d: KitDesign, layersDrawn: boolean, lay
     const rows = (d0: number, d1: number, faces = 'both') => (g: G): void => {
       const a = Math.max(0, d0), b = Math.min(d1, HF + 6)
       if (b <= a) return
-      // measured on the collar models (radius from the neck at the nape): above the fold (v < 1920) is the outer face,
-      // below it the inner face (the lining that goes down inside the shirt)
-      if (faces !== 'in') g.fillRect(x0, F - b, w, b - a)
-      if (faces !== 'out') g.fillRect(x0, F + a, w, b - a)
+      // checked in the 3D preview: below the fold (v > 1920) is the outside of the collar, above it the inside
+      if (faces !== 'in') g.fillRect(x0, F + a, w, b - a)
+      if (faces !== 'out') g.fillRect(x0, F - b, w, b - a)
     }
     const centre = (r: number) => (g: G): void => { g.fillRect(x0, F - r, w, 2 * r) }
     const fc = String(P.faces ?? 'both')
     // the inside of the shirt (everything past the band) is the shirt's primary colour, not the collar's
     if (!layer) out.push({ t: 'fill', fill: solid(fillMain(d.fills?.shirt, d.colors.shirt)), clip: 'collar' })
-    // the collar colour is the outer face (above the fold); the inner face (below it) is the inside of the shirt
-    band('face', cs.c1, (g) => g.fillRect(x0, F - HF - 4, w, HF + 4))
+    // the collar colour is the outside (below the fold); the inside (above it) is the shirt's primary colour
+    band('face', cs.c1, (g) => g.fillRect(x0, F, w, HF + 4))
     // rims: centred on the fold, next to the shirt (the seam, at the far end of each face), or both
     if (st === 'tipped' || st === 'outerTrim' || st === 'innerTrim' || st === 'doubleTrim') {
       const tw = n('trimW'), off = n('trimOff'), pos = String(P.pos) === 'edge' ? 'fold' : String(P.pos) // 'edge': saved by 0.4.6/7
@@ -1425,12 +1432,14 @@ function patternExtras(out: Pass[], pass: Pass, spec: PatternSpec, key: string):
 }
 
 /** The kit's main fabric (soft light) over everything, except where a layer or logo has its own shininess. */
-function mainFabricPass(out: Pass[], spec: TextureSpec | null | undefined, shiny: Pass[], shinyKey: string): void {
+function mainFabricPass(out: Pass[], spec: TextureSpec | null | undefined, shiny: Pass[], shinyKey: string, onShorts: boolean): void {
   if (!spec) return
   out.push({
-    t: 'rgba', key: 'mainfab:' + JSON.stringify([spec, shinyKey, shiny.length]), clip: 'all', opacity: Math.max(0, Math.min(1, spec.opacity ?? TEXTURE_LOOK[spec.id]?.opacity ?? 0.3)), blend: 'soft-light',
+    t: 'rgba', key: 'mainfab:' + JSON.stringify([spec, shinyKey, shiny.length, onShorts]), clip: 'all', opacity: Math.max(0, Math.min(1, spec.opacity ?? TEXTURE_LOOK[spec.id]?.opacity ?? 0.3)), blend: 'soft-light',
     img: () => {
       const c = fabricPaint(spec.id, spec.scale ?? 100, spec.angle ?? 0)
+      // the socks have their own fabric; the shorts only when asked
+      { const g = c.getContext('2d')!; g.globalCompositeOperation = 'destination-out'; g.fill(pathOf(REGIONS.socks)); if (!onShorts) g.fill(pathOf(REGIONS.shorts)) }
       if (shiny.length) {
         const g = c.getContext('2d')!, { clips, coverage } = coverageOf(shiny)
         g.globalCompositeOperation = 'destination-out'
@@ -1441,10 +1450,20 @@ function mainFabricPass(out: Pass[], spec: TextureSpec | null | undefined, shiny
   })
 }
 
-/** Stitching on the hems: shirt bottom (front, back), sleeve ends, shorts legs. */
+/** Stitching on the shorts: the hems (leg ends) and the middle seams (fly and back, where the two halves join). */
+function shortsSeamPasses(out: Pass[], hem: KitDesign['shortsHem'], mid: KitDesign['shortsMid']): void {
+  const strip = (sp: NonNullable<KitDesign['shortsHem']>, key: string, rects: [number, number, number, number][]): void => {
+    const pass: Pass = { t: 'fill', fill: solid('#fff'), clip: 'shorts', mask: { key: 'sh' + key, draw: (g) => { for (const [x, y, w, h] of rects) g.fillRect(x, y, w, h) } } }
+    stitchPasses(out, [pass], sp, 'shseam:' + key + JSON.stringify(sp), 1)
+  }
+  if (hem) strip(hem, 'hem', LEGS.map((L) => [L.hem - 4, SHORTS_FRAME.innerTop, 8, SHORTS_FRAME.innerBottom - SHORTS_FRAME.innerTop] as [number, number, number, number]))
+  if (mid) strip(mid, 'mid', [345, SHORTS_FRAME.bumSeam - 4, 295, 8, 345, SHORTS_FRAME.flySeam - 4, 295, 8].reduce((a: [number, number, number, number][], _, i, r) => (i % 4 ? a : [...a, r.slice(i, i + 4) as [number, number, number, number]]), []).flatMap(([x, y, w, h]) => [[x, y, w, h], [2048 - x - w, y, w, h]] as [number, number, number, number][]))
+}
+
+/** Stitching on the hems: shirt bottom (front, back), sleeve ends. */
 function hemStitchPasses(out: Pass[], st: NonNullable<KitDesign['hemStitch']>): void {
   const X0 = TORSO.x0, X1 = TORSO.x1
-  const strips: [number, number, number, number][] = [[X0, 1836, X1 - X0, 8], [X0, 76, X1 - X0, 8], [496, 690, 8, 522], [1544, 690, 8, 522], [16, 132, 8, 498], [2024, 132, 8, 498], [36, 1164, 8, 796], [2004, 1164, 8, 796]]
+  const strips: [number, number, number, number][] = [[X0, 1836, X1 - X0, 8], [X0, 76, X1 - X0, 8], [496, 690, 8, 522], [1544, 690, 8, 522], [16, 132, 8, 498], [2024, 132, 8, 498]]
   const pass: Pass = { t: 'fill', fill: solid('#fff'), clip: 'all', mask: { key: 'hems', draw: (g) => { for (const [x, y, w, h] of strips) g.fillRect(x, y, w, h) } } }
   stitchPasses(out, [pass], st, 'hem:' + JSON.stringify(st), 1)
 }
@@ -1452,6 +1471,7 @@ function hemStitchPasses(out: Pass[], st: NonNullable<KitDesign['hemStitch']>): 
 async function fabricPasses(out: Pass[], d: KitDesign, assets: Record<string, Asset>): Promise<void> {
   for (const f of d.fabrics ?? []) {
     if (!f.visible) continue
+    if (f.source === 'seams' ? noStitch : noFabric) continue
     // old kits: seams always went on the shorts and socks too
     const zs: string[] = f.source === 'seams' && !f.zones.some((x) => x === 'shorts' || x === 'socks') && !f.v2 ? [...f.zones, 'shorts', 'socks'] : f.zones
     const z = { front: zs.includes('front'), back: zs.includes('back'), sleeves: zs.includes('sleeves'), shorts: zs.includes('shorts'), socks: zs.includes('socks') }
@@ -1514,11 +1534,12 @@ const SOCKS_RECTS: [number, number, number, number][] = [[0, 620, 410, 1160], [1
 
 const specKey = (sp: PatternSpec, extra?: unknown): string => JSON.stringify([sp.id, sp.count, sp.width, sp.angle, sp.gap, sp.offset, sp.stripeW, sp.dx, sp.dy, sp.warp, extra])
 
-export interface ComposeOptions { size?: number; scale?: number; skipLogos?: boolean; skipFabric?: boolean; overlay?: { key: string; img: ImageSource } }
+export interface ComposeOptions { size?: number; scale?: number; skipLogos?: boolean; skipFabric?: boolean; skipStitch?: boolean; overlay?: { key: string; img: ImageSource } }
 
 export async function buildPasses(design: KitDesign, assets: Record<string, Asset>, opt: ComposeOptions = {}): Promise<{ passes: Pass[]; s2s: boolean }> {
   const d = migrateKit(design)
   shoulderShape = d.raglan && d.base.kind !== 'image' ? d.raglan : null
+  noFabric = !!opt.skipFabric; noStitch = !!opt.skipStitch
   const s2s = d.sleeveToShoulder !== false
   const out: Pass[] = []
   let sleeveOver: Pass[] = []
@@ -1575,6 +1596,10 @@ export async function buildPasses(design: KitDesign, assets: Record<string, Asse
     // moved among the layers: the design goes over the layers below it, the base colour stays under all of them
     if (d.baseAfter?.shorts && shortsBase.length > 1) { out.pop(); deferred.set(d.baseAfter.shorts, [...(deferred.get(d.baseAfter.shorts) ?? []), ...shortsBase.slice(1)]) }
     const socksBase: Pass[] = [{ t: 'fill', fill: F.socks ?? solid(c.socks), clip: 'socks' }]
+    // one colour per sock: the second sock (right half of the texture) takes the second colour
+    if (d.socksColor2) socksBase.push({ t: 'fill', fill: solid(d.socksColor2), clip: 'socks', mask: { key: 'sock2', draw: (g) => g.fillRect(1024, 0, 1024, S) } })
+    // the sock fabric (stretchy rib by default) on the base, under the designs
+    if (d.socksFabric) texturePasses(socksBase, [{ t: 'fill', fill: solid('#fff'), clip: 'socks', mask: { key: 'socksAll', draw: (g) => g.fillRect(0, 0, S, S) } }], d.socksFabric, 'sockfab', 1)
     if (d.socksPattern.id !== 'none') {
       const sp: Pass = { t: 'fill', fill: specFill(d.socksPattern), clip: 'socks', mask: { key: 'socks:' + specKey(d.socksPattern), draw: (l) => rotIslands(l, d.socksPattern.angle, SOCKS_RECTS, (g) => drawSocksPattern(g, { ...d.socksPattern, color: '#fff' }), d.socksPattern.dx, d.socksPattern.dy) } }
       socksBase.push(sp)
@@ -1676,11 +1701,12 @@ export async function buildPasses(design: KitDesign, assets: Record<string, Asse
   }
 
   // 4. fabric & seams on top (multiply / soft-light keep colours)
-  if (!opt.skipFabric) {
-    mainFabricPass(out, d.fabric, shiny, shinyKey)
+  if (!noFabric) mainFabricPass(out, d.fabric, shiny, shinyKey, d.fabricShorts !== false)
+  if (!noStitch) {
     if (d.hemStitch) hemStitchPasses(out, d.hemStitch)
-    await fabricPasses(out, d, assets)
+    shortsSeamPasses(out, d.shortsHem, d.shortsMid)
   }
+  await fabricPasses(out, d, assets)
   if (opt.overlay) out.push({ t: 'rgba', key: opt.overlay.key, img: opt.overlay.img, clip: 'all' })
   return { passes: out, s2s: false }
 }
