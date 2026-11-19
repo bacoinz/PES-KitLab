@@ -2,6 +2,11 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.24] - 2026-11-19
+### Changed
+- New start screen: the logo and name with a small version next to them. On the first run it shows the "Choose game folder…" button and the folder field; on later runs it shows a loading spinner with the current loading step in small text underneath.
+- Small footer with the GitHub repository, an "Other projects" link (https://bacoinz.github.io/) and the credits, on the start screen and at the bottom of Settings.
+
 ## [0.4.23] - 2026-11-19
 ### Changed
 - Shorts stitching defaults (hem, fly and back): dashed topstitch, centred, intensity 40, scale 20, relief 5.

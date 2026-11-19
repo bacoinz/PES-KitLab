@@ -5,31 +5,51 @@ import { Editor } from './ui/Editor'
 import { Bulk } from './ui/Bulk'
 import { Library } from './ui/Library'
 import { Settings } from './ui/Settings'
+import { Footer } from './ui/Footer'
 import { setLang } from './i18n'
 
 const NAV: [View, string][] = [['teams', 'Equipas'], ['editor', 'Editor'], ['bulk', 'Gerador em massa'], ['library', 'Biblioteca'], ['settings', 'Definições']]
 
-function Setup(): JSX.Element {
+function Brand({ version }: { version: string }): JSX.Element {
+  return (
+    <div className="splash-brand">
+      <img src="/logo.png" alt="" />
+      <h1>PES KitLab{version && <small>v{version}</small>}</h1>
+    </div>
+  )
+}
+
+/** Start screen. First run (no game folder saved): folder picker. Later runs: a spinner with the loading step. */
+function Splash({ version, booting }: { version: string; booting: boolean }): JSX.Element {
   const openGame = useApp((s) => s.openGame)
   const notify = useApp((s) => s.notify)
   const progress = useApp((s) => s.progress)
+  const gameRoot = useApp((s) => s.settings?.gameRoot)
+  const [busy, setBusy] = useState(false)
+  const loading = booting || busy
   const pick = async (): Promise<void> => {
     const d = await window.kc.pickFolder('Pasta do jogo (onde está o FL_2027.exe)')
     if (!d) return
-    try { await openGame(d) } catch (e) { notify('err', String((e as Error).message ?? e)) }
+    setBusy(true)
+    try { await openGame(d) } catch (e) { notify('err', String((e as Error).message ?? e)) } finally { setBusy(false) }
   }
   return (
-    <div className="setup">
-      <div className="setup-card">
-        <h1>PES KitLab</h1>
-        <p>Cria equipamentos para o PES 2021 / Football Life sem Photoshop, com pré-visualização 3D e exportação direta para o Sider.</p>
-        <ol>
-          <li>Escolhe a pasta do jogo (onde está o <code>FL_2027.exe</code> e a pasta <code>SiderAddons</code>).</li>
-          <li>Escolhe uma equipa, edita ou gera kits em massa.</li>
-          <li>Exporta — os originais nunca são apagados e podes repor a qualquer momento.</li>
-        </ol>
-        <button className="btn primary big" onClick={pick} disabled={!!progress}>{progress || 'Escolher pasta do jogo…'}</button>
+    <div className="splash">
+      <div className="splash-main">
+        <Brand version={version} />
+        {loading ? (
+          <div className="splash-load">
+            <span className="spinner big" />
+            <div className="splash-step">{progress || 'A abrir o jogo…'}</div>
+          </div>
+        ) : (
+          <div className="splash-pick">
+            <button className="btn primary big" onClick={pick}>Escolher pasta do jogo…</button>
+            <input readOnly value={gameRoot ?? ''} placeholder="Pasta do jogo (onde está o FL_2027.exe)" title={gameRoot ?? ''} />
+          </div>
+        )}
       </div>
+      <Footer />
     </div>
   )
 }
@@ -56,7 +76,8 @@ export function App(): JSX.Element {
     return () => clearInterval(t)
   }, [autoSave])
   const [version, setVersion] = useState('')
-  useEffect(() => { init(); window.kc.getVersion().then(setVersion) }, [init])
+  const [booting, setBooting] = useState(true)
+  useEffect(() => { init().finally(() => setBooting(false)); window.kc.getVersion().then(setVersion) }, [init])
   useEffect(() => {
     const h = (e: KeyboardEvent): void => {
       if (!(e.ctrlKey || e.metaKey) || (e.target as HTMLElement).tagName === 'INPUT') return
@@ -69,7 +90,7 @@ export function App(): JSX.Element {
 
   return (
     <div className="app">
-      <header className="topbar">
+      {status && <header className="topbar">
         <div className="brand"><img className="brand-logo" src="/logo.png" alt="" /> PES KitLab <span className="version">v{version}</span></div>
         {status && (
           <nav>
@@ -79,11 +100,11 @@ export function App(): JSX.Element {
           </nav>
         )}
         <div className="grow" />
-        {progress && <div className="progress"><span className="spinner" />{progress}</div>}
-        {status && <div className="game-chip" title={status.root}>{status.teamCount} equipas · {status.kitsRoot ? 'Sider kit-server ✓' : 'sem kit-server'}</div>}
-      </header>
+        {status && progress && <div className="progress"><span className="spinner" />{progress}</div>}
+        <div className="game-chip" title={status.root}>{status.teamCount} equipas · {status.kitsRoot ? 'Sider kit-server ✓' : 'sem kit-server'}</div>
+      </header>}
       <main className="content">
-        {!status ? <Setup /> : view === 'teams' ? <Teams /> : view === 'editor' && project ? <Editor /> : view === 'bulk' ? <Bulk /> : view === 'library' ? <Library /> : view === 'settings' ? <Settings /> : <Teams />}
+        {!status ? <Splash version={version} booting={booting} /> : view === 'teams' ? <Teams /> : view === 'editor' && project ? <Editor /> : view === 'bulk' ? <Bulk /> : view === 'library' ? <Library /> : view === 'settings' ? <Settings /> : <Teams />}
       </main>
       {toast && <div className={'toast ' + toast.kind} onClick={() => useApp.setState({ toast: null })}>{toast.text}</div>}
     </div>
