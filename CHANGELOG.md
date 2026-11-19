@@ -2,6 +2,11 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.1] - 2026-11-19
+### Fixed
+- A layer with its own fabric no longer gets the kit's base fabric on top: the kit fabric now skips every layer, group, collar, cuff, logo or shorts / socks design that has a fabric of its own (one or the other), on the shirt and the shorts.
+- Stitching on a layer with a mask no longer darkens the whole kit: when the mask left nothing to stitch in a zone (for example a mask that only covers the front), an empty stitch image was read as opaque black and laid over that whole zone.
+
 ## [0.5.0] - 2026-11-19
 ### Changed
 - New start screen: the logo and name with a small version next to them. On the first run it shows the "Choose game folder…" button and the folder field; on later runs it shows a loading spinner with the current loading step in small text underneath.

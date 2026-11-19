@@ -854,6 +854,16 @@ async function layerPasses(out: Pass[], L: OverlayLayer, all: OverlayLayer[], as
   if (L.kind === 'image' || L.kind === 'text') texturePasses(out, mine, L.embroidery, 'emb:' + gk, L.opacity)
 }
 
+/**
+ * A transparent full-size canvas for "nothing to stitch" (e.g. the layer's mask leaves nothing in a zone). It needs a
+ * 2D context: uploaded to the GPU without one (or as a 1×1 canvas) it is read as opaque black and darkens the kit.
+ */
+function blankCanvas(): OffscreenCanvas {
+  const c = new OffscreenCanvas(S, S)
+  c.getContext('2d')!.clearRect(0, 0, 1, 1)
+  return c
+}
+
 /** Stitches round the shape a set of passes covers (one layer, or every member of a group). */
 const stitchLast = new Map<string, { key: string; at: number }>()
 let staleListener: (() => void) | null = null
@@ -867,7 +877,7 @@ function stitchPasses(out: Pass[], mine: Pass[], sp: NonNullable<OverlayLayer['s
   if (noStitch) return
   const { clips, coverage } = coverageOf(mine, base)
   if (sp.relief) shadowPasses(out, clips, coverage, sp.relief, key)
-  if (sp.relief && reliefSink) for (const clip of clips) reliefSink.set('st:' + key + clip, { amount: sp.relief, cover: () => coverage(clip), lines: () => stitchCanvas(coverage(clip), sp) ?? new OffscreenCanvas(1, 1) })
+  if (sp.relief && reliefSink) for (const clip of clips) reliefSink.set('st:' + key + clip, { amount: sp.relief, cover: () => coverage(clip), lines: () => stitchCanvas(coverage(clip), sp) ?? blankCanvas() })
   for (const clip of clips) {
     // tracing stitches is slow: while the layer keeps changing (a slider is moving) the last stitching stays and is
     // traced again once the changes stop
@@ -878,7 +888,7 @@ function stitchPasses(out: Pass[], mine: Pass[], sp: NonNullable<OverlayLayer['s
     }
     out.push({
       t: 'rgba', key: k, clip, opacity: Math.max(0, Math.min(1, sp.opacity ?? 0.8)) * opacity,
-      img: () => stitchCanvas(coverage(clip), sp) ?? new OffscreenCanvas(1, 1)
+      img: () => stitchCanvas(coverage(clip), sp) ?? blankCanvas()
     })
   }
 }
@@ -961,6 +971,9 @@ function texturePasses(out: Pass[], mine: Pass[], spec: TextureSpec | undefined,
   if (!spec || !mine.length) return
   // embroidery is not a fabric: it stays when the fabrics are hidden
   if (noFabric && !key.startsWith('emb:') && !key.startsWith('lemb:')) return
+  // a layer with its own fabric: the kit's main fabric no longer covers it (one or the other)
+  // (not the sock fabrics: the main fabric leaves the socks anyway, and their whole-texture mask relies on the GPU clip)
+  if (!key.startsWith('emb:') && !key.startsWith('lemb:') && !key.startsWith('sockfab')) fabOwners.push({ mine, base, key: key + JSON.stringify(spec.id) })
   const look = TEXTURE_LOOK[spec.id] ?? { opacity: 0.5, blend: 'source-over' as GlobalCompositeOperation }
   const op = Math.max(0, Math.min(1, spec.opacity ?? look.opacity)) * opacity
   // fast path (no read-back, nothing redrawn while a layer moves): a plain-colour pass is masked on the GPU by its own
@@ -1500,16 +1513,23 @@ function patternExtras(out: Pass[], pass: Pass, spec: PatternSpec, key: string):
 }
 
 /** The kit's main fabric (soft light) over everything, except where a layer or logo has its own shininess. */
+let fabOwners: { mine: Pass[]; base?: string; key: string }[] = []
 function mainFabricPass(out: Pass[], spec: TextureSpec | null | undefined, shiny: Pass[], shinyKey: string, onShorts: boolean): void {
   if (!spec) return
+  const owners = fabOwners
   out.push({
-    t: 'rgba', key: 'mainfab:' + JSON.stringify([spec, shinyKey, shiny.length, onShorts]), clip: 'all', opacity: Math.max(0, Math.min(1, spec.opacity ?? TEXTURE_LOOK[spec.id]?.opacity ?? 0.3)), blend: 'soft-light',
+    t: 'rgba', key: 'mainfab:' + JSON.stringify([spec, shinyKey, shiny.length, onShorts, owners.map((o) => o.key)]), clip: 'all', opacity: Math.max(0, Math.min(1, spec.opacity ?? TEXTURE_LOOK[spec.id]?.opacity ?? 0.3)), blend: 'soft-light',
     img: () => {
       const c = fabricPaint(spec.id, spec.scale ?? 100, spec.angle ?? 0)
       // the socks have their own fabric; the shorts only when asked
       { const g = c.getContext('2d')!; g.globalCompositeOperation = 'destination-out'; g.fill(pathOf(REGIONS.socks)); if (!onShorts) g.fill(pathOf(REGIONS.shorts)) }
       if (shiny.length) {
         const g = c.getContext('2d')!, { clips, coverage } = coverageOf(shiny)
+        g.globalCompositeOperation = 'destination-out'
+        for (const clip of clips) g.drawImage(coverage(clip), 0, 0)
+      }
+      for (const o of owners) {
+        const g = c.getContext('2d')!, { clips, coverage } = coverageOf(o.mine, o.base)
         g.globalCompositeOperation = 'destination-out'
         for (const clip of clips) g.drawImage(coverage(clip), 0, 0)
       }
@@ -1656,6 +1676,7 @@ export async function buildPasses(design: KitDesign, assets: Record<string, Asse
   const d = migrateKit(design)
   shoulderShape = d.raglan && d.base.kind !== 'image' ? d.raglan : null
   noFabric = !!opt.skipFabric; noStitch = !!opt.skipStitch
+  fabOwners = []
   const s2s = d.sleeveToShoulder !== false
   const out: Pass[] = []
   let sleeveOver: Pass[] = []
