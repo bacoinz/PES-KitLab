@@ -123,7 +123,7 @@ export const MAIN_FABRIC: TextureSpec = { id: 'knit', scale: 48, opacity: 0.31 }
 export const HEM_STITCH: StitchSpec = { kind: 'double', side: 'center', opacity: 0.5, scale: 45, relief: 10 }
 export const FABRIC_CUFF: Omit<TextureSpec, 'id'> = { scale: 77, angle: -90, opacity: 0.25 }
 export const CUFF_FABRIC: TextureSpec = { id: 'ribfine', ...FABRIC_CUFF }
-export const SOCKS_FABRIC: TextureSpec = { id: 'ribfine', scale: 110, opacity: 0.2, mix: 85 }
+export const SOCKS_FABRIC: TextureSpec = { id: 'ribfine', scale: 110, opacity: 0.1, mix: 50 }
 export const SOCK_LAYER_FABRIC: TextureSpec = { id: 'ribfine', scale: 100, angle: 0, opacity: 0.15 }
 export const STITCH_DEFAULT: StitchSpec = { kind: 'dashed', side: 'center', opacity: 0.31, scale: 45, relief: 11 }
 export type StitchKind = 'dashed' | 'dotted' | 'double' | 'solid' | 'zigzag' | 'cross'
@@ -371,7 +371,7 @@ export interface KitDesign {
   fabricShorts?: boolean // the kit's main fabric on the shorts too (default yes)
   shortsHem?: StitchSpec | null
   shortsMid?: StitchSpec | null
-  v?: 2 | 3 | 4 | 5 | 6 | 7 | 8
+  v?: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
 }
 
 export interface Asset { id: string; name: string; dataUrl: string; w?: number; h?: number }
@@ -487,8 +487,13 @@ export function defaultFabrics(): FabricLayer[] {
 
 /** Bring any saved design up to the current model (v2): torso pattern → layer, single logos → lists, defaults. */
 export function migrateKit(k: KitDesign): KitDesign {
-  if (k.v === 8) return k
-  return toV8(k.v === 7 ? k : toV7(k.v === 6 ? k : toV6(k.v === 5 ? k : toV5(k.v === 4 ? k : toV4(migrateV3(k))))))
+  if (k.v === 9) return k
+  return toV9(k.v === 8 ? k : toV8(k.v === 7 ? k : toV7(k.v === 6 ? k : toV6(k.v === 5 ? k : toV5(k.v === 4 ? k : toV4(migrateV3(k)))))))
+}
+
+/** v9 (0.4.19): the shorts hem and middle seam start switched on (kits of 0.4.18 had them off by default). */
+function toV9(k: KitDesign): KitDesign {
+  return { ...k, v: 9, shortsHem: k.shortsHem ?? HEM_STITCH, shortsMid: k.shortsMid ?? HEM_STITCH }
 }
 
 /** v8 (0.4.18): the sock texture is a fabric on the sock base (kits saved before get the former 3D look as a real fabric); shorts seams are options (none in older kits). */

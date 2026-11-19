@@ -2,6 +2,12 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.19] - 2026-11-19
+### Changed
+- Shorts: the hem and fly / back stitching options are inside the Base row again (no separate row); both start switched on (also in kits saved with 0.4.18).
+- Shorts hem stitching sits a little inside the leg end; the fly and back stitching follows the notch edge of one leg only (the other leg meets it there), so it is no longer doubled.
+- Sock fabric starts at strength 10, mix 50. Its relief in 3D only covers the sock base, not the sock layers or logos.
+
 ## [0.4.18] - 2026-11-19
 ### Added
 - Socks: the sock texture is now a real fabric on the sock base (on by default: fine rib, size 110, strength 20, mix 85), shown on the 2D texture too; it also drives the sock relief in 3D. Socks have no base design any more, only colour, with "One colour per sock" (a second base colour).

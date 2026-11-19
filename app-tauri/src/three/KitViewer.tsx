@@ -28,7 +28,7 @@ function fabricBump(): THREE.Texture {
  * Stretchy sock knit (3D preview only, never in the texture): the game's fine stretchy rib ("Canelado fino") as
  * relief, at a size (%), mixed (%) with the fabric grain the rest of the kit has.
  */
-function sockBumpTex(scale: number, mix: number): THREE.Texture {
+function sockBumpTex(scale: number, mix: number, cover?: OffscreenCanvas | null): THREE.Texture {
   const c = document.createElement('canvas'); c.width = c.height = 2048
   const g = c.getContext('2d')!
   g.fillStyle = '#808080'; g.fillRect(0, 0, 2048, 2048)
@@ -36,6 +36,17 @@ function sockBumpTex(scale: number, mix: number): THREE.Texture {
   const grain = g.createPattern(fabricNoise(), 'repeat'), rib = g.createPattern(fabricTile('ribfine') as unknown as CanvasImageSource, 'repeat')
   if (grain) { grain.setTransform(new DOMMatrix().scale(2048 / 90 / 128, 2048 / 90 / 128)); g.globalAlpha = 1 - m; g.fillStyle = grain; g.fillRect(0, 0, 2048, 2048) }
   if (rib) { rib.setTransform(new DOMMatrix().scale(s, s)); g.globalAlpha = m; g.fillStyle = rib; g.fillRect(0, 0, 2048, 2048) }
+  // sock layers / logos keep the plain grain: the rib belongs to the sock base
+  if (cover) {
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'
+    const keep = document.createElement('canvas'); keep.width = keep.height = 2048
+    const kg = keep.getContext('2d')!
+    kg.fillStyle = '#808080'; kg.fillRect(0, 0, 2048, 2048)
+    const grain2 = kg.createPattern(fabricNoise(), 'repeat')
+    if (grain2) { grain2.setTransform(new DOMMatrix().scale(2048 / 90 / 128, 2048 / 90 / 128)); kg.fillStyle = grain2; kg.fillRect(0, 0, 2048, 2048) }
+    kg.globalCompositeOperation = 'destination-in'; kg.drawImage(cover, 0, 0)
+    g.drawImage(keep, 0, 0)
+  }
   const t = new THREE.CanvasTexture(c); t.flipY = false; t.anisotropy = 8
   return t
 }
@@ -317,13 +328,14 @@ export interface ViewerProps {
   background?: string | null // null = transparent (app background)
   hideShorts?: boolean
   hideSocks?: boolean
+  sockCover?: OffscreenCanvas | null // what the sock layers cover (the rib stays off it)
   sockScale?: number; sockStrength?: number; sockMix?: number // size %, strength %, mix with the kit's grain %
   sockKnit?: boolean // stretchy knit relief on the socks (3D only)
   /** receives a function that returns the current 3D view as a PNG */
   snapshot?: (take: () => Promise<Blob | null>) => void
 }
 
-export function KitViewer({ texture, version = 0, collar, longSleeves, shortsModel = 1, camera, armband = false, tucked = false, tight = true, kappa = false, height = '100%', shine = 0, shineMap = null, relief = null, autoRotate = false, snapshot, light = 40, lightPreset = 'hdri', env = 'room', background = null, hideShorts = false, hideSocks = false, sockKnit = true, sockScale = 100, sockStrength = 100, sockMix = 100 }: ViewerProps): JSX.Element {
+export function KitViewer({ texture, version = 0, collar, longSleeves, shortsModel = 1, camera, armband = false, tucked = false, tight = true, kappa = false, height = '100%', shine = 0, shineMap = null, relief = null, autoRotate = false, snapshot, light = 40, lightPreset = 'hdri', env = 'room', background = null, hideShorts = false, hideSocks = false, sockKnit = true, sockScale = 100, sockStrength = 100, sockMix = 50, sockCover = null }: ViewerProps): JSX.Element {
   const host = useRef<HTMLDivElement>(null)
   const sockKnitRef = useRef(sockKnit)
   const sockStrengthRef = useRef(sockStrength)
@@ -605,9 +617,9 @@ export function KitViewer({ texture, version = 0, collar, longSleeves, shortsMod
     const s = st.current
     if (!s) return
     const old = s.sock.userData.rib as THREE.Texture | undefined
-    s.sock.userData.rib = sockBumpTex(sockScale, sockMix)
+    s.sock.userData.rib = sockBumpTex(sockScale, sockMix, sockCover)
     old?.dispose()
-  }, [sockScale, sockMix])
+  }, [sockScale, sockMix, sockCover])
 
   // shininess: one roughness for the whole kit, or a per-texel map when layers have their own
   useEffect(() => {
