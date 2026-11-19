@@ -315,12 +315,15 @@ export interface ViewerProps {
   background?: string | null // null = transparent (app background)
   hideShorts?: boolean
   hideSocks?: boolean
+  sockKnit?: boolean // stretchy knit relief on the socks (3D only)
   /** receives a function that returns the current 3D view as a PNG */
   snapshot?: (take: () => Promise<Blob | null>) => void
 }
 
-export function KitViewer({ texture, version = 0, collar, longSleeves, shortsModel = 1, camera, armband = false, tucked = false, tight = true, kappa = false, height = '100%', shine = 0, shineMap = null, relief = null, autoRotate = false, snapshot, light = 40, lightPreset = 'hdri', env = 'room', background = null, hideShorts = false, hideSocks = false }: ViewerProps): JSX.Element {
+export function KitViewer({ texture, version = 0, collar, longSleeves, shortsModel = 1, camera, armband = false, tucked = false, tight = true, kappa = false, height = '100%', shine = 0, shineMap = null, relief = null, autoRotate = false, snapshot, light = 40, lightPreset = 'hdri', env = 'room', background = null, hideShorts = false, hideSocks = false, sockKnit = true }: ViewerProps): JSX.Element {
   const host = useRef<HTMLDivElement>(null)
+  const sockKnitRef = useRef(sockKnit)
+  sockKnitRef.current = sockKnit
   const st = useRef<{ renderer: THREE.WebGLRenderer; scene: THREE.Scene; cam: THREE.PerspectiveCamera; ctl: OrbitControls; mat: THREE.MeshStandardMaterial; tex: THREE.Texture; group: THREE.Group; raf: number; fly: { pos: THREE.Vector3; target: THREE.Vector3; t: number } | null; key: THREE.DirectionalLight; fill: THREE.DirectionalLight; pmrem: THREE.PMREMGenerator; envMul: number; envTex: THREE.Texture | null; front: THREE.MeshStandardMaterial; sock: THREE.MeshStandardMaterial } | null>(null)
   const [noModels, setNoModels] = useState(false)
 
@@ -388,6 +391,7 @@ export function KitViewer({ texture, version = 0, collar, longSleeves, shortsMod
       if (f.bumpMap !== m.bumpMap) { f.bumpMap = m.bumpMap; f.needsUpdate = true }
       f.bumpScale = m.bumpScale
       const k = s.sock
+      k.bumpMap = sockKnitRef.current ? (k.userData.rib as THREE.Texture) : m.bumpMap; k.bumpScale = sockKnitRef.current ? 1.4 : m.bumpScale
       if (k.map !== m.map || k.roughnessMap !== m.roughnessMap) { k.map = m.map; k.roughnessMap = m.roughnessMap; k.needsUpdate = true }
       k.roughness = m.roughness; k.envMapIntensity = m.envMapIntensity
       ctl.update(); renderer.render(scene, cam); s.raf = requestAnimationFrame(loop)
@@ -396,7 +400,7 @@ export function KitViewer({ texture, version = 0, collar, longSleeves, shortsMod
     // with the same light instead of a dark gap)
     const front = mat.clone(); front.side = THREE.FrontSide
     // socks: a stretchier knit than the shirt (own relief, 3D only)
-    const sock = mat.clone(); sock.bumpMap = sockBump(); sock.bumpScale = 1.4
+    const sock = mat.clone(); sock.userData.rib = sockBump(); sock.bumpMap = sock.userData.rib as THREE.Texture; sock.bumpScale = 1.4
     st.current = { renderer, scene, cam, ctl, mat, tex, group, raf: 0, fly: null, key, fill, pmrem, envMul: 1, envTex, front, sock }
     // scripted checks: point the camera anywhere
     ;(window as unknown as { __kcView: unknown }).__kcView = (p: [number, number, number], t: [number, number, number]): void => {

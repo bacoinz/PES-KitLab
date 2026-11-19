@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useApp, assetFromFile, rawAssetFromFile, previewAssetFromFile, PRESET_TEAM, USER_TPL_TEAM, stepTime } from '../state'
 import type { PanelStyle, TextPlacement, PanelKind, KitDesign, OverlayLayer, Asset, LogoPlacement, LogoTint, Fill, PatternSpec, FabricLayer, FabricZone, Zone, Logos, StitchKind, StitchSpec, TextureSpec } from '../model/design'
 import { describeStep } from './history'
-import { PANEL_STYLES, SLOT_LABEL, uid, defaultDesign, contrastOn, slotOrder, solid, fillMain, normalizeGroups, dropLayer, migrateKit, LOGO_SIZES, NUMBER_DEFAULTS, STITCH_KINDS, mergeLogos, copyNumbers, groupColors, swapGroupColor, resolveGroups } from '../model/design'
+import { PANEL_STYLES, SLOT_LABEL, uid, defaultDesign, contrastOn, slotOrder, solid, fillMain, normalizeGroups, dropLayer, migrateKit, LOGO_SIZES, NUMBER_DEFAULTS, STITCH_KINDS, FABRIC_COLLAR, FABRIC_SLEEVE, COLLAR_FABRIC, STITCH_DEFAULT, mergeLogos, copyNumbers, groupColors, swapGroupColor, resolveGroups } from '../model/design'
 import { TEMPLATES, applyTemplate } from '../model/templates'
 import { TORSO_PATTERNS, SLEEVE_PATTERNS, SHORTS_PATTERNS, SOCKS_PATTERNS, TEXTURES, STROKES } from '../compositor/patterns'
 import { composeKit, composeLive, composeShine, composeRelief, COLLAR_DESIGNS, collarParams, collarDefaults, frontThumb, raglanBend } from '../compositor/compose'
@@ -348,10 +348,10 @@ export function Editor(): JSX.Element {
   const [spin, setSpin] = useState(false)
   // 3D view settings (kept between sessions)
   const ls = (k: string, d: string): string => { try { return localStorage.getItem(k) ?? d } catch { return d } }
-  const [view3d, setView3dState] = useState(() => ({ preset: ls('kc.v3.preset', 'hdri') as LightPreset, env: ls('kc.v3.env', 'room') as EnvKind, bg: ls('kc.v3.bg', ''), hideShorts: ls('kc.v3.hs', '0') === '1', hideSocks: ls('kc.v3.hk', '0') === '1' }))
+  const [view3d, setView3dState] = useState(() => ({ preset: ls('kc.v3.preset', 'hdri') as LightPreset, env: ls('kc.v3.env', 'room') as EnvKind, bg: ls('kc.v3.bg', ''), hideShorts: ls('kc.v3.hs', '0') === '1', hideSocks: ls('kc.v3.hk', '0') === '1', sockKnit: ls('kc.v3.sk', '1') === '1' }))
   const setView3d = (patch: Partial<typeof view3d>): void => setView3dState((v) => {
     const n = { ...v, ...patch }
-    try { localStorage.setItem('kc.v3.preset', n.preset); localStorage.setItem('kc.v3.env', n.env); localStorage.setItem('kc.v3.bg', n.bg); localStorage.setItem('kc.v3.hs', n.hideShorts ? '1' : '0'); localStorage.setItem('kc.v3.hk', n.hideSocks ? '1' : '0') } catch { /* ignore */ }
+    try { localStorage.setItem('kc.v3.preset', n.preset); localStorage.setItem('kc.v3.env', n.env); localStorage.setItem('kc.v3.bg', n.bg); localStorage.setItem('kc.v3.hs', n.hideShorts ? '1' : '0'); localStorage.setItem('kc.v3.hk', n.hideSocks ? '1' : '0'); localStorage.setItem('kc.v3.sk', n.sockKnit ? '1' : '0') } catch { /* ignore */ }
     return n
   })
   const [viewMenu, setViewMenu] = useState(false)
@@ -752,7 +752,7 @@ export function Editor(): JSX.Element {
     const stitchRow = <StitchEditor value={L.stitch} onChange={(stitch) => ch({ stitch })} />
     // fabric ("Tecido") over the layer; collars choose which of their colours get it; images / text also get embroidery
     const fabricRow = (
-      <TextureRow label="Tecido" list={LAYER_FABRICS} value={L.fabric} onChange={(fabric) => ch({ fabric })}
+      <TextureRow label="Tecido" list={LAYER_FABRICS} value={L.fabric} onChange={(fabric) => ch({ fabric })} defaults={L.kind === 'collar' ? FABRIC_COLLAR : (L.zones ?? []).length === 1 && L.zones![0] === 'sleeves' ? FABRIC_SLEEVE : undefined}
         slots={L.kind === 'collar' ? { names: ['Cor 1', 'Cor 2', 'Cor 3'].slice(0, (COLLAR_DESIGNS.find((x) => x[0] === L.collarStyle) ?? COLLAR_DESIGNS[0])[2]), value: L.fabricSlots, onChange: (fabricSlots) => ch({ fabricSlots }) } : undefined} />
     )
     const embroRow = L.kind === 'image' || L.kind === 'text' ? <TextureRow label="Bordado" list={EMBROIDERIES} defaults={EMB_DEFAULTS} value={L.embroidery} onChange={(embroidery) => ch({ embroidery })} /> : null
@@ -780,6 +780,7 @@ export function Editor(): JSX.Element {
             </Row>
           )}
           {stitchRow}
+          {fabricRow}
           {shineRow}
           <div className="muted small">O brilho do grupo, quando ligado, vale para todas as camadas dele.</div>
           <div className="pm-sep" />
@@ -861,6 +862,7 @@ export function Editor(): JSX.Element {
               </>
             )
           })()}
+          {stitchRow}
           {fabricRow}
         </div>
       )
@@ -1527,7 +1529,8 @@ export function Editor(): JSX.Element {
         </div>
       </Section>
       <Section group={tab} title="Pré-visualização 3D">
-        <Row label="Camisola"><Select value={tucked ? 'in' : 'out'} options={[['out', 'Por fora dos calções'], ['in', 'Por dentro dos calções']]} onChange={(v) => { setTucked(v === 'in'); try { localStorage.setItem('kc.tucked', v === 'in' ? '1' : '0') } catch { /* ignore */ } }} /></Row>
+        <Row label="Textura das meias"><Select value={view3d.sockKnit ? 'knit' : 'plain'} options={[['knit', 'Elástica (canelada)'], ['plain', 'Igual ao resto do kit']]} onChange={(v) => setView3d({ sockKnit: v === 'knit' })} /></Row>
+        <div className="muted small">Só na pré-visualização 3D; não muda a textura do kit.</div>
       </Section>
       <Section group={tab} title="Copiar para todos os kits">
         <div className="muted small">Copia deste kit ({SLOT_LABEL[kit.slot] ?? kit.slot}) para os outros equipamentos da equipa. Os logos que um kit já tem ficam como estão; só se acrescenta o que falta.</div>
@@ -1669,7 +1672,7 @@ export function Editor(): JSX.Element {
                   )
                 })()}
                 <StitchEditor value={kit.cuffs?.stitch} onChange={(stitch) => up((k) => ({ ...k, cuffs: { ...k.cuffs!, stitch } }))} />
-                <TextureRow label="Tecido" list={LAYER_FABRICS} value={kit.cuffs?.fabric} onChange={(fabric) => up((k) => ({ ...k, cuffs: { ...k.cuffs!, fabric } }))}
+                <TextureRow label="Tecido" defaults={FABRIC_COLLAR} list={LAYER_FABRICS} value={kit.cuffs?.fabric} onChange={(fabric) => up((k) => ({ ...k, cuffs: { ...k.cuffs!, fabric } }))}
                   slots={kit.cuffs?.style !== 'solid' ? { names: ['Cor 1', 'Cor 2'], value: kit.cuffs?.fabricSlots, onChange: (fabricSlots) => up((k) => ({ ...k, cuffs: { ...k.cuffs!, fabricSlots } })) } : undefined} />
               </>
             )}
@@ -2107,14 +2110,14 @@ export function Editor(): JSX.Element {
       }
       if (id.startsWith('cuffs:')) {
         const style = id.slice(6) as NonNullable<KitDesign['cuffs']>['style']
-        up((k) => ({ ...k, cuffs: { ...(k.cuffs ?? { c1: k.colors.cuffs, c2: '#ffffff', width: 60 }), style, c2: k.cuffs?.c2 ?? contrastOn(k.colors.cuffs) } }))
+        up((k) => ({ ...k, cuffs: { ...(k.cuffs ?? { c1: k.colors.cuffs, c2: '#ffffff', width: 60 }), style, c2: k.cuffs?.c2 ?? contrastOn(k.colors.cuffs), fabric: k.cuffs?.fabric ?? COLLAR_FABRIC } }))
         setOpenLayer('fixed:cuffs'); close(); return
       }
       if (id.startsWith('collar:')) {
         // a collar design is its own layer (the collar row keeps the model and the base colour)
         const style = id.slice(7) as NonNullable<OverlayLayer['collarStyle']>
         const c1 = kit.collar?.c1 ?? kit.colors.collar
-        add({ id: uid(), kind: 'collar', collarStyle: style, part: 'torso', visible: true, opacity: 1, color: c1, colors: [c1, contrastOn(c1), kit.colors.shirt2] })
+        add({ id: uid(), kind: 'collar', collarStyle: style, part: 'torso', visible: true, opacity: 1, color: c1, colors: [c1, contrastOn(c1), kit.colors.shirt2], fabric: COLLAR_FABRIC, stitch: STITCH_DEFAULT })
         return
       }
       add(mk({ kind: 'shape', shape: id as OverlayLayer['shape'], size: 60 }))
@@ -2329,7 +2332,7 @@ export function Editor(): JSX.Element {
         </div>
         <div className="viewport">
           {mode === '3d'
-            ? <KitViewer texture={tex} version={texV} collar={cfg('Collar', 66)} longSleeves={longSleeves} shortsModel={cfg('ShortsModel', 1)} camera={cam} armband={!!ab.show} tucked={tucked} tight={cfg('TightKit', 1) === 1} kappa={cfg('ShortSleevesModel', 1) === 2} shine={kit.shine ?? 0} shineMap={shineMap} relief={reliefMap} autoRotate={spin} snapshot={setShot3d} light={light} lightPreset={view3d.preset} env={view3d.env} background={view3d.bg || null} hideShorts={view3d.hideShorts} hideSocks={view3d.hideSocks} />
+            ? <KitViewer texture={tex} version={texV} collar={cfg('Collar', 66)} longSleeves={longSleeves} shortsModel={cfg('ShortsModel', 1)} camera={cam} armband={!!ab.show} tucked={tucked} tight={cfg('TightKit', 1) === 1} kappa={cfg('ShortSleevesModel', 1) === 2} shine={kit.shine ?? 0} shineMap={shineMap} relief={reliefMap} autoRotate={spin} snapshot={setShot3d} light={light} lightPreset={view3d.preset} env={view3d.env} background={view3d.bg || null} hideShorts={view3d.hideShorts} hideSocks={view3d.hideSocks} sockKnit={view3d.sockKnit} />
             : <TexView tex={tex} version={texV} bg={texBg} showBg={showTexBg} islands={islands} outline={showMesh ? meshImg : showOutline ? tplOutline : null} tool={tool} setTool={setTool} onPick={onPickColor}
               onBrush={(e) => {
                 if (e.type === 'down') {

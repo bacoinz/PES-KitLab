@@ -822,17 +822,20 @@ async function layerPasses(out: Pass[], L: OverlayLayer, all: OverlayLayer[], as
   const first = out.length
   await layerPassesRaw(out, L, all, assets, s2s)
   const mine = out.slice(first)
-  const gk = geomKey(L, [shoulderShape ? JSON.stringify(shoulderShape) : 0, mine.length])
-  if (L.stitch) stitchPasses(out, mine, L.stitch, 'stitch:' + geomKey(L, [L.stitch.kind, L.stitch.side, L.stitch.scale, L.stitch.color]), L.opacity)
+  // the mask layer's own shape is part of the cache keys (stitching, texture and relief follow the masked shape)
+  const mk = L.maskLayer ? all.filter((x) => x.id === L.maskLayer || x.group === L.maskLayer).map((x) => geomKey(x, 0)).join('|') : ''
+  const gk = geomKey(L, [shoulderShape ? JSON.stringify(shoulderShape) : 0, mine.length, mk])
+  if (L.stitch) stitchPasses(out, mine, L.stitch, 'stitch:' + geomKey(L, [L.stitch.kind, L.stitch.side, L.stitch.scale, L.stitch.color, L.stitch.relief, mk]), L.opacity)
   // fabric over the layer's shape; embroidery only on images / text (the layers that are a logo or a lettering)
   texturePasses(out, mine, L.fabric, 'fab:' + gk, L.opacity)
-  if (L.outlineRelief && (L.border || L.kind === 'design')) outlineRelief(mine, L.outlineRelief, 'l' + gk)
+  if (L.outlineRelief && (L.border || L.kind === 'design')) outlineRelief(out, mine, L.outlineRelief, 'l' + gk)
   if (L.kind === 'image' || L.kind === 'text') texturePasses(out, mine, L.embroidery, 'emb:' + gk, L.opacity)
 }
 
 /** Stitches round the shape a set of passes covers (one layer, or every member of a group). */
 function stitchPasses(out: Pass[], mine: Pass[], sp: NonNullable<OverlayLayer['stitch']>, key: string, opacity: number): void {
   const { clips, coverage } = coverageOf(mine)
+  if (sp.relief) shadowPasses(out, clips, coverage, sp.relief, key)
   if (sp.relief && reliefSink) for (const clip of clips) reliefSink.set('st:' + key + clip, { amount: sp.relief, cover: () => coverage(clip), lines: () => stitchCanvas(coverage(clip), sp) ?? new OffscreenCanvas(1, 1) })
   for (const clip of clips) {
     out.push({
@@ -848,10 +851,26 @@ function stitchPasses(out: Pass[], mine: Pass[], sp: NonNullable<OverlayLayer['s
  */
 interface ReliefSrc { amount: number; cover: () => OffscreenCanvas; lines?: () => OffscreenCanvas }
 let reliefSink: Map<string, ReliefSrc> | null = null
-function outlineRelief(mine: Pass[], amount: number | undefined, key: string): void {
-  if (!amount || !reliefSink) return
+function outlineRelief(out: Pass[], mine: Pass[], amount: number | undefined, key: string): void {
+  if (!amount) return
   const { clips, coverage } = coverageOf(mine)
-  for (const clip of clips) reliefSink.set('ol:' + key + clip, { amount, cover: () => coverage(clip) })
+  if (reliefSink) for (const clip of clips) reliefSink.set('ol:' + key + clip, { amount, cover: () => coverage(clip) })
+  shadowPasses(out, clips, coverage, amount, key)
+}
+/** "Relevo" also lays a small soft drop shadow round the layer's shape (outside it only). */
+function shadowPasses(out: Pass[], clips: Set<Clip>, coverage: (clip: Clip) => OffscreenCanvas, amount: number, key: string): void {
+  for (const clip of clips) {
+    out.push({
+      t: 'rgba', key: 'shadow:' + key + clip, clip, opacity: Math.min(1, amount / 100) * 0.55,
+      img: () => {
+        const cov = coverage(clip), c = new OffscreenCanvas(S, S), g = c.getContext('2d')!
+        g.filter = 'blur(3px)'; g.drawImage(cov, 1.5, 3); g.filter = 'none'
+        g.globalCompositeOperation = 'source-in'; g.fillStyle = '#000'; g.fillRect(0, 0, S, S)
+        g.globalCompositeOperation = 'destination-out'; g.drawImage(cov, 0, 0)
+        return c
+      }
+    })
+  }
 }
 /** Height map (white = raised) of everything with "Relevo", at 2048², or null when nothing has relief. */
 export async function composeRelief(design: KitDesign, assets: Record<string, Asset>): Promise<OffscreenCanvas | null> {
@@ -894,6 +913,28 @@ function texturePasses(out: Pass[], mine: Pass[], spec: TextureSpec | undefined,
   }
 }
 
+const maskCache = new Map<string, OffscreenCanvas>()
+/** A layer mask ("Máscara") as an alpha canvas (zone masks: one channel); inverted when the mask is. */
+function maskAlpha(m: MaskSrc, invert: boolean, channel?: number): OffscreenCanvas {
+  const key = m.key + '|' + invert + '|' + (m.zones ? channel : '')
+  const hit = maskCache.get(key)
+  if (hit) return hit
+  const c = new OffscreenCanvas(S, S), g = c.getContext('2d', { willReadFrequently: true })!
+  g.fillStyle = '#000'; g.fillRect(0, 0, S, S)
+  g.fillStyle = g.strokeStyle = '#fff'
+  m.draw(g)
+  const id = g.getImageData(0, 0, S, S), d = id.data
+  for (let i = 0; i < d.length; i += 4) {
+    let v = m.zones && channel !== undefined ? d[i + channel] : Math.max(d[i], d[i + 1], d[i + 2])
+    if (invert) v = 255 - v
+    d[i] = d[i + 1] = d[i + 2] = 255; d[i + 3] = v
+  }
+  g.putImageData(id, 0, 0)
+  if (maskCache.size > 24) maskCache.delete(maskCache.keys().next().value!)
+  maskCache.set(key, c)
+  return c
+}
+
 /** Coverage of a set of passes: the clip zones they touch and, per zone, a white-on-transparent canvas of their shape. */
 function coverageOf(mine: Pass[]): { clips: Set<Clip>; coverage: (clip: Clip) => OffscreenCanvas } {
   // coverage canvases per clip (white on transparent); built lazily by the pass's img() when the key is new
@@ -904,10 +945,12 @@ function coverageOf(mine: Pass[]): { clips: Set<Clip>; coverage: (clip: Clip) =>
   }
   const coverage = (clip: Clip): OffscreenCanvas => {
     const c = new OffscreenCanvas(S, S), g = c.getContext('2d', { willReadFrequently: true })!
-    const white = (draw: (t: G) => void, channel?: number): void => {
+    const white = (draw: (t: G) => void, channel?: number, m2?: MaskSrc, inv?: boolean): void => {
       const t = new OffscreenCanvas(S, S), tg = t.getContext('2d', { willReadFrequently: true })!
       tg.fillStyle = tg.strokeStyle = '#fff'
       draw(tg)
+      // "Máscara" of the layer: the stitching / texture / relief follow the masked shape
+      if (m2) { tg.globalCompositeOperation = 'destination-in'; tg.drawImage(maskAlpha(m2, !!inv, channel), 0, 0); tg.globalCompositeOperation = 'source-over' }
       const id = tg.getImageData(0, 0, S, S), d = id.data
       for (let i = 0; i < d.length; i += 4) {
         const v = channel === undefined ? Math.max(d[i], d[i + 1], d[i + 2]) : d[i + channel]
@@ -919,14 +962,18 @@ function coverageOf(mine: Pass[]): { clips: Set<Clip>; coverage: (clip: Clip) =>
     }
     for (const p of mine) {
       if (p.t === 'fill' && p.mask) {
-        if (p.mask.zones) { const ch = ['front', 'back', 'sleeves'].indexOf(clip); if (ch >= 0 && (p.zoneSel ?? [1, 1, 1])[ch]) white(p.mask.draw, ch) }
-        else if (p.clip === clip) white(p.mask.draw)
+        if (p.mask.zones) { const ch = ['front', 'back', 'sleeves'].indexOf(clip); if (ch >= 0 && (p.zoneSel ?? [1, 1, 1])[ch]) white(p.mask.draw, ch, p.mask2, p.mask2Invert) }
+        else if (p.clip === clip) white(p.mask.draw, undefined, p.mask2, p.mask2Invert)
       } else if (p.t === 'image' && p.clip === clip) {
         const q = p.place
         g.save(); g.translate(q.cx, q.cy); g.rotate(q.rot); g.scale(Math.sign(q.w) || 1, Math.sign(q.h) || 1)
         g.drawImage(q.img as CanvasImageSource, -Math.abs(q.w) / 2, -Math.abs(q.h) / 2, Math.abs(q.w), Math.abs(q.h))
         g.restore()
-      } else if (p.t === 'rgba' && p.clip === clip) g.drawImage((typeof p.img === 'function' ? p.img() : p.img) as CanvasImageSource, 0, 0)
+      } else if (p.t === 'rgba' && p.clip === clip) {
+        const src = (typeof p.img === 'function' ? p.img() : p.img) as CanvasImageSource
+        if (!p.mask2) g.drawImage(src, 0, 0)
+        else { const t = new OffscreenCanvas(S, S), tg = t.getContext('2d')!; tg.drawImage(src, 0, 0); tg.globalCompositeOperation = 'destination-in'; tg.drawImage(maskAlpha(p.mask2, !!p.mask2Invert), 0, 0); g.drawImage(t, 0, 0) }
+      }
     }
     // images / painted canvases keep their own colours: make them white
     g.globalCompositeOperation = 'source-in'; g.fillStyle = '#fff'; g.fillRect(0, 0, S, S)
@@ -1169,8 +1216,9 @@ async function collarPasses(out: Pass[], d: KitDesign, layersDrawn: boolean, lay
     }
     const centre = (r: number) => (g: G): void => { g.fillRect(x0, F - r, w, 2 * r) }
     const fc = String(P.faces ?? 'both')
-    if (!layer) out.push({ t: 'fill', fill: solid(cs.c1), clip: 'collar' })
-    else band('face', cs.c1, centre(HF + 4))
+    // the inside of the shirt (everything past the band) is the shirt's primary colour, not the collar's
+    if (!layer) out.push({ t: 'fill', fill: solid(fillMain(d.fills?.shirt, d.colors.shirt)), clip: 'collar' })
+    band('face', cs.c1, centre(HF + 4))
     // rims: centred on the fold, next to the shirt (the seam, at the far end of each face), or both
     if (st === 'tipped' || st === 'outerTrim' || st === 'innerTrim' || st === 'doubleTrim') {
       const tw = n('trimW'), off = n('trimOff'), pos = String(P.pos) === 'edge' ? 'fold' : String(P.pos) // 'edge': saved by 0.4.6/7
@@ -1490,7 +1538,7 @@ export async function buildPasses(design: KitDesign, assets: Record<string, Asse
   // text on the armband / back of the collar goes on top of those parts (drawn after them)
   const late = (L: OverlayLayer): boolean => L.kind === 'text' && (L.placement === 'armband' || L.placement === 'backCollar')
   // groups with stitching: round everything their visible members draw, after the group's last member
-  const stitched = new Map(d.layers.filter((g) => g.kind === 'group' && g.stitch && g.visible).map((g) => [g.id, g]))
+  const stitched = new Map(d.layers.filter((g) => g.kind === 'group' && (g.stitch || g.fabric) && g.visible).map((g) => [g.id, g]))
   const lastOf = new Map<string, string>()
   for (const L of layers) if (L.group && stitched.has(L.group) && !late(L)) lastOf.set(L.group, L.id)
   const after = d.sleeveAfter
@@ -1506,6 +1554,7 @@ export async function buildPasses(design: KitDesign, assets: Record<string, Asse
         const first = out.length
         await collarPasses(out, d, false, cs)
         await collarPasses(out, d, true, cs)
+        if (L.stitch) stitchPasses(out, out.slice(first), L.stitch, 'cstitch:' + geomKey(L, [d.config.Collar, L.stitch.relief]), L.opacity)
         if (L.fabric) {
           // only on the chosen colours (a pass is a colour of the collar): by the fill colour it was drawn with
           const slots = [cs.c1, cs.c2, cs.c3].filter((_, i) => !L.fabricSlots || L.fabricSlots.includes(i)).map((x) => x.toLowerCase())
@@ -1524,7 +1573,10 @@ export async function buildPasses(design: KitDesign, assets: Record<string, Asse
       const members = layers.filter((m) => m.group === G.id && m.visible && !late(m))
       const tmp: Pass[] = []
       for (const m of members) await layerPassesRaw(tmp, m, layers, assets, false)
-      stitchPasses(out, tmp, G.stitch!, 'gstitch:' + JSON.stringify([G.stitch, members.map((m) => geomKey(m, 0))]), G.opacity)
+      const gkey = JSON.stringify([G.stitch, G.fabric, members.map((m) => geomKey(m, 0))])
+      if (G.stitch) stitchPasses(out, tmp, G.stitch, 'gstitch:' + gkey, G.opacity)
+      // fabric on the whole group
+      texturePasses(out, tmp, G.fabric, 'gfab:' + gkey, G.opacity)
     }
   }
   out.push(...sleeveOver)
@@ -1545,7 +1597,7 @@ export async function buildPasses(design: KitDesign, assets: Record<string, Asse
   // 3. logos (flat in 2D, in each part's own frame)
   if (!opt.skipLogos) for (const g of await allLogoPasses(d, assets)) {
     out.push(...g.passes)
-    if (g.lp.outlineRelief && (g.lp.outlineWidth ?? 0) > 0) outlineRelief(g.passes, g.lp.outlineRelief, 'lg' + JSON.stringify([g.lp.assetId, g.lp.size, g.lp.dx, g.lp.dy, g.lp.rot, g.lp.side, g.lp.spot, g.lp.place]))
+    if (g.lp.outlineRelief && (g.lp.outlineWidth ?? 0) > 0) outlineRelief(out, g.passes, g.lp.outlineRelief, 'lg' + JSON.stringify([g.lp.assetId, g.lp.size, g.lp.dx, g.lp.dy, g.lp.rot, g.lp.side, g.lp.spot, g.lp.place]))
     if (g.lp.embroidery) texturePasses(out, g.passes, g.lp.embroidery, 'lemb:' + JSON.stringify([g.lp.assetId, g.lp.size, g.lp.dx, g.lp.dy, g.lp.rot, g.lp.side, g.lp.spot, g.lp.place, g.passes.length]), 1)
   }
 

@@ -110,6 +110,11 @@ export interface OverlayLayer {
 }
 /** A texture laid over a layer, badge or cuff: built-in id (compositor/fabric.ts), size % and angle (degrees), strength 0 … 1 (default per texture). */
 export interface TextureSpec { id: string; scale?: number; angle?: number; opacity?: number }
+/** Starting values: fabric on collars / cuffs (fine stretchy rib) and on sleeves, stitching on sleeves and collars. */
+export const FABRIC_COLLAR: Omit<TextureSpec, 'id'> = { scale: 77, angle: 0, opacity: 0.25 }
+export const FABRIC_SLEEVE: Omit<TextureSpec, 'id'> = { scale: 77, angle: -90, opacity: 0.25 }
+export const COLLAR_FABRIC: TextureSpec = { id: 'ribfine', ...FABRIC_COLLAR }
+export const STITCH_DEFAULT: StitchSpec = { kind: 'dashed', side: 'center', opacity: 0.31, scale: 45, relief: 11 }
 export type StitchKind = 'dashed' | 'dotted' | 'double' | 'solid' | 'zigzag' | 'cross'
 export interface StitchSpec { kind: StitchKind; side: 'in' | 'out' | 'center'; opacity: number /* 0..1 */; scale: number /* % */; color?: string /* thread colour; default = shadow */; relief?: number /* 0 … 100: raised fabric along the seam (3D preview only) */ }
 export const STITCH_KINDS: [StitchKind, string][] = [['dashed', 'Pesponto (tracejado)'], ['double', 'Pesponto duplo'], ['dotted', 'Pontos'], ['solid', 'Linha contínua'], ['zigzag', 'Zigue-zague'], ['cross', 'Ponto cruz']]

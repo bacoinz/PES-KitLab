@@ -2,6 +2,17 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.15] - 2026-11-19
+### Added
+- Layer masks now also apply to the layer's stitching, fabric and relief (they follow the masked shape).
+- "Relief" also lays a small soft drop shadow round the layer.
+- Fabric can be set on a group (it covers everything the group draws); collar layers can have stitching.
+- Origin tab → 3D preview: "Sock texture" (stretchy knit / same as the rest of the kit; 3D only) replaces the shirt in/out option, which stays in the 3D panel.
+### Changed
+- New collar designs and cuffs start with the fine stretchy rib fabric (scale 77, angle 0, strength 25); fabric on sleeve-only layers starts at scale 77, angle −90, strength 25.
+- New collar layers and new kits start with stitching (strength 31, scale 45, relief line, relief 11), also on the sleeves.
+- The inside of the shirt (everything past the collar band) is filled with the shirt's primary colour instead of the collar colour.
+
 ## [0.4.14] - 2026-11-19
 ### Added
 - "Relief" option on stitching and on outlines (logo outline, text outline, design outline): the fabric around the seam / outline stands out in the 3D preview (3D only, not in the texture).

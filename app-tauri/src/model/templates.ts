@@ -1,6 +1,6 @@
 /** Ready-made kit templates and the bulk kit-set generator. */
 import type { KitDesign, PatternSpec, Logos, OverlayLayer } from './design'
-import { defaultDesign, colorsFrom, contrastOn, luminance, colorDist, mix, hexToRgb, NONE, slotOrder, uid, normalizeLogos } from './design'
+import { defaultDesign, colorsFrom, contrastOn, luminance, colorDist, mix, hexToRgb, NONE, slotOrder, uid, normalizeLogos, COLLAR_FABRIC, STITCH_DEFAULT } from './design'
 
 type Role = 'c1' | 'c2' | 'c3'
 interface Tpl {
@@ -95,7 +95,8 @@ export function applyTemplate(d: KitDesign, tplId: string, c1: string, c2: strin
     colors: { ...colors, armband: d.colors.armband },
     fills: {},
     collar: { style: 'solid', c1: c2, c2: c1, c3: cols.c3 },
-    cuffs: { style: t.cuffs ? 'solid' : 'none', c1: colors.cuffs, c2: c1, width: 60 },
+    cuffs: { style: t.cuffs ? 'solid' : 'none', c1: colors.cuffs, c2: c1, width: 60, ...(t.cuffs ? { fabric: COLLAR_FABRIC } : {}) },
+    sleeveStitch: STITCH_DEFAULT,
     layers: [...tl, ...keep],
     torso: { ...NONE },
     sleevePattern: spec(t.sleeves, cols),
