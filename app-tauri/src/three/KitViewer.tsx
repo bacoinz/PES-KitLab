@@ -5,6 +5,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import type { MeshDto } from '@shared/ipc'
 import { cometFiles, loadGlb, collarFitted, shortsFitted } from './comet'
 import { shineToRoughness } from '../compositor/compose'
+import { fabricTile } from '../compositor/fabric'
 
 const modelCache = new Map<string, Promise<MeshDto[]>>()
 
@@ -23,18 +24,19 @@ function fabricBump(): THREE.Texture {
   const t = new THREE.CanvasTexture(fabricNoise()); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(90, 90)
   return t
 }
-/** Stretchy sock knit (3D preview only, never in the texture): fine ribs running down the leg (along the texture's v). */
-function sockBump(): THREE.Texture {
-  const w = 16, h = 8, c = document.createElement('canvas'); c.width = w; c.height = h
-  const g = c.getContext('2d')!, id = g.createImageData(w, h)
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const rib = Math.sin((x / w) * Math.PI * 2 * 2) * 0.5 + 0.5 // 2 ribs per tile
-    const v = 70 + rib * 150 + (y % 2 ? 12 : -12)
-    const o = (y * w + x) * 4; id.data[o] = id.data[o + 1] = id.data[o + 2] = v; id.data[o + 3] = 255
-  }
-  g.putImageData(id, 0, 0)
-  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(2048 / 8 / 2, 2048 / 5 / 2)
-  t.magFilter = THREE.LinearFilter
+/**
+ * Stretchy sock knit (3D preview only, never in the texture): the game's fine stretchy rib ("Canelado fino") as
+ * relief, at a size (%), mixed (%) with the fabric grain the rest of the kit has.
+ */
+function sockBumpTex(scale: number, mix: number): THREE.Texture {
+  const c = document.createElement('canvas'); c.width = c.height = 2048
+  const g = c.getContext('2d')!
+  g.fillStyle = '#808080'; g.fillRect(0, 0, 2048, 2048)
+  const m = Math.max(0, Math.min(1, mix / 100)), s = Math.max(0.1, scale / 100)
+  const grain = g.createPattern(fabricNoise(), 'repeat'), rib = g.createPattern(fabricTile('ribfine') as unknown as CanvasImageSource, 'repeat')
+  if (grain) { grain.setTransform(new DOMMatrix().scale(2048 / 90 / 128, 2048 / 90 / 128)); g.globalAlpha = 1 - m; g.fillStyle = grain; g.fillRect(0, 0, 2048, 2048) }
+  if (rib) { rib.setTransform(new DOMMatrix().scale(s, s)); g.globalAlpha = m; g.fillStyle = rib; g.fillRect(0, 0, 2048, 2048) }
+  const t = new THREE.CanvasTexture(c); t.flipY = false; t.anisotropy = 8
   return t
 }
 function loadModel(name: string): Promise<MeshDto[]> {
@@ -315,14 +317,17 @@ export interface ViewerProps {
   background?: string | null // null = transparent (app background)
   hideShorts?: boolean
   hideSocks?: boolean
+  sockScale?: number; sockStrength?: number; sockMix?: number // size %, strength %, mix with the kit's grain %
   sockKnit?: boolean // stretchy knit relief on the socks (3D only)
   /** receives a function that returns the current 3D view as a PNG */
   snapshot?: (take: () => Promise<Blob | null>) => void
 }
 
-export function KitViewer({ texture, version = 0, collar, longSleeves, shortsModel = 1, camera, armband = false, tucked = false, tight = true, kappa = false, height = '100%', shine = 0, shineMap = null, relief = null, autoRotate = false, snapshot, light = 40, lightPreset = 'hdri', env = 'room', background = null, hideShorts = false, hideSocks = false, sockKnit = true }: ViewerProps): JSX.Element {
+export function KitViewer({ texture, version = 0, collar, longSleeves, shortsModel = 1, camera, armband = false, tucked = false, tight = true, kappa = false, height = '100%', shine = 0, shineMap = null, relief = null, autoRotate = false, snapshot, light = 40, lightPreset = 'hdri', env = 'room', background = null, hideShorts = false, hideSocks = false, sockKnit = true, sockScale = 100, sockStrength = 100, sockMix = 100 }: ViewerProps): JSX.Element {
   const host = useRef<HTMLDivElement>(null)
   const sockKnitRef = useRef(sockKnit)
+  const sockStrengthRef = useRef(sockStrength)
+  sockStrengthRef.current = sockStrength
   sockKnitRef.current = sockKnit
   const st = useRef<{ renderer: THREE.WebGLRenderer; scene: THREE.Scene; cam: THREE.PerspectiveCamera; ctl: OrbitControls; mat: THREE.MeshStandardMaterial; tex: THREE.Texture; group: THREE.Group; raf: number; fly: { pos: THREE.Vector3; target: THREE.Vector3; t: number } | null; key: THREE.DirectionalLight; fill: THREE.DirectionalLight; pmrem: THREE.PMREMGenerator; envMul: number; envTex: THREE.Texture | null; front: THREE.MeshStandardMaterial; sock: THREE.MeshStandardMaterial } | null>(null)
   const [noModels, setNoModels] = useState(false)
@@ -391,7 +396,7 @@ export function KitViewer({ texture, version = 0, collar, longSleeves, shortsMod
       if (f.bumpMap !== m.bumpMap) { f.bumpMap = m.bumpMap; f.needsUpdate = true }
       f.bumpScale = m.bumpScale
       const k = s.sock
-      k.bumpMap = sockKnitRef.current ? (k.userData.rib as THREE.Texture) : m.bumpMap; k.bumpScale = sockKnitRef.current ? 1.4 : m.bumpScale
+      k.bumpMap = sockKnitRef.current ? (k.userData.rib as THREE.Texture) : m.bumpMap; k.bumpScale = sockKnitRef.current ? 1.4 * sockStrengthRef.current / 100 : m.bumpScale
       if (k.map !== m.map || k.roughnessMap !== m.roughnessMap) { k.map = m.map; k.roughnessMap = m.roughnessMap; k.needsUpdate = true }
       k.roughness = m.roughness; k.envMapIntensity = m.envMapIntensity
       ctl.update(); renderer.render(scene, cam); s.raf = requestAnimationFrame(loop)
@@ -400,7 +405,7 @@ export function KitViewer({ texture, version = 0, collar, longSleeves, shortsMod
     // with the same light instead of a dark gap)
     const front = mat.clone(); front.side = THREE.FrontSide
     // socks: a stretchier knit than the shirt (own relief, 3D only)
-    const sock = mat.clone(); sock.userData.rib = sockBump(); sock.bumpMap = sock.userData.rib as THREE.Texture; sock.bumpScale = 1.4
+    const sock = mat.clone(); sock.userData.rib = sockBumpTex(100, 100); sock.bumpMap = sock.userData.rib as THREE.Texture; sock.bumpScale = 1.4
     st.current = { renderer, scene, cam, ctl, mat, tex, group, raf: 0, fly: null, key, fill, pmrem, envMul: 1, envTex, front, sock }
     // scripted checks: point the camera anywhere
     ;(window as unknown as { __kcView: unknown }).__kcView = (p: [number, number, number], t: [number, number, number]): void => {
@@ -593,6 +598,15 @@ export function KitViewer({ texture, version = 0, collar, longSleeves, shortsMod
     s.mat.needsUpdate = true
     old?.dispose()
   }, [relief])
+
+  // the sock knit's own relief map follows its size and mix
+  useEffect(() => {
+    const s = st.current
+    if (!s) return
+    const old = s.sock.userData.rib as THREE.Texture | undefined
+    s.sock.userData.rib = sockBumpTex(sockScale, sockMix)
+    old?.dispose()
+  }, [sockScale, sockMix])
 
   // shininess: one roughness for the whole kit, or a per-texel map when layers have their own
   useEffect(() => {

@@ -114,6 +114,11 @@ export interface TextureSpec { id: string; scale?: number; angle?: number; opaci
 export const FABRIC_COLLAR: Omit<TextureSpec, 'id'> = { scale: 77, angle: 0, opacity: 0.25 }
 export const FABRIC_SLEEVE: Omit<TextureSpec, 'id'> = { scale: 77, angle: -90, opacity: 0.25 }
 export const COLLAR_FABRIC: TextureSpec = { id: 'ribfine', ...FABRIC_COLLAR }
+/** New kits: fine knit over everything (soft light) and a double stitch on the hems. */
+export const MAIN_FABRIC: TextureSpec = { id: 'knit', scale: 48, opacity: 0.31 }
+export const HEM_STITCH: StitchSpec = { kind: 'double', side: 'center', opacity: 0.5, scale: 45, relief: 10 }
+export const FABRIC_CUFF: Omit<TextureSpec, 'id'> = { scale: 77, angle: -90, opacity: 0.25 }
+export const CUFF_FABRIC: TextureSpec = { id: 'ribfine', ...FABRIC_CUFF }
 export const STITCH_DEFAULT: StitchSpec = { kind: 'dashed', side: 'center', opacity: 0.31, scale: 45, relief: 11 }
 export type StitchKind = 'dashed' | 'dotted' | 'double' | 'solid' | 'zigzag' | 'cross'
 export interface StitchSpec { kind: StitchKind; side: 'in' | 'out' | 'center'; opacity: number /* 0..1 */; scale: number /* % */; color?: string /* thread colour; default = shadow */; relief?: number /* 0 … 100: raised fabric along the seam (3D preview only) */ }
@@ -350,7 +355,10 @@ export interface KitDesign {
   logoShine?: { all: boolean; value: number }
   /** 3D shininess of the preview name and numbers: one value, or one per part */
   numberShine?: { all: boolean; value: number; back?: number; name?: number; chest?: number; leg?: number }
-  v?: 2 | 3 | 4 | 5 | 6
+  /** the kit's main fabric over everything (null = none; new kits: fine knit) and the stitching of the hems (null = none) */
+  fabric?: TextureSpec | null
+  hemStitch?: StitchSpec | null
+  v?: 2 | 3 | 4 | 5 | 6 | 7
 }
 
 export interface Asset { id: string; name: string; dataUrl: string; w?: number; h?: number }
@@ -437,7 +445,7 @@ export function colorsFrom(c1: string, c2: string, c3?: string): KitColors {
 export const NONE: PatternSpec = { id: 'none', color: '#ffffff', count: 3, width: 40 }
 
 export function defaultDesign(slot: string, c1 = '#1f4fb4', c2 = '#ffffff'): KitDesign {
-  return migrateKit({
+  const d = migrateKit({
     slot,
     base: { kind: 'template' },
     colors: colorsFrom(c1, c2),
@@ -451,6 +459,7 @@ export function defaultDesign(slot: string, c1 = '#1f4fb4', c2 = '#ffffff'): Kit
     // written in the old (pre-v6) sense: migrateKit flips it, so a new kit ends with NUMBER_DEFAULTS (1 = right leg)
     config: { Collar: 66, WinterCollar: 66, ShirtModel: 144, ShortsModel: 1, TightKit: 1, ...NUMBER_DEFAULTS, ShortsNumberSide: 1 - NUMBER_DEFAULTS.ShortsNumberSide }
   })
+  return { ...d, fabric: MAIN_FABRIC, hemStitch: HEM_STITCH }
 }
 
 /** Name / number defaults for new kits (the user's choice, 2026-11-14; the height sliders run inverted: shown 17 = BackNumberY 12, shown 7 = NameY 32). */
@@ -465,8 +474,13 @@ export function defaultFabrics(): FabricLayer[] {
 
 /** Bring any saved design up to the current model (v2): torso pattern → layer, single logos → lists, defaults. */
 export function migrateKit(k: KitDesign): KitDesign {
-  if (k.v === 6) return k
-  return toV6(k.v === 5 ? k : toV5(k.v === 4 ? k : toV4(migrateV3(k))))
+  if (k.v === 7) return k
+  return toV7(k.v === 6 ? k : toV6(k.v === 5 ? k : toV5(k.v === 4 ? k : toV4(migrateV3(k)))))
+}
+
+/** v7 (0.4.16): the kit's main fabric and hem stitching are options; kits saved before keep neither (null). */
+function toV7(k: KitDesign): KitDesign {
+  return { ...k, v: 7, fabric: k.fabric ?? null, hemStitch: k.hemStitch ?? null }
 }
 
 /**

@@ -121,6 +121,18 @@ function reliefTile(id: string): OffscreenCanvas {
   return c
 }
 
+/** The grey tile itself (for soft-light), repeated over the texture at a size (%) and angle (degrees). */
+export function fabricPaint(id: string, scale: number, angle: number): OffscreenCanvas {
+  const c = new OffscreenCanvas(2048, 2048), g = c.getContext('2d')!
+  const pat = g.createPattern(fabricTile(id), 'repeat')
+  if (!pat) return c
+  const s = Math.max(0.1, scale / 100)
+  pat.setTransform(new DOMMatrix().rotate(angle).scale(s, s))
+  g.fillStyle = pat
+  g.fillRect(0, 0, 2048, 2048)
+  return c
+}
+
 /** A built-in texture tile repeated over the whole texture (scale %, angle degrees), on a canvas. */
 export function texturePaint(id: string, scale: number, angle: number): OffscreenCanvas {
   const c = new OffscreenCanvas(2048, 2048), g = c.getContext('2d')!

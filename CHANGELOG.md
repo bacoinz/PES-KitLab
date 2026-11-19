@@ -2,6 +2,21 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.16] - 2026-11-19
+### Added
+- Fabric and stitching of the whole kit are drop-downs (no more library): "Fabric" (same types as layers; new kits start with fine knit, size 48, strength 31, soft light) and "Hem stitch" (new kits: double stitch, strength 50, size 45, relief 10). Kits saved before keep neither.
+- Fabric and stitching can be put on base designs; they only affect the design's elements, not its base colour.
+- Sock texture in the 3D preview: size, strength and mix (with the kit's grain), type = fine stretchy rib.
+- Text on the back of the collar wraps round the collar band (what leaves one end comes in at the other).
+### Changed
+- Layers and logos with their own shininess are not covered by the kit's fabric (one or the other); a layer with shininess ignores its own fabric.
+- Layer options: outline, stitching, embroidery, fabric and shininess now come after blend mode, opacity and blur.
+- Fixed rows start in the order Sleeves, Collar model, Base, Fabric and stitching (top to bottom).
+- Cuffs start with stitching (strength 31, size 45, relief 11) and the fine rib fabric at angle −90; sleeves no longer start with stitching.
+- Relief is tighter (less blur, smaller shadow).
+### Fixed
+- Collar faces: the outer face of the collar is above the fold and the inner one below it (measured on the collar model), so "Outside only / Inside only" and the text on the back of the collar now land on the right face.
+
 ## [0.4.15] - 2026-11-19
 ### Added
 - Layer masks now also apply to the layer's stitching, fabric and relief (they follow the masked shape).

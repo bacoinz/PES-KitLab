@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useApp, assetFromFile, rawAssetFromFile, previewAssetFromFile, PRESET_TEAM, USER_TPL_TEAM, stepTime } from '../state'
 import type { PanelStyle, TextPlacement, PanelKind, KitDesign, OverlayLayer, Asset, LogoPlacement, LogoTint, Fill, PatternSpec, FabricLayer, FabricZone, Zone, Logos, StitchKind, StitchSpec, TextureSpec } from '../model/design'
 import { describeStep } from './history'
-import { PANEL_STYLES, SLOT_LABEL, uid, defaultDesign, contrastOn, slotOrder, solid, fillMain, normalizeGroups, dropLayer, migrateKit, LOGO_SIZES, NUMBER_DEFAULTS, STITCH_KINDS, FABRIC_COLLAR, FABRIC_SLEEVE, COLLAR_FABRIC, STITCH_DEFAULT, mergeLogos, copyNumbers, groupColors, swapGroupColor, resolveGroups } from '../model/design'
+import { PANEL_STYLES, SLOT_LABEL, uid, defaultDesign, contrastOn, slotOrder, solid, fillMain, normalizeGroups, dropLayer, migrateKit, LOGO_SIZES, NUMBER_DEFAULTS, STITCH_KINDS, FABRIC_COLLAR, FABRIC_SLEEVE, COLLAR_FABRIC, CUFF_FABRIC, FABRIC_CUFF, MAIN_FABRIC, HEM_STITCH, STITCH_DEFAULT, mergeLogos, copyNumbers, groupColors, swapGroupColor, resolveGroups } from '../model/design'
 import { TEMPLATES, applyTemplate } from '../model/templates'
 import { TORSO_PATTERNS, SLEEVE_PATTERNS, SHORTS_PATTERNS, SOCKS_PATTERNS, TEXTURES, STROKES } from '../compositor/patterns'
 import { composeKit, composeLive, composeShine, composeRelief, COLLAR_DESIGNS, collarParams, collarDefaults, frontThumb, raglanBend } from '../compositor/compose'
@@ -291,14 +291,14 @@ function ZonePicker({ value, onChange }: { value: FabricZone[]; onChange: (z: Fa
 }
 
 /** Stitching controls (layers, groups, cuffs). New stitching: topstitch, centred, intensity 32, scale 45. */
-function StitchEditor({ value: st, onChange }: { value: StitchSpec | undefined; onChange: (s: StitchSpec | undefined) => void }): JSX.Element {
-  const setSt = (patch: Partial<StitchSpec>): void => onChange({ kind: 'dashed', side: 'center', opacity: 0.32, scale: 45, ...st, ...patch })
+function StitchEditor({ value: st, onChange, label = 'Costura', def }: { value: StitchSpec | undefined; onChange: (s: StitchSpec | undefined) => void; label?: string; def?: StitchSpec }): JSX.Element {
+  const setSt = (patch: Partial<StitchSpec>): void => onChange({ kind: 'dashed', side: 'center', opacity: 0.32, scale: 45, ...def, ...st, ...patch })
   return (
     <>
-      <Row label="Costura"><Select value={st?.kind ?? ''} options={[['', 'Nenhum'], ...STITCH_KINDS]} onChange={(k) => (k ? setSt({ kind: k as StitchKind }) : onChange(undefined))} /></Row>
+      <Row label={label}><Select value={st?.kind ?? ''} options={[['', 'Nenhum'], ...STITCH_KINDS]} onChange={(k) => (k ? setSt({ kind: k as StitchKind }) : onChange(undefined))} /></Row>
       {st && (
         <div className="subsec">
-          <div className="subsec-title">Costura · {STITCH_KINDS.find((x) => x[0] === st.kind)?.[1]}</div>
+          <div className="subsec-title">{label} · {STITCH_KINDS.find((x) => x[0] === st.kind)?.[1]}</div>
           <Row label="Lado"><Select value={st.side} options={[['center', 'Centrado'], ['in', 'Por dentro'], ['out', 'Por fora']]} onChange={(side) => setSt({ side: side as StitchSpec['side'] })} /></Row>
           <Row label="Intensidade"><Slider value={Math.round(st.opacity * 100)} min={0} max={100} onChange={(o) => setSt({ opacity: o / 100 })} /></Row>
           <Row label="Escala"><Slider value={st.scale} min={20} max={300} onChange={(scale) => setSt({ scale })} /></Row>
@@ -348,10 +348,10 @@ export function Editor(): JSX.Element {
   const [spin, setSpin] = useState(false)
   // 3D view settings (kept between sessions)
   const ls = (k: string, d: string): string => { try { return localStorage.getItem(k) ?? d } catch { return d } }
-  const [view3d, setView3dState] = useState(() => ({ preset: ls('kc.v3.preset', 'hdri') as LightPreset, env: ls('kc.v3.env', 'room') as EnvKind, bg: ls('kc.v3.bg', ''), hideShorts: ls('kc.v3.hs', '0') === '1', hideSocks: ls('kc.v3.hk', '0') === '1', sockKnit: ls('kc.v3.sk', '1') === '1' }))
+  const [view3d, setView3dState] = useState(() => ({ preset: ls('kc.v3.preset', 'hdri') as LightPreset, env: ls('kc.v3.env', 'room') as EnvKind, bg: ls('kc.v3.bg', ''), hideShorts: ls('kc.v3.hs', '0') === '1', hideSocks: ls('kc.v3.hk', '0') === '1', sockKnit: ls('kc.v3.sk', '1') === '1', sockScale: Number(ls('kc.v3.ss', '100')), sockStrength: Number(ls('kc.v3.sg', '100')), sockMix: Number(ls('kc.v3.sm', '100')) }))
   const setView3d = (patch: Partial<typeof view3d>): void => setView3dState((v) => {
     const n = { ...v, ...patch }
-    try { localStorage.setItem('kc.v3.preset', n.preset); localStorage.setItem('kc.v3.env', n.env); localStorage.setItem('kc.v3.bg', n.bg); localStorage.setItem('kc.v3.hs', n.hideShorts ? '1' : '0'); localStorage.setItem('kc.v3.hk', n.hideSocks ? '1' : '0'); localStorage.setItem('kc.v3.sk', n.sockKnit ? '1' : '0') } catch { /* ignore */ }
+    try { localStorage.setItem('kc.v3.preset', n.preset); localStorage.setItem('kc.v3.env', n.env); localStorage.setItem('kc.v3.bg', n.bg); localStorage.setItem('kc.v3.hs', n.hideShorts ? '1' : '0'); localStorage.setItem('kc.v3.hk', n.hideSocks ? '1' : '0'); localStorage.setItem('kc.v3.sk', n.sockKnit ? '1' : '0'); localStorage.setItem('kc.v3.ss', String(n.sockScale)); localStorage.setItem('kc.v3.sg', String(n.sockStrength)); localStorage.setItem('kc.v3.sm', String(n.sockMix)) } catch { /* ignore */ }
     return n
   })
   const [viewMenu, setViewMenu] = useState(false)
@@ -779,10 +779,6 @@ export function Editor(): JSX.Element {
               <span className="sw-row">{gcols.map((c) => <Swatch key={c} value={c} title={'Trocar ' + c + ' em todas as camadas do grupo'} onChange={(v) => up((k) => ({ ...k, layers: swapGroupColor(k.layers, L.id, c, v) }))} />)}</span>
             </Row>
           )}
-          {stitchRow}
-          {fabricRow}
-          {shineRow}
-          <div className="muted small">O brilho do grupo, quando ligado, vale para todas as camadas dele.</div>
           <div className="pm-sep" />
           <Row label="Deslocamento (x)"><Slider value={L.dx ?? 0} min={-offMaxG} max={offMaxG} snaps={[0]} onChange={(dx) => ch({ dx: dx || undefined })} /></Row>
           <Row label="Deslocamento (y)"><Slider value={-(L.dy ?? 0)} min={-offMaxG} max={offMaxG} snaps={[0]} onChange={(y) => ch({ dy: -y || undefined })} /></Row>
@@ -792,6 +788,10 @@ export function Editor(): JSX.Element {
           <div className="pm-sep" />
           <Row label="Modo de mistura"><BlendSelect value={(L.blend ?? 'source-over') as string} onChange={(b) => ch({ blend: b === 'source-over' ? undefined : b as GlobalCompositeOperation })} /></Row>
           <Row label="Opacidade"><Slider value={Math.round(L.opacity * 100)} min={0} max={100} onChange={(o) => ch({ opacity: o / 100 })} /></Row>
+          {stitchRow}
+          {fabricRow}
+          {shineRow}
+          <div className="muted small">O brilho do grupo, quando ligado, vale para todas as camadas dele.</div>
           <div className="pm-sep" />
           <div className="btn-row">
             <button className="btn small" onClick={() => ch({ dx: undefined, dy: undefined, zoom: undefined, rotation: undefined, blend: undefined, shine: undefined, opacity: 1, stitch: undefined })}>Repor valores por defeito</button>
@@ -822,9 +822,6 @@ export function Editor(): JSX.Element {
             <button className="btn small" disabled={!strokes.length} onClick={() => { if (confirm('Apagar todo o desenho desta camada?')) ch({ strokes: [] }) }}>Limpar desenho</button>
             <span className="muted small">{strokes.length} traço(s)</span>
           </div>
-          {stitchRow}
-          {fabricRow}
-          {shineRow}
           <div className="pm-sep" />
           <label className="check"><input type="checkbox" checked={!!L.mirrorCenter} onChange={(e) => ch({ mirrorCenter: e.target.checked || undefined })} /> Simetria (esquerda ↔ direita)</label>
           <div className="pm-sep" />
@@ -833,6 +830,9 @@ export function Editor(): JSX.Element {
           <Row label="Modo de mistura"><BlendSelect value={(L.blend ?? 'source-over') as string} onChange={(b) => ch({ blend: b as GlobalCompositeOperation })} /></Row>
           <Row label="Opacidade"><Slider value={Math.round(L.opacity * 100)} min={0} max={100} onChange={(o) => ch({ opacity: o / 100 })} /></Row>
           <Row label="Desfoque"><Slider value={L.blur ?? 0} min={0} max={100} onChange={(blur) => ch({ blur: blur || undefined })} /></Row>
+          {stitchRow}
+          {fabricRow}
+          {shineRow}
           <div className="pm-sep" />
           <button className="btn small" onClick={resetLayer}>Repor valores por defeito</button>
         </div>
@@ -894,9 +894,6 @@ export function Editor(): JSX.Element {
           {L.panel === 'sockTrim' && <Row label="Posição"><Slider value={L.y ?? 84} min={0} max={480} onChange={(y) => ch({ y })} /></Row>}
           {L.panel === 'shoulders' && <label className="check"><input type="checkbox" checked={!!L.panelSleeve} onChange={(e) => ch({ panelSleeve: e.target.checked || undefined })} /> Continuar pelas mangas</label>}
           {L.panel === 'shortsSides' && <Toggle on={!!L.mirrorCenter} label="Espelhar (pernas iguais ao espelho)" onChange={(v) => ch({ mirrorCenter: v || undefined })} />}
-          {stitchRow}
-          {fabricRow}
-          {shineRow}
           <div className="pm-sep" />
           <Row label={L.panel === 'shoulders' ? 'Deslocamento (através)' : 'Deslocamento'}><Slider value={L.dx ?? 0} min={-300} max={300} snaps={[0]} onChange={(dx) => ch({ dx: dx || undefined })} /></Row>
           {L.panel === 'shoulders' && <Row label="Deslocamento (ao longo)"><Slider value={L.dy ?? 0} min={-300} max={300} snaps={[0]} onChange={(dy) => ch({ dy: dy || undefined })} /></Row>}
@@ -905,6 +902,9 @@ export function Editor(): JSX.Element {
           <Row label="Modo de mistura"><BlendSelect value={(L.blend ?? 'source-over') as string} onChange={(b) => ch({ blend: b as GlobalCompositeOperation })} /></Row>
           <Row label="Opacidade"><Slider value={Math.round(L.opacity * 100)} min={0} max={100} onChange={(o) => ch({ opacity: o / 100 })} /></Row>
           <Row label="Desfoque"><Slider value={L.blur ?? 0} min={0} max={100} onChange={(blur) => ch({ blur: blur || undefined })} /></Row>
+          {stitchRow}
+          {fabricRow}
+          {shineRow}
           <div className="pm-sep" />
           <button className="btn small" onClick={resetLayer}>Repor valores por defeito</button>
         </div>
@@ -1052,22 +1052,6 @@ export function Editor(): JSX.Element {
           </>
         )}
         {showColor && <FillRow label="Cor" value={L.fill ?? solid(L.color)} onChange={(f) => ch({ fill: f.kind === 'solid' ? undefined : f, color: fillMain(f, L.color) })} />}
-        {L.kind === 'text' && (
-          <>
-            <Toggle on={!!L.border} label="Contorno" onChange={(v) => ch({ border: v || undefined })} />
-            {L.border && (
-              <>
-                <Row label="Cor do contorno"><ColorInput value={L.borderColor ?? contrastOn(fillMain(L.fill, L.color))} onChange={(borderColor) => ch({ borderColor })} /></Row>
-                <Row label="Espessura do contorno"><Slider value={L.borderW ?? 2} min={1} max={8} onChange={(borderW) => ch({ borderW })} /></Row>
-                <Row label="Relevo"><Slider value={L.outlineRelief ?? 0} min={0} max={100} onChange={(outlineRelief) => ch({ outlineRelief: outlineRelief || undefined })} /></Row>
-              </>
-            )}
-          </>
-        )}
-        {stitchRow}
-        {embroRow}
-        {fabricRow}
-        {shineRow}
 
         {/* 3. where it shows */}
         {part === 'torso' && L.kind !== 'text' && !noTransform && (
@@ -1121,6 +1105,22 @@ export function Editor(): JSX.Element {
         <Row label="Modo de mistura"><BlendSelect value={(L.blend ?? 'source-over') as string} onChange={(b) => ch({ blend: b as GlobalCompositeOperation })} /></Row>
         <Row label="Opacidade"><Slider value={Math.round(L.opacity * 100)} min={0} max={100} onChange={(o) => ch({ opacity: o / 100 })} /></Row>
         <Row label="Desfoque"><Slider value={L.blur ?? 0} min={0} max={100} onChange={(blur) => ch({ blur: blur || undefined })} /></Row>
+        {L.kind === 'text' && (
+          <>
+            <Toggle on={!!L.border} label="Contorno" onChange={(v) => ch({ border: v || undefined })} />
+            {L.border && (
+              <>
+                <Row label="Cor do contorno"><ColorInput value={L.borderColor ?? contrastOn(fillMain(L.fill, L.color))} onChange={(borderColor) => ch({ borderColor })} /></Row>
+                <Row label="Espessura do contorno"><Slider value={L.borderW ?? 2} min={1} max={8} onChange={(borderW) => ch({ borderW })} /></Row>
+                <Row label="Relevo"><Slider value={L.outlineRelief ?? 0} min={0} max={100} onChange={(outlineRelief) => ch({ outlineRelief: outlineRelief || undefined })} /></Row>
+              </>
+            )}
+          </>
+        )}
+        {stitchRow}
+        {embroRow}
+        {fabricRow}
+        {shineRow}
         <div className="pm-sep" />
         <button className="btn small" title="Tamanho, rotação, posição, espelhos, deformação, desfoque, opacidade, mistura, brilho e costura voltam aos valores iniciais (o design, as cores e as zonas ficam)" onClick={resetLayer}>Repor valores por defeito</button>
       </div>
@@ -1530,7 +1530,14 @@ export function Editor(): JSX.Element {
       </Section>
       <Section group={tab} title="Pré-visualização 3D">
         <Row label="Textura das meias"><Select value={view3d.sockKnit ? 'knit' : 'plain'} options={[['knit', 'Elástica (canelada)'], ['plain', 'Igual ao resto do kit']]} onChange={(v) => setView3d({ sockKnit: v === 'knit' })} /></Row>
-        <div className="muted small">Só na pré-visualização 3D; não muda a textura do kit.</div>
+        {view3d.sockKnit && (
+          <div className="subsec">
+            <Row label="Escala"><Slider value={view3d.sockScale} min={20} max={500} onChange={(sockScale) => setView3d({ sockScale })} /></Row>
+            <Row label="Intensidade"><Slider value={view3d.sockStrength} min={0} max={300} onChange={(sockStrength) => setView3d({ sockStrength })} /></Row>
+            <Row label="Mistura"><Slider value={view3d.sockMix} min={0} max={100} onChange={(sockMix) => setView3d({ sockMix })} /></Row>
+          </div>
+        )}
+        <div className="muted small">Só na pré-visualização 3D; não muda a textura do kit. Tipo: canelado fino elástico; a mistura junta o relevo do resto do kit.</div>
       </Section>
       <Section group={tab} title="Copiar para todos os kits">
         <div className="muted small">Copia deste kit ({SLOT_LABEL[kit.slot] ?? kit.slot}) para os outros equipamentos da equipa. Os logos que um kit já tem ficam como estão; só se acrescenta o que falta.</div>
@@ -1672,7 +1679,7 @@ export function Editor(): JSX.Element {
                   )
                 })()}
                 <StitchEditor value={kit.cuffs?.stitch} onChange={(stitch) => up((k) => ({ ...k, cuffs: { ...k.cuffs!, stitch } }))} />
-                <TextureRow label="Tecido" defaults={FABRIC_COLLAR} list={LAYER_FABRICS} value={kit.cuffs?.fabric} onChange={(fabric) => up((k) => ({ ...k, cuffs: { ...k.cuffs!, fabric } }))}
+                <TextureRow label="Tecido" defaults={FABRIC_CUFF} list={LAYER_FABRICS} value={kit.cuffs?.fabric} onChange={(fabric) => up((k) => ({ ...k, cuffs: { ...k.cuffs!, fabric } }))}
                   slots={kit.cuffs?.style !== 'solid' ? { names: ['Cor 1', 'Cor 2'], value: kit.cuffs?.fabricSlots, onChange: (fabricSlots) => up((k) => ({ ...k, cuffs: { ...k.cuffs!, fabricSlots } })) } : undefined} />
               </>
             )}
@@ -1682,7 +1689,11 @@ export function Editor(): JSX.Element {
   const fabricBody = (<>
         <Row label="Brilho do tecido"><Slider value={kit.shine ?? 0} min={0} max={100} onChange={(shine) => up((k) => ({ ...k, shine: shine || undefined }))} /></Row>
         <div className="muted small">Brilho só na pré-visualização 3D (0 = mate, 100 = brilhante). Cada camada pode ter o seu em "Brilho próprio".</div>
-        {(kit.fabrics ?? []).map((f) => {
+        <TextureRow label="Tecido" list={LAYER_FABRICS} value={kit.fabric ?? undefined} defaults={{ scale: 48, opacity: 0.31 }} onChange={(fabric) => up((k) => ({ ...k, fabric: fabric ?? null }))} />
+        <div className="muted small">O tecido do kit cobre tudo (em luz suave), menos as camadas e logótipos com brilho próprio.</div>
+        <StitchEditor label="Costura da bainha" def={HEM_STITCH} value={kit.hemStitch ?? undefined} onChange={(hemStitch) => up((k) => ({ ...k, hemStitch: hemStitch ?? null }))} />
+        {(kit.fabrics ?? []).some((f) => f.visible) && <div className="muted small">Tecidos e costuras de versões anteriores deste kit:</div>}
+        {(kit.fabrics ?? []).filter((f) => f.visible).map((f) => {
           const ch = (patch: Partial<FabricLayer>): void => up((k) => ({ ...k, fabrics: (k.fabrics ?? []).map((x) => (x.id === f.id ? { ...x, ...patch } : x)) }))
           const isAsset = f.source.startsWith('asset:')
           return (
@@ -1705,21 +1716,16 @@ export function Editor(): JSX.Element {
             </div>
           )
         })}
-        <div className="btn-row">
-          <button className="btn small" onClick={() => { const id = uid(); up((k) => ({ ...k, fabrics: [...(k.fabrics ?? []), { id, source: 'knit', zones: ['front', 'back', 'sleeves'], opacity: 0.25, scale: 100, blend: 'soft-light', visible: true, v2: true }] })); setFly({ kind: 'fabric', id }) }}>+ Tecido</button>
-          <button className="btn small" onClick={() => up((k) => ({ ...k, fabrics: [...(k.fabrics ?? []), { id: uid(), source: 'seams', zones: ['front', 'back', 'sleeves', 'shorts', 'socks'], opacity: 0.55, scale: 100, blend: 'multiply', visible: true, v2: true }] }))}>+ Costuras</button>
-          <AssetPicker label="+ Importar PNG" onPick={(a) => { addAsset(a); up((k) => ({ ...k, fabrics: [...(k.fabrics ?? []), { id: uid(), source: 'asset:' + a.id, zones: ['front', 'back', 'sleeves'], opacity: 0.35, scale: 100, blend: 'soft-light', visible: true, v2: true }] })) }} />
-        </div>
       </>)
 
   const shirtTab = (
     <>
       <div className="layers-panel">{layerList('torso', [
-          { id: 'fabric', label: 'Tecido e costuras', icon: 'fabric', body: fabricBody },
-          { id: 'collar', label: `Gola ${kit.config.Collar ?? 66}`, icon: 'collar', color: kit.collar?.c1 ?? kit.colors.collar, setColor: (c1) => up((k) => ({ ...k, collar: { ...k.collar!, c1 }, colors: { ...k.colors, collar: c1 } })), body: collarBody, cam: 'collar' },
           { id: 'sleeves', label: 'Mangas', icon: 'sleeves', color: fillMain(F.sleeves, kit.colors.sleeves), setColor: (c) => setFill('sleeves', solid(c)), body: sleevesBody, cam: 'sleeve', movable: kit.base.kind === 'template', mask: kit.sleevePattern.maskLayer ? layerLabel(kit.layers.find((x) => x.id === kit.sleevePattern.maskLayer) ?? kit.layers[0]) : undefined },
           ...(kit.base.kind === 'template' && kit.cuffs && kit.cuffs.style !== 'none' ? [{ id: 'cuffs', label: 'Punhos', icon: 'sleeves' as IconName, color: kit.cuffs.c1, setColor: (c1: string) => up((k) => ({ ...k, cuffs: { ...k.cuffs!, c1 }, colors: { ...k.colors, cuffs: c1 } })), body: cuffsBody, cam: 'sleeve' as CamView }] : []),
-          { id: 'base', label: 'Base', icon: 'base', color: fillMain(F.shirt, kit.colors.shirt), setColor: (c) => setFill('shirt', solid(c)), body: baseBody }
+          { id: 'collar', label: `Gola ${kit.config.Collar ?? 66}`, icon: 'collar', color: kit.collar?.c1 ?? kit.colors.collar, setColor: (c1) => up((k) => ({ ...k, collar: { ...k.collar!, c1 }, colors: { ...k.colors, collar: c1 } })), body: collarBody, cam: 'collar' },
+          { id: 'base', label: 'Base', icon: 'base', color: fillMain(F.shirt, kit.colors.shirt), setColor: (c) => setFill('shirt', solid(c)), body: baseBody },
+          { id: 'fabric', label: 'Tecido e costuras', icon: 'fabric', body: fabricBody }
         ])}</div>
 
     </>
@@ -2110,7 +2116,7 @@ export function Editor(): JSX.Element {
       }
       if (id.startsWith('cuffs:')) {
         const style = id.slice(6) as NonNullable<KitDesign['cuffs']>['style']
-        up((k) => ({ ...k, cuffs: { ...(k.cuffs ?? { c1: k.colors.cuffs, c2: '#ffffff', width: 60 }), style, c2: k.cuffs?.c2 ?? contrastOn(k.colors.cuffs), fabric: k.cuffs?.fabric ?? COLLAR_FABRIC } }))
+        up((k) => ({ ...k, cuffs: { ...(k.cuffs ?? { c1: k.colors.cuffs, c2: '#ffffff', width: 60 }), style, c2: k.cuffs?.c2 ?? contrastOn(k.colors.cuffs), fabric: k.cuffs?.fabric ?? CUFF_FABRIC, stitch: k.cuffs?.stitch ?? STITCH_DEFAULT } }))
         setOpenLayer('fixed:cuffs'); close(); return
       }
       if (id.startsWith('collar:')) {
@@ -2332,7 +2338,7 @@ export function Editor(): JSX.Element {
         </div>
         <div className="viewport">
           {mode === '3d'
-            ? <KitViewer texture={tex} version={texV} collar={cfg('Collar', 66)} longSleeves={longSleeves} shortsModel={cfg('ShortsModel', 1)} camera={cam} armband={!!ab.show} tucked={tucked} tight={cfg('TightKit', 1) === 1} kappa={cfg('ShortSleevesModel', 1) === 2} shine={kit.shine ?? 0} shineMap={shineMap} relief={reliefMap} autoRotate={spin} snapshot={setShot3d} light={light} lightPreset={view3d.preset} env={view3d.env} background={view3d.bg || null} hideShorts={view3d.hideShorts} hideSocks={view3d.hideSocks} sockKnit={view3d.sockKnit} />
+            ? <KitViewer texture={tex} version={texV} collar={cfg('Collar', 66)} longSleeves={longSleeves} shortsModel={cfg('ShortsModel', 1)} camera={cam} armband={!!ab.show} tucked={tucked} tight={cfg('TightKit', 1) === 1} kappa={cfg('ShortSleevesModel', 1) === 2} shine={kit.shine ?? 0} shineMap={shineMap} relief={reliefMap} autoRotate={spin} snapshot={setShot3d} light={light} lightPreset={view3d.preset} env={view3d.env} background={view3d.bg || null} hideShorts={view3d.hideShorts} hideSocks={view3d.hideSocks} sockKnit={view3d.sockKnit} sockScale={view3d.sockScale} sockStrength={view3d.sockStrength} sockMix={view3d.sockMix} />
             : <TexView tex={tex} version={texV} bg={texBg} showBg={showTexBg} islands={islands} outline={showMesh ? meshImg : showOutline ? tplOutline : null} tool={tool} setTool={setTool} onPick={onPickColor}
               onBrush={(e) => {
                 if (e.type === 'down') {
