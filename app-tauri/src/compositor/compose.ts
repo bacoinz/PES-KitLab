@@ -716,7 +716,12 @@ function partDraw(L: OverlayLayer, part: string): (l: G) => void {
   return (l) => {
     if (!frames) { l.save(); transform(l, L, 1024, 1024); frontContent(l, L); l.restore(); return }
     const even = (L.kind === 'image' && L.fit === 'tile') || L.kind === 'texture'
+    // text on the shorts: one leg only; "Espelhar" puts the mirrored copy on the other leg, the letters still reading normally
+    const textLegs = part === 'shorts' && L.kind === 'text'
+    const cx0 = FRONT_CENTER.x, p0 = L.flipX ? 2 * cx0 - (L.x ?? 1024) : L.x ?? 1024
     for (const [fi, m] of frames.entries()) {
+      if (textLegs && fi === 1 && !L.mirrorCenter) continue
+      const LL: OverlayLayer = !textLegs ? L : fi === 0 ? { ...L, mirrorCenter: false } : { ...L, flipX: false, mirrorCenter: false, x: 2 * cx0 - p0, rotation: -(L.rotation ?? 0) }
       const mirrored = m[0] * m[3] - m[1] * m[2] < 0
       // "Espelhar para o outro lado da meia": a second copy, mirrored about the front line of the sock
       const xf = part === 'socks' ? (SOCK_FRAME[1 - fi].front - m[4]) / m[0] : 0
@@ -729,7 +734,7 @@ function partDraw(L: OverlayLayer, part: string): (l: G) => void {
         }
         // mirrored frame (right sock): the layer lands on the same side of the leg, but text keeps reading normally
         unflipText = mirrored !== copy
-        try { drawFrontLayer(l, L) } finally { unflipText = false }
+        try { drawFrontLayer(l, LL) } finally { unflipText = false }
         l.restore()
       }
     }
@@ -1496,8 +1501,8 @@ async function armbandPasses(out: Pass[], d: KitDesign, assets: Record<string, A
   if (ab.text) {
     out.push({
       t: 'fill', fill: solid(ab.textColor), clip: 'armband', mask: {
-        key: 'abt:' + JSON.stringify([ab.text, ab.font, useCrest]), draw: (g) => {
-          g.font = `bold 96px "${ab.font}"`
+        key: 'abt:' + JSON.stringify([ab.text, ab.font, useCrest, ab.textSize ?? 100]), draw: (g) => {
+          g.font = `bold ${Math.round((96 * (ab.textSize ?? 100)) / 100)}px "${ab.font}"`
           g.textAlign = 'center'; g.textBaseline = 'middle'
           for (const x of useCrest ? [384] : [128, 384]) g.fillText(ab.text, x, 66)
         }

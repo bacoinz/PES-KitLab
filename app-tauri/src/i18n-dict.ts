@@ -520,6 +520,7 @@ export const DICT: Record<string, [string, string]> = {
   'Emblema do clube': ['Club badge', 'Escudo del club'],
   'Emblema do clube na braçadeira': ['Club badge on the armband', 'Escudo del club en el brazalete'],
   'Tamanho do emblema': ['Badge size', 'Tamaño del escudo'],
+  'Tamanho da fonte': ['Font size', 'Tamaño de la fuente'],
   'Trocar emblema': ['Change badge', 'Cambiar escudo'],
   'Substituir também o emblema no jogo (menus, placar)': ['Also replace the badge in the game (menus, scoreboard)', 'Sustituir también el escudo en el juego (menús, marcador)'],
   'Emblema · Camisola': ['Badge · Shirt', 'Escudo · Camiseta'],

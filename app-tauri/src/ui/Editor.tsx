@@ -1620,6 +1620,7 @@ export function Editor(): JSX.Element {
       <Row label="Texto"><input value={ab.text} maxLength={10} onChange={(e) => setAb({ text: e.target.value })} /></Row>
       <Row label="Cor do texto"><ColorInput value={ab.textColor} onChange={(textColor) => setAb({ textColor })} /></Row>
       <Row label="Fonte"><Select value={ab.font} options={SYSTEM_FONTS.map((f) => [f, f] as [string, string])} onChange={(font) => setAb({ font })} /></Row>
+      <Row label="Tamanho da fonte"><Slider value={ab.textSize ?? 100} min={30} max={160} snaps={[100]} onChange={(textSize) => setAb({ textSize })} /></Row>
       <label className="check"><input type="checkbox" checked={!!ab.crest} onChange={(e) => setAb({ crest: e.target.checked })} /> Emblema do clube na braçadeira</label>
       {ab.crest && <Row label="Tamanho do emblema"><Slider value={ab.crestSize ?? 100} min={40} max={128} onChange={(crestSize) => setAb({ crestSize })} /></Row>}
       <Row label="Padrão"><Select value={ab.pattern ?? 'none'} options={[['none', 'Liso'], ['stripes', 'Riscas'], ['hoops', 'Listas nas bordas'], ['check', 'Quadrados'], ['diagonal', 'Diagonais']]} onChange={(pattern) => setAb({ pattern })} /></Row>

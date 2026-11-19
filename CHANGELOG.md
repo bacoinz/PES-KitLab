@@ -2,6 +2,14 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.2] - 2026-11-19
+### Added
+- Captain's armband: a "Font size" slider for the armband text.
+
+### Fixed
+- Text layers on the shorts now appear on one leg only; "Mirror" (centre) puts the mirrored copy on the other leg.
+- The mirrored copy of shorts text keeps its letters reading normally instead of being flipped.
+
 ## [0.5.1] - 2026-11-19
 ### Fixed
 - A layer with its own fabric no longer gets the kit's base fabric on top: the kit fabric now skips every layer, group, collar, cuff, logo or shorts / socks design that has a fabric of its own (one or the other), on the shirt and the shorts.
