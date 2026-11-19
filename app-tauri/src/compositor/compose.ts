@@ -914,8 +914,7 @@ export function hasRelief(d: KitDesign): boolean {
 }
 /** Whether any sock layer or sock logo exists (the sock relief map is only needed then). */
 export function hasSockCover(d: KitDesign): boolean {
-  const lg = [d.logos.socksBrand, ...(d.logos.socksSponsors ?? [])].some((x) => !!x?.enabled && !!x.assetId)
-  return lg || d.layers.some((l) => l.part === 'socks' && l.visible)
+  return d.layers.some((l) => l.part === 'socks' && l.visible && l.kind !== 'text' && l.kind !== 'image')
 }
 /** Height map (white = raised) of everything with "Relevo", at 2048², or null when nothing has relief. */
 export async function composeRelief(design: KitDesign, assets: Record<string, Asset>): Promise<OffscreenCanvas | null> {
@@ -1271,7 +1270,7 @@ async function collarPasses(out: Pass[], d: KitDesign, layersDrawn: boolean, lay
     // rows between distances d0 … d1 from the fold, on the faces asked for
     // the outside (below the fold) is reflected above it, but only up to INNER: the top of the strip stays free for the
     // inside of the shirt
-    const INNER = HF - 12
+    const INNER = HF
     const rows = (d0: number, d1: number, faces = 'both') => (g: G): void => {
       const a = Math.max(0, d0), b = Math.min(d1, HF + 6)
       if (b <= a) return
@@ -1495,13 +1494,26 @@ function shortsSeamPasses(out: Pass[], hem: KitDesign['shortsHem'], mid: KitDesi
   }
   // hem: along the leg end, a little inside the edge (both legs)
   if (hem) seam(hem, 'hem', (g) => { for (const L of LEGS) g.fillRect(L.hem + (L.hem < 1024 ? 6 : -14), SHORTS_FRAME.innerTop + 6, 8, SHORTS_FRAME.innerBottom - SHORTS_FRAME.innerTop - 12) })
-  // middle (fly and back): along the notch edge of ONE leg (the other one meets it there), just inside the edge
-  if (mid) seam(mid, 'mid', (g) => {
-    g.lineWidth = 2; g.lineJoin = 'round'; g.lineCap = 'butt'
-    const line = (pts: [number, number][]): void => { g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke() }
-    line([[262, SHORTS_FRAME.innerBottom - 8], [265, SHORTS_FRAME.flySeam + 24], [345, SHORTS_FRAME.flySeam - 4], [640, SHORTS_FRAME.flySeam - 4]])
-    line([[262, SHORTS_FRAME.innerTop + 8], [265, SHORTS_FRAME.bumSeam - 24], [345, SHORTS_FRAME.bumSeam + 4], [640, SHORTS_FRAME.bumSeam + 4]])
-  })
+  // middle (fly and back): ONE thin dashed line along the notch edge of one leg (the other leg meets it there)
+  if (mid && !noStitch) {
+    const k = Math.max(0.2, mid.scale / 45)
+    out.push({
+      t: 'rgba', key: 'midline:' + JSON.stringify([mid.scale, mid.color]), clip: 'shorts', opacity: Math.max(0, Math.min(1, mid.opacity)),
+      img: () => {
+        const c = new OffscreenCanvas(S, S), g = c.getContext('2d')!
+        const line = (pts: [number, number][], dx: number, dy: number, col: string, w: number): void => {
+          g.strokeStyle = col; g.lineWidth = w; g.lineJoin = 'round'; g.setLineDash([9 * k, 7 * k]); g.beginPath()
+          pts.forEach(([x, y], i) => (i ? g.lineTo(x + dx, y + dy) : g.moveTo(x + dx, y + dy))); g.stroke()
+        }
+        const paths: [number, number][][] = [
+          [[262, SHORTS_FRAME.innerBottom - 8], [265, SHORTS_FRAME.flySeam + 24], [345, SHORTS_FRAME.flySeam - 6], [640, SHORTS_FRAME.flySeam - 6]],
+          [[262, SHORTS_FRAME.innerTop + 8], [265, SHORTS_FRAME.bumSeam - 24], [345, SHORTS_FRAME.bumSeam + 6], [640, SHORTS_FRAME.bumSeam + 6]]
+        ]
+        for (const p of paths) { line(p, 0, 0, mid.color ?? 'rgba(0,0,0,0.85)', 3 * k); if (!mid.color) line(p, 1.5, 2.5, 'rgba(255,255,255,0.55)', 1.5 * k) }
+        return c
+      }
+    })
+  }
 }
 
 /** Stitching on the hem of the shirt (bottom edge, front and back). */
@@ -1589,6 +1601,8 @@ export async function buildPasses(design: KitDesign, assets: Record<string, Asse
   let sleeveOver: Pass[] = []
   // layers / logos with their own shininess: the kit's main fabric does not cover them (one or the other)
   const shiny: Pass[] = []
+  let sockOverKey = ''
+  const sockOver: Pass[] = [] // text / images / logos on the socks: they take the sock base fabric
   let shinyKey = ''
   // shorts / socks base dragged among the layers: drawn again right after that layer (or group), over the ones below
   const deferred = new Map<string, Pass[]>()
@@ -1707,7 +1721,7 @@ export async function buildPasses(design: KitDesign, assets: Record<string, Asse
       if (sleeveOver.length && L.id === afterId) { out.push(...sleeveOver); sleeveOver = [] }
       continue
     }
-    { const first = out.length; await layerPasses(out, L, layers, assets, false); if (sockSink && L.part === 'socks' && L.visible) sockSink.push(...out.slice(first)); if (L.shine != null && L.visible) { shiny.push(...out.slice(first)); shinyKey += geomKey(L, 0) } }
+    { const first = out.length; await layerPasses(out, L, layers, assets, false); if (L.part === 'socks' && L.visible) { if (L.kind === 'text' || L.kind === 'image') { if (!L.fabric) { sockOver.push(...out.slice(first)); sockOverKey += geomKey(L, 0) } } else if (sockSink) sockSink.push(...out.slice(first)) }; if (L.shine != null && L.visible) { shiny.push(...out.slice(first)); shinyKey += geomKey(L, 0) } }
     if (sleeveOver.length && L.id === afterId) { out.push(...sleeveOver); sleeveOver = [] }
     for (const [gid, ps] of deferred) if (gid === L.id || (L.group === gid && [...layers].reverse().find((m) => m.group === gid)?.id === L.id)) out.push(...ps)
     const G = L.group ? stitched.get(L.group) : undefined
@@ -1739,13 +1753,15 @@ export async function buildPasses(design: KitDesign, assets: Record<string, Asse
   // 3. logos (flat in 2D, in each part's own frame)
   if (!opt.skipLogos) for (const g of await allLogoPasses(d, assets)) {
     out.push(...g.passes)
-    if (sockSink && g.passes.some((p) => p.clip === 'socks')) sockSink.push(...g.passes.filter((p) => p.clip === 'socks'))
+    // sponsors and brands on the socks take the sock fabric too
+    if (g.passes.some((p) => p.clip === 'socks')) { sockOver.push(...g.passes.filter((p) => p.clip === 'socks')); sockOverKey += JSON.stringify([g.lp.assetId, g.lp.size, g.lp.dx, g.lp.dy, g.lp.rot, g.lp.side, g.lp.tint, g.lp.color]) }
     if (logoShineOf(d, g.lp) != null) { shiny.push(...g.passes); shinyKey += JSON.stringify([g.lp.assetId, g.lp.size, g.lp.dx, g.lp.dy, g.lp.rot, g.lp.shine, d.logoShine]) }
     if (g.lp.outlineRelief && (g.lp.outlineWidth ?? 0) > 0) outlineRelief(out, g.passes, g.lp.outlineRelief, 'lg' + JSON.stringify([g.lp.assetId, g.lp.size, g.lp.dx, g.lp.dy, g.lp.rot, g.lp.side, g.lp.spot, g.lp.place]))
     if (g.lp.embroidery) texturePasses(out, g.passes, g.lp.embroidery, 'lemb:' + JSON.stringify([g.lp.assetId, g.lp.size, g.lp.dx, g.lp.dy, g.lp.rot, g.lp.side, g.lp.spot, g.lp.place, g.passes.length]), 1)
   }
 
   // 4. fabric & seams on top (multiply / soft-light keep colours)
+  if (!noFabric && d.socksFabric && sockOver.length) texturePasses(out, sockOver, d.socksFabric, 'sockfab2:' + sockOverKey, 1)
   if (!noFabric) mainFabricPass(out, d.fabric, shiny, shinyKey, d.fabricShorts !== false)
   if (!noStitch) {
     if (d.hemStitch) hemStitchPasses(out, d.hemStitch)
@@ -1801,7 +1817,7 @@ async function allLogoPasses(d: KitDesign, assets: Record<string, Asset>): Promi
 /** Live render for the editor: returns the shared GL canvas (2048²), which the 3D viewer uses as its texture. */
 export async function composeLive(design: KitDesign, assets: Record<string, Asset>, opt: ComposeOptions = {}): Promise<HTMLCanvasElement> {
   const { passes, s2s } = await buildPasses(design, assets, opt)
-  return renderToCanvas(passes, { s2s })
+  return renderToCanvas(passes, { s2s, size: opt.size })
 }
 
 /** Full-resolution RGBA (export). */

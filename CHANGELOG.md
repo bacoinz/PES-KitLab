@@ -2,6 +2,14 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.21] - 2026-11-19
+### Changed
+- Editor speed: while a slider (or any quick run of changes) is moving, the texture is drawn at 1024 px (about 3× faster on a kit with many layers) and a full-size render follows when you stop.
+- Collar: the whole design of the outside is reflected above the fold (same colours, mirrored), leaving the top of the strip free for the inside of the shirt.
+- Sponsors / brands, text and images on the socks take the sock base fabric (in 2D and 3D).
+### Fixed
+- The shorts fly / back seam was not showing; it is now a single thin dashed line.
+
 ## [0.4.20] - 2026-11-19
 ### Changed
 - Editor speed: the 3D relief map, the sock relief map and the shininess map are only built when something needs them, and wait until you stop moving a slider (0.7 s).

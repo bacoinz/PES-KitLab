@@ -447,16 +447,26 @@ export function Editor(): JSX.Element {
   // GPU render, at most once per animation frame (cached masks make colour/position edits a few ms)
   const renderSeq = useRef(0)
   const live = mode === '3d' && showNames ? overlay : undefined
+  // while changes come in quickly (a slider being dragged) the texture is drawn at half size (4× less GPU work); a
+  // full-size render follows once they stop
+  const lastLive = useRef(0)
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const [settle, setSettle] = useState(0)
   useEffect(() => {
     if (!kit || !project) return
     const seq = ++renderSeq.current
+    const now = Date.now()
+    const draft = now - lastLive.current < 350
+    lastLive.current = now
+    if (settleTimer.current) clearTimeout(settleTimer.current)
+    if (draft) settleTimer.current = setTimeout(() => setSettle((v) => v + 1), 400)
     const raf = requestAnimationFrame(() => {
-      composeLive(kit, project.assets, { overlay: live, skipFabric: !showFabric, skipStitch: !showStitch })
+      composeLive(kit, project.assets, { overlay: live, skipFabric: !showFabric, skipStitch: !showStitch, size: draft ? 1024 : undefined })
         .then((c) => { if (seq === renderSeq.current) { setTex(c); setTexV((v) => v + 1) } })
         .catch((e) => notify('err', 'Erro a desenhar: ' + e))
     })
     return () => cancelAnimationFrame(raf)
-  }, [kit, project, notify, live, showFabric, showStitch])
+  }, [kit, project, notify, live, showFabric, showStitch, settle])
 
   const numKey = kit ? JSON.stringify([project?.teamId, kit.slot, kit.numbers]) : ''
   useEffect(() => {

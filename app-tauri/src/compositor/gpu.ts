@@ -506,10 +506,13 @@ function runPasses(passes: Pass[], opt: RenderOptions): Target {
 /** Render and show the result on the shared GL canvas (used directly as the 3D texture). */
 export function renderToCanvas(passes: Pass[], opt: RenderOptions = {}): HTMLCanvasElement {
   const g = init()
-  const T = runPasses(passes, { ...opt, size: S })
+  // `size` < 2048: a draft for fast previews (while a slider is moving); the canvas takes that size
+  const size = opt.size ?? S
+  if (glCanvas!.width !== size) { glCanvas!.width = size; glCanvas!.height = size }
+  const T = runPasses(passes, { ...opt, size })
   g.bindFramebuffer(g.READ_FRAMEBUFFER, T.fb[T.cur])
   g.bindFramebuffer(g.DRAW_FRAMEBUFFER, null)
-  g.blitFramebuffer(0, 0, S, S, 0, 0, S, S, g.COLOR_BUFFER_BIT, g.NEAREST)
+  g.blitFramebuffer(0, 0, size, size, 0, 0, size, size, g.COLOR_BUFFER_BIT, g.NEAREST)
   g.bindFramebuffer(g.FRAMEBUFFER, null)
   return glCanvas!
 }
