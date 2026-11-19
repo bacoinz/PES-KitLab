@@ -36,6 +36,11 @@ It only ever writes its own files, so removing everything it did takes one butto
 - **Per-layer stitching** and fabric on the shirt, shorts and socks, with shine for the 3D preview.
 - **Colour picker** with kit/team/saved palettes, transparency and an eyedropper that works anywhere on screen.
 
+**Interface**
+
+- A start screen with the logo and version: it asks for the game folder only the first time, then shows the loading steps.
+- A footer with the GitHub repository, other projects and credits, also at the bottom of Settings.
+
 **Logos and numbers**
 
 - Club crest, brand, sponsors, shorts and socks logos with their own position, size and rotation.

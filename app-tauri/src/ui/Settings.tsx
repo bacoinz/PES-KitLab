@@ -32,6 +32,7 @@ export function Settings(): JSX.Element {
   const [outline, setOutline] = useState(() => ls('kc.tplOutline', '0') === '1')
   const pc = settings?.previewColors ?? ['#ff1493', '#39ff14', '#00e5ff']
   return (
+    <div className="settings-wrap">
     <div className="settings-page">
       <section className="set-card">
         <h3>Geral</h3>
@@ -130,7 +131,8 @@ export function Settings(): JSX.Element {
           {def.preset && <><span className="muted small">Predefinido guardado ✓</span><button className="btn small ghost" onClick={() => setDef({ preset: undefined })}>Esquecer</button></>}
         </div>
       </section>
-      <Footer />
+    </div>
+    <Footer />
     </div>
   )
 }

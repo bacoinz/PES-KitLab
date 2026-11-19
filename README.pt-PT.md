@@ -36,6 +36,11 @@ Só escreve os ficheiros que são dele, por isso desfazer tudo é um botão.
 - **Costuras por camada** e tecido na camisola, calções e meias, com brilho na pré-visualização 3D.
 - **Seletor de cor** com paletas do kit/equipa/guardadas, transparência e conta-gotas que funciona em qualquer sítio do ecrã.
 
+**Interface**
+
+- Um ecrã inicial com o logo e a versão: pede a pasta do jogo só à primeira vez e depois mostra os passos do carregamento.
+- Um rodapé com o repositório do GitHub, outros projetos e créditos, também no fim das Definições.
+
 **Logos e números**
 
 - Emblema do clube, marca, patrocínios, logos dos calções e das meias, cada um com posição, tamanho e rotação.
