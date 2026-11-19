@@ -5,7 +5,7 @@ import { describeStep } from './history'
 import { PANEL_STYLES, SLOT_LABEL, uid, defaultDesign, contrastOn, slotOrder, solid, fillMain, normalizeGroups, dropLayer, migrateKit, LOGO_SIZES, NUMBER_DEFAULTS, STITCH_KINDS, FABRIC_COLLAR, FABRIC_SLEEVE, COLLAR_FABRIC, CUFF_FABRIC, FABRIC_CUFF, SOCK_LAYER_FABRIC, MAIN_FABRIC, HEM_STITCH, MID_STITCH, STITCH_DEFAULT, mergeLogos, copyNumbers, groupColors, swapGroupColor, resolveGroups } from '../model/design'
 import { TEMPLATES, applyTemplate } from '../model/templates'
 import { TORSO_PATTERNS, SLEEVE_PATTERNS, SHORTS_PATTERNS, SOCKS_PATTERNS, TEXTURES, STROKES } from '../compositor/patterns'
-import { composeKit, composeLive, composeShine, composeRelief, composeSockCover, COLLAR_DESIGNS, collarParams, collarDefaults, frontThumb, raglanBend } from '../compositor/compose'
+import { composeKit, composeLive, composeShine, composeRelief, composeSockCover, onStaleRender, composeLiveShared, COLLAR_DESIGNS, collarParams, collarDefaults, frontThumb, raglanBend } from '../compositor/compose'
 import { decorationOverlay, type GlyphAtlas } from '../compositor/decorate'
 import { loadAtlases } from '../compositor/atlases'
 import { FABRICS, LAYER_FABRICS, EMBROIDERIES, TEXTURE_LOOK } from '../compositor/fabric'
@@ -446,27 +446,26 @@ export function Editor(): JSX.Element {
 
   // GPU render, at most once per animation frame (cached masks make colour/position edits a few ms)
   const renderSeq = useRef(0)
+  const sharedTexRef = useRef<WebGLTexture | null>(null)
+  // stitching kept while a slider moved: draw again once it stops
+  const [staleTick, setStaleTick] = useState(0)
+  useEffect(() => { onStaleRender(() => setStaleTick((v) => v + 1)); return () => onStaleRender(null) }, [])
   const live = mode === '3d' && showNames ? overlay : undefined
-  // while changes come in quickly (a slider being dragged) the texture is drawn at half size (4× less GPU work); a
-  // full-size render follows once they stop
-  const lastLive = useRef(0)
-  const settleTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const [settle, setSettle] = useState(0)
   useEffect(() => {
     if (!kit || !project) return
     const seq = ++renderSeq.current
-    const now = Date.now()
-    const draft = now - lastLive.current < 350
-    lastLive.current = now
-    if (settleTimer.current) clearTimeout(settleTimer.current)
-    if (draft) settleTimer.current = setTimeout(() => setSettle((v) => v + 1), 400)
     const raf = requestAnimationFrame(() => {
-      composeLive(kit, project.assets, { overlay: live, skipFabric: !showFabric, skipStitch: !showStitch, size: draft ? 1024 : undefined })
-        .then((c) => { if (seq === renderSeq.current) { setTex(c); setTexV((v) => v + 1) } })
+      const o = { overlay: live, skipFabric: !showFabric, skipStitch: !showStitch }
+      // 3D: drawn straight into the 3D view's WebGL context (no copy of the texture); 2D: the compositor's own canvas
+      const draw = mode === '3d'
+        ? composeLiveShared(kit, project.assets, o).then(async (t) => { if (t) { sharedTexRef.current = t; return null } return composeLive(kit, project.assets, o) })
+        : composeLive(kit, project.assets, o)
+      draw
+        .then((c) => { if (seq === renderSeq.current) { if (c) setTex(c); setTexV((v) => v + 1) } })
         .catch((e) => notify('err', 'Erro a desenhar: ' + e))
     })
     return () => cancelAnimationFrame(raf)
-  }, [kit, project, notify, live, showFabric, showStitch, settle])
+  }, [kit, project, notify, live, showFabric, showStitch, staleTick, mode])
 
   const numKey = kit ? JSON.stringify([project?.teamId, kit.slot, kit.numbers]) : ''
   useEffect(() => {
@@ -573,10 +572,12 @@ export function Editor(): JSX.Element {
   // small copy for the collar / shorts picker previews (refreshed once edits settle)
   const [smallTex, setSmallTex] = useState<OffscreenCanvas | null>(null)
   useEffect(() => {
-    if (!tex) return
-    const t = setTimeout(() => { const c = canvas(512, 512); ctx2d(c).drawImage(tex, 0, 0, 512, 512); setSmallTex(c) }, 700)
-    return () => clearTimeout(t)
-  }, [tex, texV])
+    if (!kit || !project) return
+    let alive = true
+    // drawn on its own (the 3D view's texture is not a canvas)
+    const t = setTimeout(() => { composeKit(kit, project.assets, { size: 512 }).then((c) => { if (alive) setSmallTex(c) }).catch(() => undefined) }, 700)
+    return () => { alive = false; clearTimeout(t) }
+  }, [kit, project])
 
   // UV islands of the models the 3D view uses: the 2D view paints the background everywhere else
   // the kit template (KIT Template.png): its parts are where the texture is used; the same for every kit
@@ -2380,7 +2381,7 @@ export function Editor(): JSX.Element {
         </div>
         <div className="viewport">
           {mode === '3d'
-            ? <KitViewer texture={tex} version={texV} collar={cfg('Collar', 66)} longSleeves={longSleeves} shortsModel={cfg('ShortsModel', 1)} camera={cam} armband={!!ab.show} tucked={tucked} tight={cfg('TightKit', 1) === 1} kappa={cfg('ShortSleevesModel', 1) === 2} shine={kit.shine ?? 0} shineMap={shineMap} relief={reliefMap} autoRotate={spin} snapshot={setShot3d} light={light} lightPreset={view3d.preset} env={view3d.env} background={view3d.bg || null} hideShorts={view3d.hideShorts} hideSocks={view3d.hideSocks} sockKnit={!!kit.socksFabric && showFabric} sockScale={kit.socksFabric?.scale ?? 100} sockStrength={Math.round(((kit.socksFabric?.opacity ?? 0.1) / 0.1) * 100)} sockMix={kit.socksFabric?.mix ?? 50} sockCover={sockCover} />
+            ? <KitViewer texture={tex} version={texV} sharedTexture={() => sharedTexRef.current} collar={cfg('Collar', 66)} longSleeves={longSleeves} shortsModel={cfg('ShortsModel', 1)} camera={cam} armband={!!ab.show} tucked={tucked} tight={cfg('TightKit', 1) === 1} kappa={cfg('ShortSleevesModel', 1) === 2} shine={kit.shine ?? 0} shineMap={shineMap} relief={reliefMap} autoRotate={spin} snapshot={setShot3d} light={light} lightPreset={view3d.preset} env={view3d.env} background={view3d.bg || null} hideShorts={view3d.hideShorts} hideSocks={view3d.hideSocks} sockKnit={!!kit.socksFabric && showFabric} sockScale={kit.socksFabric?.scale ?? 100} sockStrength={Math.round(((kit.socksFabric?.opacity ?? 0.1) / 0.1) * 100)} sockMix={kit.socksFabric?.mix ?? 50} sockCover={sockCover} />
             : <TexView tex={tex} version={texV} bg={texBg} showBg={showTexBg} islands={islands} outline={showMesh ? meshImg : showOutline ? tplOutline : null} tool={tool} setTool={setTool} onPick={onPickColor}
               onBrush={(e) => {
                 if (e.type === 'down') {

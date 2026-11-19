@@ -214,19 +214,32 @@ function invAffine([a, b, c, d, e, f]: number[]): [number[], number[]] {
 }
 const FR_INV = FRAMES.map((f) => invAffine(f.m))
 
+// ---------------------------------------------------------------- contexts
+// The compositor has its own WebGL context (2D view, exports) and, while the 3D view is open, also works inside the 3D
+// view's own context: its result is then a texture the 3D model samples directly (copying a 2048² canvas from one
+// context into another took ~40 ms on every change). Each context keeps its own program and caches.
+interface Ctx {
+  gl: WebGL2RenderingContext; canvas: HTMLCanvasElement | null; prog: WebGLProgram; U: Record<string, WebGLUniformLocation | null>
+  mapTex: WebGLTexture; vbo: WebGLBuffer; loc: number; targets: Map<number, Target>; masks: Lru<WebGLTexture>; rgbas: Lru<WebGLTexture>
+  images: WeakMap<object, WebGLTexture>; prefix: Map<number, { last: string[]; cp?: Checkpoint }>; out?: { tex: WebGLTexture; fb: WebGLFramebuffer }
+}
 let gl: WebGL2RenderingContext | null = null
 let glCanvas: HTMLCanvasElement | null = null
 let prog: WebGLProgram | null = null
-const U: Record<string, WebGLUniformLocation | null> = {}
+let U: Record<string, WebGLUniformLocation | null> = {}
 let mapTex: WebGLTexture | null = null
+let cur: Ctx | null = null
+let own: Ctx | null = null
+let shared: Ctx | null = null
+let sharedTouched = false
 type Target = { size: number; tex: [WebGLTexture, WebGLTexture]; fb: [WebGLFramebuffer, WebGLFramebuffer]; cur: 0 | 1 }
-const targets = new Map<number, Target>()
+let targets = new Map<number, Target>()
 
-function compile(type: number, src: string): WebGLShader {
-  const s = gl!.createShader(type)!
-  gl!.shaderSource(s, src)
-  gl!.compileShader(s)
-  if (!gl!.getShaderParameter(s, gl!.COMPILE_STATUS)) throw new Error('shader: ' + gl!.getShaderInfoLog(s))
+function compile(g: WebGL2RenderingContext, type: number, src: string): WebGLShader {
+  const s = g.createShader(type)!
+  g.shaderSource(s, src)
+  g.compileShader(s)
+  if (!g.getShaderParameter(s, g.COMPILE_STATUS)) throw new Error('shader: ' + g.getShaderInfoLog(s))
   return s
 }
 
@@ -274,43 +287,93 @@ function buildMap(): Uint8Array {
   return out
 }
 
-function init(): WebGL2RenderingContext {
-  if (gl) return gl
-  glCanvas = document.createElement('canvas')
-  glCanvas.width = glCanvas.height = S
-  gl = glCanvas.getContext('webgl2', { alpha: false, antialias: false, premultipliedAlpha: false, preserveDrawingBuffer: true })
-  if (!gl) throw new Error('WebGL2 indisponível')
-  prog = gl.createProgram()!
-  gl.attachShader(prog, compile(gl.VERTEX_SHADER, VS))
-  gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FS))
+function makeCtx(gl: WebGL2RenderingContext, canvas: HTMLCanvasElement | null): Ctx {
+  const prog = gl.createProgram()!
+  gl.attachShader(prog, compile(gl, gl.VERTEX_SHADER, VS))
+  gl.attachShader(prog, compile(gl, gl.FRAGMENT_SHADER, FS))
   gl.linkProgram(prog)
   if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error('program: ' + gl.getProgramInfoLog(prog))
   gl.useProgram(prog)
-  const buf = gl.createBuffer()
+  gl.bindVertexArray(null)
+  const buf = gl.createBuffer()!
   gl.bindBuffer(gl.ARRAY_BUFFER, buf)
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW)
   const loc = gl.getAttribLocation(prog, 'p')
   gl.enableVertexAttribArray(loc)
   gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0)
+  const U: Record<string, WebGLUniformLocation | null> = {}
   for (const n of ['u_map', 'u_dst', 'u_src', 'u_size', 'u_type', 'u_clip', 'u_zoneSel', 'u_s2s', 'u_maskMode', 'u_opacity', 'u_blend', 'u_grad', 'u_color', 'u_nStops', 'u_stopC', 'u_stopAt', 'u_dir', 'u_frA', 'u_frB', 'u_frS', 'u_imA', 'u_imB', 'u_tint', 'u_tintC', 'u_olR', 'u_olC', 'u_ol', 'u_tileScale', 'u_tileSize', 'u_mask2', 'u_mask2Mode', 'u_mask2Zones'])
     U[n] = gl.getUniformLocation(prog, n)
   gl.uniform1i(U.u_map, 0); gl.uniform1i(U.u_dst, 1); gl.uniform1i(U.u_src, 2); gl.uniform1i(U.u_mask2, 3)
   gl.uniform3fv(U.u_frA, FR_INV.flatMap((f) => f[0]))
   gl.uniform3fv(U.u_frB, FR_INV.flatMap((f) => f[1]))
   gl.uniform2fv(U.u_frS, FRAMES.flatMap((f) => [f.w, f.h]))
-  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true)
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)
   gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE)
-  mapTex = newTex(S, S, null, gl.NEAREST)
   gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false)
+  const mt = gl.createTexture()!
+  gl.bindTexture(gl.TEXTURE_2D, mt)
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, S, S, 0, gl.RGBA, gl.UNSIGNED_BYTE, buildMap())
+  for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.NEAREST], [gl.TEXTURE_MAG_FILTER, gl.NEAREST], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v)
   gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true)
-  return gl
+  const c: Ctx = {
+    gl, canvas, prog, U, mapTex: mt, vbo: buf, loc, targets: new Map(), images: new WeakMap(), prefix: new Map(),
+    masks: new Lru<WebGLTexture>(28, (t) => gl.deleteTexture(t)), rgbas: new Lru<WebGLTexture>(40, (t) => gl.deleteTexture(t))
+  }
+  return c
+}
+
+/** Make a context current, and put back the GL state the compositor relies on (the 3D view changes it). */
+function use(c: Ctx): WebGL2RenderingContext {
+  if (cur !== c) {
+    cur = c; gl = c.gl; glCanvas = c.canvas; prog = c.prog; U = c.U; mapTex = c.mapTex
+    targets = c.targets; masks = c.masks; rgbas = c.rgbas; images = c.images; prefix = c.prefix
+  }
+  const g = c.gl
+  g.bindVertexArray(null)
+  g.useProgram(c.prog)
+  g.bindBuffer(g.ARRAY_BUFFER, c.vbo)
+  g.enableVertexAttribArray(c.loc)
+  g.vertexAttribPointer(c.loc, 2, g.FLOAT, false, 0, 0)
+  g.disable(g.DEPTH_TEST); g.disable(g.CULL_FACE); g.disable(g.STENCIL_TEST); g.disable(g.SCISSOR_TEST); g.disable(g.BLEND)
+  g.colorMask(true, true, true, true)
+  g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL, false)
+  g.pixelStorei(g.UNPACK_COLORSPACE_CONVERSION_WEBGL, g.NONE)
+  g.pixelStorei(g.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true)
+  g.pixelStorei(g.UNPACK_ALIGNMENT, 4)
+  if (c === shared) sharedTouched = true
+  return g
+}
+
+/** The compositor's own context (its canvas is what the 2D view shows). */
+function init(): WebGL2RenderingContext {
+  if (!own) {
+    const canvas = document.createElement('canvas')
+    canvas.width = canvas.height = S
+    const g = canvas.getContext('webgl2', { alpha: false, antialias: false, premultipliedAlpha: false, preserveDrawingBuffer: true })
+    if (!g) throw new Error('WebGL2 indisponível')
+    own = makeCtx(g, canvas)
+  }
+  return use(own)
+}
+/** For read-backs (exports, thumbnails, shininess): the 3D view's context when it is open (its caches are warm). */
+function active(): WebGL2RenderingContext { return shared ? use(shared) : init() }
+
+/** The 3D view hands its WebGL2 context over (null when it closes). */
+export function attachSharedContext(g: WebGL2RenderingContext | null): void {
+  if (shared && shared.gl !== g) { flush(shared); if (cur === shared) cur = null; shared = null }
+  if (g && !shared) { shared = makeCtx(g, null); sharedTouched = true }
+}
+/** True once after the compositor used the 3D view's context: the 3D renderer must forget its cached GL state. */
+export function consumeSharedTouched(): boolean { const t = sharedTouched; sharedTouched = false; return t }
+function flush(c: Ctx): void {
+  c.masks.clear(); c.rgbas.clear(); c.prefix.clear()
 }
 
 function target(size: number): Target {
   let t = targets.get(size)
   if (t) return t
-  const g = init()
+  const g = gl!
   const mk = (): [WebGLTexture, WebGLFramebuffer] => {
     const tex = newTex(size, size, null, g.LINEAR)
     const fb = g.createFramebuffer()!
@@ -329,14 +392,18 @@ class Lru<V> {
   private m = new Map<string, V>()
   constructor(private max: number, private drop: (v: V) => void) {}
   get(k: string): V | undefined { const v = this.m.get(k); if (v !== undefined) { this.m.delete(k); this.m.set(k, v) } return v }
+  peek(k: string): V | undefined { return this.m.get(k) }
+  clear(): void { for (const v of this.m.values()) this.drop(v); this.m.clear() }
   set(k: string, v: V): void {
     this.m.set(k, v)
     while (this.m.size > this.max) { const [ok, ov] = this.m.entries().next().value!; this.m.delete(ok); this.drop(ov) }
   }
 }
-const masks = new Lru<WebGLTexture>(28, (t) => gl?.deleteTexture(t))
-const rgbas = new Lru<WebGLTexture>(12, (t) => gl?.deleteTexture(t))
-const images = new WeakMap<object, WebGLTexture>()
+let masks = new Lru<WebGLTexture>(28, (t) => gl?.deleteTexture(t))
+// painted canvases (designs, stitching, fabrics, shadows…): a kit with many of them must not push its own out on every
+// render (they would all be painted again, the slow part of moving a slider)
+let rgbas = new Lru<WebGLTexture>(40, (t) => gl?.deleteTexture(t))
+let images = new WeakMap<object, WebGLTexture>()
 
 function uploadImage(src: TexImageSource, mip: boolean): WebGLTexture {
   const g = gl!
@@ -397,8 +464,56 @@ const hexAlpha = (h: string): number => (/^#[0-9a-f]{8}$/i.test(h) ? parseInt(h.
 // ---------------------------------------------------------------- render
 export interface RenderOptions { size?: number; s2s?: boolean }
 
+// ---------------------------------------------------------------- prefix cache
+// While a slider moves, only one layer changes: the passes before it give the same picture every time. The result
+// just before the first pass that changed is kept (one texture per size) and the next render starts from there.
+const imgIds = new WeakMap<object, number>()
+let nextImgId = 1
+const imgId = (o: object): number => { let i = imgIds.get(o); if (!i) { i = nextImgId++; imgIds.set(o, i) } return i }
+function passSig(p: Pass): string {
+  const common = [p.t, p.clip, p.opacity ?? 1, p.blend ?? '', p.zoneSel?.join(',') ?? '']
+  if (p.t === 'fill') return JSON.stringify([...common, p.fill, p.mask?.key ?? '', p.mask2?.key ?? '', !!p.mask2Invert, p.s2s ?? ''])
+  if (p.t === 'image') { const q = p.place; return JSON.stringify([...common, imgId(q.img as object), q.cx, q.cy, q.w, q.h, q.rot, q.tint ?? '', q.color ?? '', q.outlineColor ?? '', q.outlineWidth ?? 0]) }
+  if (p.t === 'rgba') return JSON.stringify([...common, p.key, p.mask2?.key ?? '', !!p.mask2Invert])
+  if (p.t === 'remap') return JSON.stringify([...common, p.key])
+  return JSON.stringify([...common, p.key, p.scale, imgId(p.img as object)])
+}
+type Checkpoint = { tex: WebGLTexture; fb: WebGLFramebuffer; n: number; sigs: string[] }
+let prefix = new Map<number, { last: string[]; cp?: Checkpoint }>()
+function blit(g: WebGL2RenderingContext, from: WebGLFramebuffer, to: WebGLFramebuffer, size: number): void {
+  g.bindFramebuffer(g.READ_FRAMEBUFFER, from)
+  g.bindFramebuffer(g.DRAW_FRAMEBUFFER, to)
+  g.blitFramebuffer(0, 0, size, size, 0, 0, size, size, g.COLOR_BUFFER_BIT, g.NEAREST)
+  g.bindFramebuffer(g.READ_FRAMEBUFFER, null); g.bindFramebuffer(g.DRAW_FRAMEBUFFER, null)
+}
+
+/**
+ * Box (texture px: x0, y0, x1, y1) a source-over pass can touch, or null for the whole texture: a logo / image (its
+ * turned box plus outline) or a part with its own small area (collar, armband, cuffs, socks, shorts). Drawing only
+ * there (scissor) saves full-texture passes for every small logo.
+ */
+const regionBox = (polys: [number, number][][]): [number, number, number, number] => {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+  for (const p of polys) for (const [x, y] of p) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y) }
+  return [x0 - 4, y0 - 4, x1 + 4, y1 + 4]
+}
+const CLIP_BOX: Partial<Record<Clip, [number, number, number, number]>> = {
+  collar: regionBox(REGIONS.collar), armband: regionBox(REGIONS.armband), cuffs: regionBox([...REGIONS.cuffs, ...REGIONS.longCuffs]),
+  socks: regionBox(REGIONS.socks), shorts: regionBox(REGIONS.shorts)
+}
+function passBox(p: Pass): [number, number, number, number] | null {
+  if (p.t === 'image') {
+    const q = p.place, r = 0.5 * Math.hypot(q.w, q.h) + (q.outlineWidth ?? 0) + 4
+    return [q.cx - r, q.cy - r, q.cx + r, q.cy + r]
+  }
+  return CLIP_BOX[p.clip] ?? null
+}
+
+/** Whether a painted canvas with this key is already on the GPU (so a pass can reuse it without drawing it again). */
+export function hasRgba(key: string): boolean { return !!rgbas.peek(key) }
+
 function runPasses(passes: Pass[], opt: RenderOptions): Target {
-  const g = init()
+  const g = gl!
   const size = opt.size ?? S
   const T = target(size)
   g.useProgram(prog)
@@ -406,11 +521,42 @@ function runPasses(passes: Pass[], opt: RenderOptions): Target {
   g.uniform2f(U.u_size, size, size)
   g.uniform1i(U.u_s2s, opt.s2s ? 1 : 0)
   g.activeTexture(g.TEXTURE0); g.bindTexture(g.TEXTURE_2D, mapTex)
-  // start from black
-  g.bindFramebuffer(g.FRAMEBUFFER, T.fb[T.cur])
-  g.clearColor(0, 0, 0, 1)
-  g.clear(g.COLOR_BUFFER_BIT)
-  for (const p of passes) {
+  const head = 's2s:' + !!opt.s2s
+  const sigs = passes.map((p) => head + passSig(p))
+  let st = prefix.get(size)
+  if (!st) { st = { last: [] }; prefix.set(size, st) }
+  // first pass that differs from the last render: the checkpoint goes just before it
+  let diff = 0
+  while (diff < sigs.length && diff < st.last.length && sigs[diff] === st.last[diff]) diff++
+  const cp = st.cp
+  let start = 0
+  if (cp && cp.n > 0 && cp.n <= sigs.length && cp.sigs.every((x, i) => x === sigs[i])) {
+    blit(g, cp.fb, T.fb[T.cur], size)
+    start = cp.n
+  } else {
+    // start from black
+    g.bindFramebuffer(g.FRAMEBUFFER, T.fb[T.cur])
+    g.clearColor(0, 0, 0, 1)
+    g.clear(g.COLOR_BUFFER_BIT)
+  }
+  st.last = sigs
+  // worth keeping only when the change is not at the very start, and differs from the checkpoint already held
+  const keepAt = diff > 0 && diff < sigs.length && !(cp && cp.n === diff && start === diff) ? diff : -1
+  for (let i = start; i < passes.length; i++) {
+    const p = passes[i]
+    if (i === keepAt) {
+      let c = st.cp
+      if (!c) {
+        const tex = newTex(size, size, null, g.LINEAR), fb = g.createFramebuffer()!
+        g.bindFramebuffer(g.FRAMEBUFFER, fb)
+        g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, g.TEXTURE_2D, tex, 0)
+        c = st.cp = { tex, fb, n: 0, sigs: [] }
+      }
+      blit(g, T.fb[T.cur], c.fb, size)
+      c.n = i; c.sigs = sigs.slice(0, i)
+      g.useProgram(prog)
+      g.activeTexture(g.TEXTURE0); g.bindTexture(g.TEXTURE_2D, mapTex)
+    }
     const blend = BLENDS[p.blend ?? 'source-over'] ?? 0
     g.uniform1i(U.u_clip, CLIPS[p.clip])
     g.uniform1i(U.u_s2s, (p.t === 'fill' && p.s2s !== undefined ? p.s2s : opt.s2s) ? 1 : 0)
@@ -481,12 +627,18 @@ function runPasses(passes: Pass[], opt: RenderOptions): Target {
       g.uniform2f(U.u_tileSize, (p.img as { width: number }).width, (p.img as { height: number }).height)
     }
     if (blend === 0 && p.t !== 'remap') {
-      // plain source-over: hardware blending into the current target
+      // plain source-over: hardware blending into the current target (only over the pass's own box when it has one)
       g.bindFramebuffer(g.FRAMEBUFFER, T.fb[T.cur])
+      const box = passBox(p)
+      if (box) {
+        const k = size / S, x0 = Math.max(0, Math.floor(box[0] * k)), x1 = Math.min(size, Math.ceil(box[2] * k)), y0 = Math.max(0, Math.floor(box[1] * k)), y1 = Math.min(size, Math.ceil(box[3] * k))
+        g.enable(g.SCISSOR_TEST); g.scissor(x0, size - y1, Math.max(0, x1 - x0), Math.max(0, y1 - y0))
+      }
       g.enable(g.BLEND)
       g.blendFuncSeparate(g.SRC_ALPHA, g.ONE_MINUS_SRC_ALPHA, g.ZERO, g.ONE)
       g.drawArrays(g.TRIANGLE_STRIP, 0, 4)
       g.disable(g.BLEND)
+      if (box) g.disable(g.SCISSOR_TEST)
     } else {
       // other blend modes read the current target and write the other one
       const nxt = (1 - T.cur) as 0 | 1
@@ -517,9 +669,44 @@ export function renderToCanvas(passes: Pass[], opt: RenderOptions = {}): HTMLCan
   return glCanvas!
 }
 
+/**
+ * Render inside the 3D view's context and return the result as a mip-mapped texture of that context (null when the 3D
+ * view is not open): the 3D model samples it directly.
+ */
+export function renderToShared(passes: Pass[], opt: RenderOptions = {}): WebGLTexture | null {
+  if (!shared) return null
+  const g = use(shared)
+  const T = runPasses(passes, { ...opt, size: S })
+  const c = shared
+  if (!c.out) {
+    const tex = g.createTexture()!
+    g.bindTexture(g.TEXTURE_2D, tex)
+    g.texStorage2D(g.TEXTURE_2D, Math.floor(Math.log2(S)) + 1, g.RGBA8, S, S)
+    g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.LINEAR_MIPMAP_LINEAR)
+    g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAG_FILTER, g.LINEAR)
+    g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_S, g.CLAMP_TO_EDGE)
+    g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_T, g.CLAMP_TO_EDGE)
+    const ext = g.getExtension('EXT_texture_filter_anisotropic')
+    if (ext) g.texParameterf(g.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, 8)
+    const fb = g.createFramebuffer()!
+    g.bindFramebuffer(g.FRAMEBUFFER, fb)
+    g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, g.TEXTURE_2D, tex, 0)
+    c.out = { tex, fb }
+  }
+  // the compositor's rows run bottom-up (GL): flip while copying, so the texture reads like the canvas (flipY off)
+  g.bindFramebuffer(g.READ_FRAMEBUFFER, T.fb[T.cur])
+  g.bindFramebuffer(g.DRAW_FRAMEBUFFER, c.out.fb)
+  g.blitFramebuffer(0, 0, S, S, 0, S, S, 0, g.COLOR_BUFFER_BIT, g.NEAREST)
+  g.bindFramebuffer(g.READ_FRAMEBUFFER, null); g.bindFramebuffer(g.DRAW_FRAMEBUFFER, null)
+  g.bindTexture(g.TEXTURE_2D, c.out.tex)
+  g.generateMipmap(g.TEXTURE_2D)
+  g.bindTexture(g.TEXTURE_2D, null)
+  return c.out.tex
+}
+
 /** Render and read back RGBA (top row first), e.g. for export or small previews. */
 export function renderToRgba(passes: Pass[], opt: RenderOptions = {}): { width: number; height: number; data: Uint8Array } {
-  const g = init()
+  const g = active()
   const size = opt.size ?? S
   const T = runPasses(passes, opt)
   g.bindFramebuffer(g.FRAMEBUFFER, T.fb[T.cur])

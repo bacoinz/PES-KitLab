@@ -5,6 +5,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import type { MeshDto } from '@shared/ipc'
 import { cometFiles, loadGlb, collarFitted, shortsFitted } from './comet'
 import { shineToRoughness } from '../compositor/compose'
+import { attachSharedContext, consumeSharedTouched } from '../compositor/gpu'
 import { fabricTile } from '../compositor/fabric'
 
 const modelCache = new Map<string, Promise<MeshDto[]>>()
@@ -331,13 +332,17 @@ export interface ViewerProps {
   sockCover?: OffscreenCanvas | null // what the sock layers cover (the rib stays off it)
   sockScale?: number; sockStrength?: number; sockMix?: number // size %, strength %, mix with the kit's grain %
   sockKnit?: boolean // stretchy knit relief on the socks (3D only)
+  /** the kit texture lives in this view's own WebGL context (compositor renderToShared): `version` bumps when it changed */
+  sharedTexture?: () => WebGLTexture | null
   /** receives a function that returns the current 3D view as a PNG */
   snapshot?: (take: () => Promise<Blob | null>) => void
 }
 
-export function KitViewer({ texture, version = 0, collar, longSleeves, shortsModel = 1, camera, armband = false, tucked = false, tight = true, kappa = false, height = '100%', shine = 0, shineMap = null, relief = null, autoRotate = false, snapshot, light = 40, lightPreset = 'hdri', env = 'room', background = null, hideShorts = false, hideSocks = false, sockKnit = true, sockScale = 100, sockStrength = 100, sockMix = 50, sockCover = null }: ViewerProps): JSX.Element {
+export function KitViewer({ texture, version = 0, collar, longSleeves, shortsModel = 1, camera, armband = false, tucked = false, tight = true, kappa = false, height = '100%', shine = 0, shineMap = null, relief = null, autoRotate = false, snapshot, light = 40, lightPreset = 'hdri', env = 'room', background = null, hideShorts = false, hideSocks = false, sockKnit = true, sharedTexture, sockScale = 100, sockStrength = 100, sockMix = 50, sockCover = null }: ViewerProps): JSX.Element {
   const host = useRef<HTMLDivElement>(null)
   const sockKnitRef = useRef(sockKnit)
+  const sharedRef = useRef(sharedTexture)
+  sharedRef.current = sharedTexture
   const sockStrengthRef = useRef(sockStrength)
   sockStrengthRef.current = sockStrength
   sockKnitRef.current = sockKnit
@@ -348,6 +353,7 @@ export function KitViewer({ texture, version = 0, collar, longSleeves, shortsMod
     const el = host.current!
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true })
     renderer.setPixelRatio(window.devicePixelRatio)
+    if (sharedRef.current) attachSharedContext(renderer.getContext() as WebGL2RenderingContext)
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.toneMapping = THREE.NeutralToneMapping // keeps hues and saturation close to the texture (ACES washes colours out)
     renderer.toneMappingExposure = 0.95
@@ -376,6 +382,8 @@ export function KitViewer({ texture, version = 0, collar, longSleeves, shortsMod
       map: tex, roughness: 0.93, metalness: 0, side: THREE.DoubleSide, envMapIntensity: 0.75,
       bumpMap: fabricBump(), bumpScale: 0.6
     })
+    // the shared texture holds sRGB bytes in a plain RGBA8 texture: decode in the shader (three's video-texture path)
+    if (sharedRef.current) mat.defines = { ...mat.defines, DECODE_VIDEO_TEXTURE: '' }
     const group = new THREE.Group()
     scene.add(group)
     const resize = (): void => {
@@ -411,13 +419,15 @@ export function KitViewer({ texture, version = 0, collar, longSleeves, shortsMod
       k.bumpMap = sockKnitRef.current ? (k.userData.rib as THREE.Texture) : m.bumpMap; k.bumpScale = sockKnitRef.current ? 3 * sockStrengthRef.current / 100 : m.bumpScale
       if (k.map !== m.map || k.roughnessMap !== m.roughnessMap) { k.map = m.map; k.roughnessMap = m.roughnessMap; k.needsUpdate = true }
       k.roughness = m.roughness; k.envMapIntensity = m.envMapIntensity
+      if (consumeSharedTouched()) renderer.resetState()
       ctl.update(); renderer.render(scene, cam); s.raf = requestAnimationFrame(loop)
     }
     // game pieces: front faces only, plus an inside-out copy lit like the outside (folds show the cloth's other side
     // with the same light instead of a dark gap)
-    const front = mat.clone(); front.side = THREE.FrontSide
+    // (MeshStandardMaterial.copy resets `defines`: give the clones the sRGB decode again)
+    const front = mat.clone(); front.side = THREE.FrontSide; front.defines = { ...mat.defines }
     // socks: a stretchier knit than the shirt (own relief, 3D only)
-    const sock = mat.clone(); sock.userData.rib = sockBumpTex(100, 100); sock.bumpMap = sock.userData.rib as THREE.Texture; sock.bumpScale = 3
+    const sock = mat.clone(); sock.userData.rib = sockBumpTex(100, 100); sock.bumpMap = sock.userData.rib as THREE.Texture; sock.bumpScale = 3; sock.defines = { ...mat.defines }
     st.current = { renderer, scene, cam, ctl, mat, tex, group, raf: 0, fly: null, key, fill, pmrem, envMul: 1, envTex, front, sock }
     // scripted checks: point the camera anywhere
     ;(window as unknown as { __kcView: unknown }).__kcView = (p: [number, number, number], t: [number, number, number]): void => {
@@ -427,6 +437,7 @@ export function KitViewer({ texture, version = 0, collar, longSleeves, shortsMod
     return () => {
       cancelAnimationFrame(st.current!.raf)
       ro.disconnect()
+      if (sharedRef.current) attachSharedContext(null)
       renderer.dispose()
       el.removeChild(renderer.domElement)
       st.current = null
@@ -585,7 +596,17 @@ export function KitViewer({ texture, version = 0, collar, longSleeves, shortsMod
   // texture
   useEffect(() => {
     const s = st.current
-    if (!s || !texture) return
+    if (!s) return
+    if (sharedTexture) {
+      // the compositor drew straight into this context: point three's texture at it (never uploaded by three)
+      const glt = sharedTexture()
+      if (glt) {
+        const props = s.renderer.properties.get(s.tex) as { __webglTexture?: WebGLTexture; __webglInit?: boolean }
+        props.__webglTexture = glt; props.__webglInit = true
+        return
+      }
+    }
+    if (!texture) return
     if (s.tex.image && (s.tex.image as OffscreenCanvas).width !== texture.width) {
       // size changed: new GPU texture
       const t = s.tex.clone(); t.image = texture; t.needsUpdate = true

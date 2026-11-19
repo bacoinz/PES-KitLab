@@ -3,16 +3,16 @@
  * Geometry (patterns, shapes, text) is rasterised once into cached masks; colours, gradients, blending, logo tinting
  * and placement are GPU work, so editing a colour or moving a logo is instant.
  */
-import type { CollarStyle, CollarSpec, KitDesign, Asset, LogoPlacement, OverlayLayer, Fill, PatternSpec, TextureSpec } from '../model/design'
+import type { CollarStyle, CollarSpec, KitDesign, Asset, LogoPlacement, OverlayLayer, Fill, PatternSpec, TextureSpec, StitchSpec } from '../model/design'
 import { hexToRgb, contrastOn, migrateKit, solid, fillMain, luminance, resolveGroups, LOGO_BASE, shortsBase, NUMBER_DEFAULTS } from '../model/design'
 import { S, REGIONS, SPOTS, CLEAN_RECTS, pathOf, TORSO, SEAM, SHORTS_FRAME, SOCK_FRAME, LEGS, sleeveSeam, SLEEVE_SEAMS, PANEL, NECK_HOLE, BACK_AXIS, backY, mirrorX, type Pt } from './uv'
 import { drawTorsoPattern, drawSleevePattern, drawShortsPattern, drawSocksPattern, drawTexture } from './patterns'
 import { loadAsset, recolor, cleanRects, imgW, imgH, canvas, ctx2d } from './images'
-import { drawSeams, fabricTile, texturePaint, fabricPaint, TEXTURE_LOOK } from './fabric'
+import { drawSeams, fabricTile, texturePaint, texturePaintShared, fabricPaint, TEXTURE_LOOK } from './fabric'
 import { drawDesign } from './designs'
 import { stitchCanvas } from './stitch'
 import { collarModel } from '../three/comet'
-import { renderToCanvas, renderToRgba, type Pass, type MaskSrc, type ImageSource, type Clip } from './gpu'
+import { renderToCanvas, renderToRgba, renderToShared, hasRgba, type Pass, type MaskSrc, type ImageSource, type Clip } from './gpu'
 
 type G = OffscreenCanvasRenderingContext2D
 
@@ -843,7 +843,7 @@ async function layerPasses(out: Pass[], L: OverlayLayer, all: OverlayLayer[], as
   const mk = L.maskLayer ? all.filter((x) => x.id === L.maskLayer || x.group === L.maskLayer).map((x) => geomKey(x, 0)).join('|') : ''
   const gk = geomKey(L, [shoulderShape ? JSON.stringify(shoulderShape) : 0, mine.length, mk])
   const base = L.kind === 'design' ? L.colors?.[0] ?? L.color : undefined
-  if (L.stitch) stitchPasses(out, mine, L.stitch, 'stitch:' + geomKey(L, [L.stitch.kind, L.stitch.side, L.stitch.scale, L.stitch.color, L.stitch.relief, mk]), L.opacity, base)
+  if (L.stitch) stitchPasses(out, mine, L.stitch, 'stitch:' + geomKey(L, [L.stitch.kind, L.stitch.side, L.stitch.scale, L.stitch.color, L.stitch.relief, mk]), L.opacity, base, L.id)
   // fabric over the layer's shape; embroidery only on images / text (the layers that are a logo or a lettering)
   if (L.shine == null) texturePasses(out, mine, L.fabric, 'fab:' + gk, L.opacity, base)
   if (L.outlineRelief && (L.border || L.kind === 'design')) outlineRelief(out, mine, L.outlineRelief, 'l' + gk)
@@ -851,16 +851,29 @@ async function layerPasses(out: Pass[], L: OverlayLayer, all: OverlayLayer[], as
 }
 
 /** Stitches round the shape a set of passes covers (one layer, or every member of a group). */
+const stitchLast = new Map<string, { key: string; at: number }>()
+let staleListener: (() => void) | null = null
+let staleTimer: ReturnType<typeof setTimeout> | undefined
+/** The editor asks to be told when something shown is out of date (stitching kept while a slider moved). */
+export function onStaleRender(f: (() => void) | null): void { staleListener = f }
+function staleSoon(): void { if (staleTimer) clearTimeout(staleTimer); staleTimer = setTimeout(() => staleListener?.(), 450) }
 /** Preview switches ("Mostrar tecidos" / "Mostrar costuras"), set at the start of each build. */
 let noFabric = false, noStitch = false
-function stitchPasses(out: Pass[], mine: Pass[], sp: NonNullable<OverlayLayer['stitch']>, key: string, opacity: number, base?: string): void {
+function stitchPasses(out: Pass[], mine: Pass[], sp: NonNullable<OverlayLayer['stitch']>, key: string, opacity: number, base?: string, slot?: string): void {
   if (noStitch) return
   const { clips, coverage } = coverageOf(mine, base)
   if (sp.relief) shadowPasses(out, clips, coverage, sp.relief, key)
   if (sp.relief && reliefSink) for (const clip of clips) reliefSink.set('st:' + key + clip, { amount: sp.relief, cover: () => coverage(clip), lines: () => stitchCanvas(coverage(clip), sp) ?? new OffscreenCanvas(1, 1) })
   for (const clip of clips) {
+    // tracing stitches is slow: while the layer keeps changing (a slider is moving) the last stitching stays and is
+    // traced again once the changes stop
+    let k = key + clip
+    if (slot && !reliefSink) {
+      const id = slot + clip, prev = stitchLast.get(id), now = performance.now()
+      if (prev && prev.key !== k && now - prev.at < 400 && hasRgba(prev.key)) { prev.at = now; k = prev.key; staleSoon() } else stitchLast.set(id, { key: k, at: now })
+    }
     out.push({
-      t: 'rgba', key: key + clip, clip, opacity: Math.max(0, Math.min(1, sp.opacity ?? 0.8)) * opacity,
+      t: 'rgba', key: k, clip, opacity: Math.max(0, Math.min(1, sp.opacity ?? 0.8)) * opacity,
       img: () => stitchCanvas(coverage(clip), sp) ?? new OffscreenCanvas(1, 1)
     })
   }
@@ -945,11 +958,23 @@ function texturePasses(out: Pass[], mine: Pass[], spec: TextureSpec | undefined,
   // embroidery is not a fabric: it stays when the fabrics are hidden
   if (noFabric && !key.startsWith('emb:') && !key.startsWith('lemb:')) return
   const look = TEXTURE_LOOK[spec.id] ?? { opacity: 0.5, blend: 'source-over' as GlobalCompositeOperation }
+  const op = Math.max(0, Math.min(1, spec.opacity ?? look.opacity)) * opacity
+  // fast path (no read-back, nothing redrawn while a layer moves): a plain-colour pass is masked on the GPU by its own
+  // mask; images, painted designs and passes that already use their second mask go through the coverage below
+  const slow: Pass[] = []
+  const pk = 'texpaint:' + JSON.stringify([spec.id, spec.scale ?? 100, spec.angle ?? 0])
+  for (const p of mine) {
+    if (p.t === 'fill' && !p.mask2 && !base) {
+      out.push({ t: 'rgba', key: pk, clip: p.clip, zoneSel: p.zoneSel, opacity: op, blend: look.blend, mask2: p.mask, img: () => texturePaintShared(spec.id, spec.scale ?? 100, spec.angle ?? 0) })
+    } else slow.push(p)
+  }
+  if (!slow.length) return
+  mine = slow
   const { clips, coverage } = coverageOf(mine, base)
   const tk = JSON.stringify([spec.id, spec.scale ?? 100, spec.angle ?? 0, base])
   for (const clip of clips) {
     out.push({
-      t: 'rgba', key: 'tex:' + key + tk + clip, clip, opacity: Math.max(0, Math.min(1, spec.opacity ?? look.opacity)) * opacity, blend: look.blend,
+      t: 'rgba', key: 'tex:' + key + tk + clip, clip, opacity: op, blend: look.blend,
       img: () => {
         const c = texturePaint(spec.id, spec.scale ?? 100, spec.angle ?? 0), g = c.getContext('2d')!
         g.globalCompositeOperation = 'destination-in'
@@ -984,6 +1009,10 @@ function maskAlpha(m: MaskSrc, invert: boolean, channel?: number): OffscreenCanv
 
 /** Coverage of a set of passes: the clip zones they touch and, per zone, a white-on-transparent canvas of their shape. */
 function coverageOf(mine: Pass[], base?: string): { clips: Set<Clip>; coverage: (clip: Clip) => OffscreenCanvas } {
+  const r = coverageRaw(mine, base), memo = new Map<Clip, OffscreenCanvas>()
+  return { clips: r.clips, coverage: (clip) => { let c = memo.get(clip); if (!c) { c = r.coverage(clip); memo.set(clip, c) } return c } }
+}
+function coverageRaw(mine: Pass[], base?: string): { clips: Set<Clip>; coverage: (clip: Clip) => OffscreenCanvas } {
   // coverage canvases per clip (white on transparent); built lazily by the pass's img() when the key is new
   const clips = new Set<Clip>()
   for (const p of mine) {
@@ -1199,15 +1228,16 @@ export interface CollarParam { key: string; label: string; min?: number; max?: n
  * shows (the PES Master "Collar" stripe is centred on the same line).
  */
 export const COLLAR_FOLD = 1920, COLLAR_HALF = 40
-const FACES: CollarParam = { key: 'faces', label: 'Lados', options: [['both', 'Fora e dentro'], ['out', 'Só por fora'], ['in', 'Só por dentro']] }
+// the inside always mirrors the outside now (band() in collarPasses): no "Lados" option
+export const FACES: CollarParam = { key: 'faces', label: 'Lados', options: [['both', 'Fora e dentro'], ['out', 'Só por fora'], ['in', 'Só por dentro']] }
 /** Own options of each collar design (values in the layer's `p`; defaults in collarDefaults). */
 export function collarParams(st: CollarStyle): CollarParam[] {
-  const rim: CollarParam[] = [{ key: 'pos', label: 'Onde', options: [['fold', 'Na borda da gola (dobra)'], ['seam', 'Junto à camisola (costura)'], ['both', 'Nas duas']] }, { key: 'trimW', label: 'Largura do rebordo', min: 2, max: 80 }, { key: 'trimOff', label: 'Distância da costura', min: 0, max: 20 }, FACES]
+  const rim: CollarParam[] = [{ key: 'pos', label: 'Onde', options: [['fold', 'Na borda da gola (dobra)'], ['seam', 'Junto à camisola (costura)'], ['both', 'Nas duas']] }, { key: 'trimW', label: 'Largura do rebordo', min: 2, max: 80 }, { key: 'trimOff', label: 'Distância da costura', min: 0, max: 20 }]
   switch (st) {
     case 'tipped': case 'outerTrim': case 'innerTrim': case 'doubleTrim': return rim
-    case 'stripes2': case 'stripes3': case 'stripes4': return [{ key: 'alt', label: 'Cores das riscas', options: [['0', 'Todas na cor 2'], ['1', 'Alternar cor 2 e cor 3']] }, { key: 'count', label: 'Número de riscas', min: 1, max: 6 }, { key: 'lineW', label: 'Largura de cada risca', min: 1, max: 20 }, { key: 'gap', label: 'Espaçamento', min: 0, max: 20 }, { key: 'offset', label: 'Distância da dobra', min: 0, max: 38 }, FACES]
-    case 'twoTone': return [{ key: 'side', label: 'Cor 2 vai para', options: [['in', 'O lado de dentro'], ['out', 'O lado de fora']] }]
-    case 'threeColor': return [{ key: 'mid', label: 'Largura da faixa do meio (%)', min: 5, max: 90 }, { key: 'side', label: 'Cor 3 vai para', options: [['in', 'O lado de dentro'], ['out', 'O lado de fora']] }]
+    case 'stripes2': case 'stripes3': case 'stripes4': return [{ key: 'alt', label: 'Cores das riscas', options: [['0', 'Todas na cor 2'], ['1', 'Alternar cor 2 e cor 3']] }, { key: 'count', label: 'Número de riscas', min: 1, max: 6 }, { key: 'lineW', label: 'Largura de cada risca', min: 1, max: 20 }, { key: 'gap', label: 'Espaçamento', min: 0, max: 20 }, { key: 'offset', label: 'Distância da dobra', min: 0, max: 38 }]
+    case 'twoTone': return []
+    case 'threeColor': return [{ key: 'mid', label: 'Largura da faixa do meio (%)', min: 5, max: 90 }]
     case 'front': case 'front1': case 'front2': case 'front3': return [{ key: 'fw', label: 'Largura da frente (%)', min: 4, max: 90 }]
     case 'back': return [{ key: 'bw', label: 'Largura da nuca (%)', min: 4, max: 90 }]
     case 'vInsert': case 'vInsert3': case 'vSlim': case 'vLine': case 'vSlimL': case 'vSlimR': case 'vInsertR3':
@@ -1266,17 +1296,24 @@ async function collarPasses(out: Pass[], d: KitDesign, layersDrawn: boolean, lay
     // 1. the band, before the layers. Folded strip: the fold (F) is the middle and both faces run away from it (below
     // = inside, above = outside); a design is measured as the distance d from the fold and drawn
     // on both faces (or just one: option "Lados"), so the inside of the collar shows it too
-    const band = (key: string, color: string, draw: (g: G) => void): void => { out.push({ t: 'fill', fill: solid(color), clip: 'collar', mask: { key: 'collar3:' + key + ':' + x0 + ':' + x1, draw } }) }
+    // the inside (above the fold) is always the mirror image of the outside, up to INNER; the top stays for the
+    // inside of the shirt
+    const INNER = HF
+    const mirrored = (draw: (g: G) => void) => (g: G): void => {
+      g.save(); g.beginPath(); g.rect(-S, F, 3 * S, 2 * S); g.clip(); draw(g); g.restore()
+      g.save(); g.beginPath(); g.rect(-S, F - INNER, 3 * S, INNER); g.clip(); g.translate(0, 2 * F); g.scale(1, -1); draw(g); g.restore()
+    }
+    const band = (key: string, color: string, draw: (g: G) => void): void => { out.push({ t: 'fill', fill: solid(color), clip: 'collar', mask: { key: 'collar5:' + key + ':' + x0 + ':' + x1, draw: mirrored(draw) } }) }
     // rows between distances d0 … d1 from the fold, on the faces asked for
     // the outside (below the fold) is reflected above it, but only up to INNER: the top of the strip stays free for the
     // inside of the shirt
-    const INNER = HF
     const rows = (d0: number, d1: number, faces = 'both') => (g: G): void => {
       const a = Math.max(0, d0), b = Math.min(d1, HF + 6)
-      if (b <= a) return
+      // "inside only" parts are not on the outside, so (mirrored) they are not on the inside either
+      if (b <= a || faces === 'in') return
       // checked in the 3D preview: below the fold (v > 1920) is the outside of the collar, above it the inside
-      if (faces !== 'in') g.fillRect(x0, F + a, w, b - a)
-      if (faces !== 'out' && a < INNER) g.fillRect(x0, F - Math.min(b, INNER), w, Math.min(b, INNER) - a)
+      // drawn on the outside; band() mirrors it onto the inside (so "Lados" no longer leaves a face out)
+      g.fillRect(x0, F + a, w, b - a)
     }
     const centre = (r: number) => (g: G): void => { g.fillRect(x0, F - Math.min(r, INNER), w, r + Math.min(r, INNER)) }
     const fc = String(P.faces ?? 'both')
@@ -1477,51 +1514,70 @@ function mainFabricPass(out: Pass[], spec: TextureSpec | null | undefined, shiny
   })
 }
 
-/** Stitching on the shorts: the hems (leg ends) and the middle seams (fly and back, where the two halves join). */
-function shortsSeamPassesOld(out: Pass[], hem: KitDesign['shortsHem'], mid: KitDesign['shortsMid']): void {
-  const strip = (sp: NonNullable<KitDesign['shortsHem']>, key: string, rects: [number, number, number, number][]): void => {
-    const pass: Pass = { t: 'fill', fill: solid('#fff'), clip: 'shorts', mask: { key: 'sh' + key, draw: (g) => { for (const [x, y, w, h] of rects) g.fillRect(x, y, w, h) } } }
-    stitchPasses(out, [pass], sp, 'shseam:' + key + JSON.stringify(sp), 1)
+/**
+ * A seam drawn straight along a line (hems, fly): the thread itself, at the stitch's size; "Relevo (sombra e luz)"
+ * only gets a light edge when the relief is on. Kinds: dashed, double (two lines), dotted, solid, zigzag, cross.
+ */
+function seamLinePass(out: Pass[], sp: StitchSpec, key: string, clip: Clip, paths: [number, number][][]): void {
+  if (noStitch) return
+  const k = Math.max(0.2, sp.scale / 45)
+  const draw = (g: G, dx: number, dy: number, col: string, w: number): void => {
+    g.strokeStyle = col; g.fillStyle = col; g.lineWidth = w; g.lineJoin = 'round'; g.lineCap = sp.kind === 'dotted' ? 'round' : 'butt'
+    const dash = sp.kind === 'dashed' || sp.kind === 'double' ? [9 * k, 7 * k] : sp.kind === 'dotted' ? [0.1, 5 * k] : []
+    for (const p of paths) {
+      // offset copies of the line for the double stitch (along each point's normal)
+      const offs = sp.kind === 'double' ? [-2.6 * k, 2.6 * k] : [0]
+      for (const o of offs) {
+        const pts = p.map(([x, y], i) => {
+          const [ax, ay] = p[Math.max(0, i - 1)], [bx, by] = p[Math.min(p.length - 1, i + 1)]
+          const l = Math.hypot(bx - ax, by - ay) || 1
+          return [x + (-(by - ay) / l) * o + dx, y + ((bx - ax) / l) * o + dy] as [number, number]
+        })
+        if (sp.kind === 'zigzag' || sp.kind === 'cross') {
+          // marks along the line
+          for (let i = 0; i + 1 < pts.length; i++) {
+            const [ax, ay] = pts[i], [bx, by] = pts[i + 1], L = Math.hypot(bx - ax, by - ay), ux = (bx - ax) / L, uy = (by - ay) / L
+            const st = 5 * k, h = 2.4 * k
+            g.setLineDash([]); g.beginPath()
+            for (let t = 0, n = 0; t <= L; t += st, n++) {
+              const cx = ax + ux * t, cy = ay + uy * t
+              if (sp.kind === 'zigzag') { const s2 = n % 2 ? h : -h; if (n) g.lineTo(cx - uy * s2, cy + ux * s2); else g.moveTo(cx - uy * s2, cy + ux * s2) }
+              else { g.moveTo(cx - h, cy - h); g.lineTo(cx + h, cy + h); g.moveTo(cx + h, cy - h); g.lineTo(cx - h, cy + h) }
+            }
+            g.stroke()
+          }
+          continue
+        }
+        g.setLineDash(dash); g.beginPath()
+        pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)))
+        g.stroke()
+      }
+    }
   }
-  if (hem) strip(hem, 'hem', LEGS.map((L) => [L.hem - 4, SHORTS_FRAME.innerTop, 8, SHORTS_FRAME.innerBottom - SHORTS_FRAME.innerTop] as [number, number, number, number]))
-  if (mid) strip(mid, 'mid', [345, SHORTS_FRAME.bumSeam - 4, 295, 8, 345, SHORTS_FRAME.flySeam - 4, 295, 8].reduce((a: [number, number, number, number][], _, i, r) => (i % 4 ? a : [...a, r.slice(i, i + 4) as [number, number, number, number]]), []).flatMap(([x, y, w, h]) => [[x, y, w, h], [2048 - x - w, y, w, h]] as [number, number, number, number][]))
+  const paint = (): OffscreenCanvas => {
+    const c = new OffscreenCanvas(S, S), g = c.getContext('2d')!
+    draw(g, 0, 0, sp.color ?? 'rgba(0,0,0,0.75)', 1.6 * k)
+    if (!sp.color && (sp.relief ?? 0) > 0) draw(g, 0.8 * k, 1.2 * k, 'rgba(255,255,255,0.5)', 0.9 * k)
+    return c
+  }
+  const pkey = 'seamline:' + key + JSON.stringify([sp.kind, sp.scale, sp.color, !!sp.relief])
+  out.push({ t: 'rgba', key: pkey, clip, opacity: Math.max(0, Math.min(1, sp.opacity)), img: paint })
+  if (sp.relief && reliefSink) reliefSink.set(pkey, { amount: sp.relief, cover: paint, lines: paint })
 }
 
+/** Stitching on the shorts: the hems (leg ends, a little inside) and ONE line for the fly / back seam (one leg only). */
 function shortsSeamPasses(out: Pass[], hem: KitDesign['shortsHem'], mid: KitDesign['shortsMid']): void {
-  const seam = (sp: NonNullable<KitDesign['shortsHem']>, key: string, draw: (g: G) => void): void => {
-    const pass: Pass = { t: 'fill', fill: solid('#fff'), clip: 'shorts', mask: { key: 'sh2' + key, draw } }
-    stitchPasses(out, [pass], sp, 'shseam2:' + key + JSON.stringify(sp), 1)
-  }
-  // hem: along the leg end, a little inside the edge (both legs)
-  if (hem) seam(hem, 'hem', (g) => { for (const L of LEGS) g.fillRect(L.hem + (L.hem < 1024 ? 6 : -14), SHORTS_FRAME.innerTop + 6, 8, SHORTS_FRAME.innerBottom - SHORTS_FRAME.innerTop - 12) })
-  // middle (fly and back): ONE thin dashed line along the notch edge of one leg (the other leg meets it there)
-  if (mid && !noStitch) {
-    const k = Math.max(0.2, mid.scale / 45)
-    out.push({
-      t: 'rgba', key: 'midline:' + JSON.stringify([mid.scale, mid.color]), clip: 'shorts', opacity: Math.max(0, Math.min(1, mid.opacity)),
-      img: () => {
-        const c = new OffscreenCanvas(S, S), g = c.getContext('2d')!
-        const line = (pts: [number, number][], dx: number, dy: number, col: string, w: number): void => {
-          g.strokeStyle = col; g.lineWidth = w; g.lineJoin = 'round'; g.setLineDash([9 * k, 7 * k]); g.beginPath()
-          pts.forEach(([x, y], i) => (i ? g.lineTo(x + dx, y + dy) : g.moveTo(x + dx, y + dy))); g.stroke()
-        }
-        const paths: [number, number][][] = [
-          [[262, SHORTS_FRAME.innerBottom - 8], [265, SHORTS_FRAME.flySeam + 24], [345, SHORTS_FRAME.flySeam - 6], [640, SHORTS_FRAME.flySeam - 6]],
-          [[262, SHORTS_FRAME.innerTop + 8], [265, SHORTS_FRAME.bumSeam - 24], [345, SHORTS_FRAME.bumSeam + 6], [640, SHORTS_FRAME.bumSeam + 6]]
-        ]
-        for (const p of paths) { line(p, 0, 0, mid.color ?? 'rgba(0,0,0,0.85)', 3 * k); if (!mid.color) line(p, 1.5, 2.5, 'rgba(255,255,255,0.55)', 1.5 * k) }
-        return c
-      }
-    })
-  }
+  if (hem) seamLinePass(out, hem, 'shem', 'shorts', LEGS.map((L) => { const x = L.hem + (L.hem < 1024 ? 10 : -10); return [[x, SHORTS_FRAME.innerTop + 8], [x, SHORTS_FRAME.innerBottom - 8]] as [number, number][] }))
+  if (mid) seamLinePass(out, mid, 'smid', 'shorts', [
+    [[262, SHORTS_FRAME.innerBottom - 8], [265, SHORTS_FRAME.flySeam + 24], [345, SHORTS_FRAME.flySeam - 6], [640, SHORTS_FRAME.flySeam - 6]],
+    [[262, SHORTS_FRAME.innerTop + 8], [265, SHORTS_FRAME.bumSeam - 24], [345, SHORTS_FRAME.bumSeam + 6], [640, SHORTS_FRAME.bumSeam + 6]]
+  ])
 }
 
 /** Stitching on the hem of the shirt (bottom edge, front and back). */
 function hemStitchPasses(out: Pass[], st: NonNullable<KitDesign['hemStitch']>): void {
-  const X0 = TORSO.x0, X1 = TORSO.x1
-  const strips: [number, number, number, number][] = [[X0, 1836, X1 - X0, 8], [X0, 76, X1 - X0, 8]]
-  const pass: Pass = { t: 'fill', fill: solid('#fff'), clip: 'all', mask: { key: 'hems', draw: (g) => { for (const [x, y, w, h] of strips) g.fillRect(x, y, w, h) } } }
-  stitchPasses(out, [pass], st, 'hem:' + JSON.stringify(st), 1)
+  const X0 = TORSO.x0 + 6, X1 = TORSO.x1 - 6
+  seamLinePass(out, st, 'hem', 'all', [[[X0, 1838], [X1, 1838]], [[X0, 82], [X1, 82]]])
 }
 
 async function fabricPasses(out: Pass[], d: KitDesign, assets: Record<string, Asset>): Promise<void> {
@@ -1818,6 +1874,12 @@ async function allLogoPasses(d: KitDesign, assets: Record<string, Asset>): Promi
 export async function composeLive(design: KitDesign, assets: Record<string, Asset>, opt: ComposeOptions = {}): Promise<HTMLCanvasElement> {
   const { passes, s2s } = await buildPasses(design, assets, opt)
   return renderToCanvas(passes, { s2s, size: opt.size })
+}
+
+/** Live render for the 3D view: straight into the 3D view's own WebGL context (null when it is not open). */
+export async function composeLiveShared(design: KitDesign, assets: Record<string, Asset>, opt: ComposeOptions = {}): Promise<WebGLTexture | null> {
+  const { passes, s2s } = await buildPasses(design, assets, opt)
+  return renderToShared(passes, { s2s })
 }
 
 /** Full-resolution RGBA (export). */

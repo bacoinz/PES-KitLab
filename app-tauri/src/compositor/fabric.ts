@@ -134,6 +134,14 @@ export function fabricPaint(id: string, scale: number, angle: number): Offscreen
 }
 
 /** A built-in texture tile repeated over the whole texture (scale %, angle degrees), on a canvas. */
+const paints = new Map<string, OffscreenCanvas>()
+/** The same, cached and shared: never draw on it (the compositor masks it on the GPU). */
+export function texturePaintShared(id: string, scale: number, angle: number): OffscreenCanvas {
+  const k = id + ':' + scale + ':' + angle
+  let c = paints.get(k)
+  if (!c) { if (paints.size > 12) paints.delete(paints.keys().next().value!); c = texturePaint(id, scale, angle); paints.set(k, c) }
+  return c
+}
 export function texturePaint(id: string, scale: number, angle: number): OffscreenCanvas {
   const c = new OffscreenCanvas(2048, 2048), g = c.getContext('2d')!
   const pat = g.createPattern(reliefTile(id), 'repeat')

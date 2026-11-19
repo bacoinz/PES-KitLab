@@ -2,6 +2,13 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.22] - 2026-11-19
+### Changed
+- 3D speed without losing quality: the kit texture is now drawn straight inside the 3D view's own WebGL context (copying the 2048² texture between contexts took ~40 ms on every change); the half-size draft while dragging is gone. Moving a slider on the AVS kits went from ~65 ms to ~15–25 ms per change.
+- Compositor: logos and small parts are drawn only over their own area; the picture before the layer being changed is kept and reused; painted canvases (stitching, fabrics, designs) are no longer thrown away on every render; fabric on plain layers is masked on the GPU; stitching keeps its last shape while a slider moves and is traced again when it stops.
+- Hem stitching (shirt and shorts) and the fly / back seam are drawn as real thread lines: thin, following the stitch size (also at the minimum), with the light edge only when relief is on.
+- Collar: the inside is always the exact mirror of the outside (every collar design); "Sides" / "Colour 2 goes to" options removed.
+
 ## [0.4.21] - 2026-11-19
 ### Changed
 - Editor speed: while a slider (or any quick run of changes) is moving, the texture is drawn at 1024 px (about 3× faster on a kit with many layers) and a full-size render follows when you stop.
