@@ -896,6 +896,7 @@ function shadowPasses(out: Pass[], clips: Set<Clip>, coverage: (clip: Clip) => O
 /** What the sock layers and logos cover (white), so the sock fabric's relief in 3D only belongs to the sock base. Null when nothing covers. */
 let sockSink: Pass[] | null = null
 export async function composeSockCover(design: KitDesign, assets: Record<string, Asset>): Promise<OffscreenCanvas | null> {
+  if (!hasSockCover(design)) return null
   const mine: Pass[] = []
   sockSink = mine
   try { await buildPasses(design, assets, { skipFabric: true, skipStitch: true }) } finally { sockSink = null }
@@ -905,8 +906,20 @@ export async function composeSockCover(design: KitDesign, assets: Record<string,
   for (const clip of clips) g.drawImage(coverage(clip), 0, 0)
   return out
 }
+/** Whether anything in the kit has relief (the 3D relief map is only worth building then). */
+export function hasRelief(d: KitDesign): boolean {
+  const st = (s?: { relief?: number } | null): boolean => !!s?.relief
+  const lg = Object.values(d.logos).some((v) => (Array.isArray(v) ? v.some((x) => !!x.outlineRelief) : !!v && !!(v as LogoPlacement).outlineRelief))
+  return lg || [d.hemStitch, d.shortsHem, d.shortsMid, d.sleeveStitch, d.cuffs?.stitch, d.shortsPattern.stitch, d.socksPattern.stitch].some(st) || d.layers.some((l) => !!l.outlineRelief || st(l.stitch))
+}
+/** Whether any sock layer or sock logo exists (the sock relief map is only needed then). */
+export function hasSockCover(d: KitDesign): boolean {
+  const lg = [d.logos.socksBrand, ...(d.logos.socksSponsors ?? [])].some((x) => !!x?.enabled && !!x.assetId)
+  return lg || d.layers.some((l) => l.part === 'socks' && l.visible)
+}
 /** Height map (white = raised) of everything with "Relevo", at 2048², or null when nothing has relief. */
 export async function composeRelief(design: KitDesign, assets: Record<string, Asset>): Promise<OffscreenCanvas | null> {
+  if (!hasRelief(design)) return null
   const mine = new Map<string, ReliefSrc>()
   reliefSink = mine
   try { await buildPasses(design, assets, { skipFabric: true }) } finally { reliefSink = null }
@@ -1256,19 +1269,22 @@ async function collarPasses(out: Pass[], d: KitDesign, layersDrawn: boolean, lay
     // on both faces (or just one: option "Lados"), so the inside of the collar shows it too
     const band = (key: string, color: string, draw: (g: G) => void): void => { out.push({ t: 'fill', fill: solid(color), clip: 'collar', mask: { key: 'collar3:' + key + ':' + x0 + ':' + x1, draw } }) }
     // rows between distances d0 … d1 from the fold, on the faces asked for
+    // the outside (below the fold) is reflected above it, but only up to INNER: the top of the strip stays free for the
+    // inside of the shirt
+    const INNER = HF - 12
     const rows = (d0: number, d1: number, faces = 'both') => (g: G): void => {
       const a = Math.max(0, d0), b = Math.min(d1, HF + 6)
       if (b <= a) return
       // checked in the 3D preview: below the fold (v > 1920) is the outside of the collar, above it the inside
       if (faces !== 'in') g.fillRect(x0, F + a, w, b - a)
-      if (faces !== 'out') g.fillRect(x0, F - b, w, b - a)
+      if (faces !== 'out' && a < INNER) g.fillRect(x0, F - Math.min(b, INNER), w, Math.min(b, INNER) - a)
     }
-    const centre = (r: number) => (g: G): void => { g.fillRect(x0, F - r, w, 2 * r) }
+    const centre = (r: number) => (g: G): void => { g.fillRect(x0, F - Math.min(r, INNER), w, r + Math.min(r, INNER)) }
     const fc = String(P.faces ?? 'both')
     // the inside of the shirt (everything past the band) is the shirt's primary colour, not the collar's
     if (!layer) out.push({ t: 'fill', fill: solid(fillMain(d.fills?.shirt, d.colors.shirt)), clip: 'collar' })
     // the collar colour is the outside (below the fold); the inside (above it) is the shirt's primary colour
-    band('face', cs.c1, (g) => g.fillRect(x0, F, w, HF + 4))
+    band('face', cs.c1, (g) => g.fillRect(x0, F - INNER, w, INNER + HF + 4))
     // rims: centred on the fold, next to the shirt (the seam, at the far end of each face), or both
     if (st === 'tipped' || st === 'outerTrim' || st === 'innerTrim' || st === 'doubleTrim') {
       const tw = n('trimW'), off = n('trimOff'), pos = String(P.pos) === 'edge' ? 'fold' : String(P.pos) // 'edge': saved by 0.4.6/7
@@ -1287,11 +1303,11 @@ async function collarPasses(out: Pass[], d: KitDesign, layersDrawn: boolean, lay
     }
     if (st === 'twoTone') band('two' + P.side, cs.c2, rows(0, HF + 4, String(P.side)))
     if (st === 'threeColor') { const r = (HF * n('mid')) / 100; band('3t' + P.side, cs.c3, rows(0, HF + 4, String(P.side))); band('3m' + n('mid'), cs.c2, centre(r)) }
-    if (st === 'half') band('half', cs.c2, (g) => g.fillRect(mid, F - HF - 4, x1 - mid, 2 * HF + 8))
-    if (st === 'front' || st === 'front1' || st === 'front2' || st === 'front3') { const k = (w * n('fw')) / 200; band('front' + k, cs.c2, (g) => { g.fillRect(x0, F - HF - 4, k, 2 * HF + 8); g.fillRect(x1 - k, F - HF - 4, k, 2 * HF + 8) }) }
-    if (st === 'back') { const k = (w * n('bw')) / 200; band('back' + k, cs.c2, (g) => g.fillRect(mid - k, F - HF - 4, 2 * k, 2 * HF + 8)) }
+    if (st === 'half') band('half', cs.c2, (g) => g.fillRect(mid, F - INNER, x1 - mid, INNER + HF + 4))
+    if (st === 'front' || st === 'front1' || st === 'front2' || st === 'front3') { const k = (w * n('fw')) / 200; band('front' + k, cs.c2, (g) => { g.fillRect(x0, F - INNER, k, INNER + HF + 4); g.fillRect(x1 - k, F - INNER, k, INNER + HF + 4) }) }
+    if (st === 'back') { const k = (w * n('bw')) / 200; band('back' + k, cs.c2, (g) => g.fillRect(mid - k, F - INNER, 2 * k, INNER + HF + 4)) }
     // halftone: colour 2 grows from the fold out to the seams
-    if (st === 'halftone') band('ht', cs.c2, (g) => { for (let d = 0; d < HF; d += 4) { const t = d / HF; g.fillRect(x0, F + d, w, 4 * t); g.fillRect(x0, F - d - 4 * t, w, 4 * t) } })
+    if (st === 'halftone') band('ht', cs.c2, (g) => { for (let d = 0; d < HF; d += 4) { const t = d / HF; g.fillRect(x0, F + d, w, 4 * t); if (d < INNER) g.fillRect(x0, F - d - 4 * t, w, 4 * t) } })
     return
   }
   // 2. after the layers: V inserts / placket on the chest at the neck (the game's collar flaps show whatever the
@@ -1481,17 +1497,17 @@ function shortsSeamPasses(out: Pass[], hem: KitDesign['shortsHem'], mid: KitDesi
   if (hem) seam(hem, 'hem', (g) => { for (const L of LEGS) g.fillRect(L.hem + (L.hem < 1024 ? 6 : -14), SHORTS_FRAME.innerTop + 6, 8, SHORTS_FRAME.innerBottom - SHORTS_FRAME.innerTop - 12) })
   // middle (fly and back): along the notch edge of ONE leg (the other one meets it there), just inside the edge
   if (mid) seam(mid, 'mid', (g) => {
-    g.lineWidth = 8; g.lineJoin = 'round'; g.lineCap = 'butt'
+    g.lineWidth = 2; g.lineJoin = 'round'; g.lineCap = 'butt'
     const line = (pts: [number, number][]): void => { g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke() }
     line([[262, SHORTS_FRAME.innerBottom - 8], [265, SHORTS_FRAME.flySeam + 24], [345, SHORTS_FRAME.flySeam - 4], [640, SHORTS_FRAME.flySeam - 4]])
     line([[262, SHORTS_FRAME.innerTop + 8], [265, SHORTS_FRAME.bumSeam - 24], [345, SHORTS_FRAME.bumSeam + 4], [640, SHORTS_FRAME.bumSeam + 4]])
   })
 }
 
-/** Stitching on the hems: shirt bottom (front, back), sleeve ends. */
+/** Stitching on the hem of the shirt (bottom edge, front and back). */
 function hemStitchPasses(out: Pass[], st: NonNullable<KitDesign['hemStitch']>): void {
   const X0 = TORSO.x0, X1 = TORSO.x1
-  const strips: [number, number, number, number][] = [[X0, 1836, X1 - X0, 8], [X0, 76, X1 - X0, 8], [496, 690, 8, 522], [1544, 690, 8, 522], [16, 132, 8, 498], [2024, 132, 8, 498]]
+  const strips: [number, number, number, number][] = [[X0, 1836, X1 - X0, 8], [X0, 76, X1 - X0, 8]]
   const pass: Pass = { t: 'fill', fill: solid('#fff'), clip: 'all', mask: { key: 'hems', draw: (g) => { for (const [x, y, w, h] of strips) g.fillRect(x, y, w, h) } } }
   stitchPasses(out, [pass], st, 'hem:' + JSON.stringify(st), 1)
 }
@@ -1827,8 +1843,7 @@ function grayOf(key: string, img: ImageSource, color: string): OffscreenCanvas {
 function logoShineOf(d: KitDesign, lp: LogoPlacement): number | null {
   const ls = d.logoShine
   if (!ls) return lp.shine != null && lp.shine >= 0 ? lp.shine : null
-  if (ls.all) return lp.shine === -1 ? null : lp.shine ?? ls.value
-  return lp.shine != null && lp.shine >= 0 ? lp.shine : null
+  return lp.shine === -1 ? null : lp.shine ?? ls.value
 }
 
 export async function composeShine(design: KitDesign, assets: Record<string, Asset>, size = 512, decos: { part: DecoPart; key: string; img: ImageSource }[] = []): Promise<{ width: number; height: number; data: Uint8Array } | null> {

@@ -120,12 +120,14 @@ export const FABRIC_SLEEVE: Omit<TextureSpec, 'id'> = { scale: 77, angle: -90, o
 export const COLLAR_FABRIC: TextureSpec = { id: 'ribfine', ...FABRIC_COLLAR }
 /** New kits: fine knit over everything (soft light) and a double stitch on the hems. */
 export const MAIN_FABRIC: TextureSpec = { id: 'knit', scale: 48, opacity: 0.31 }
-export const HEM_STITCH: StitchSpec = { kind: 'double', side: 'center', opacity: 0.5, scale: 45, relief: 10 }
-export const FABRIC_CUFF: Omit<TextureSpec, 'id'> = { scale: 77, angle: -90, opacity: 0.25 }
+export const HEM_STITCH: StitchSpec = { kind: 'double', side: 'center', opacity: 0.3, scale: 45, relief: 0 }
+export const FABRIC_CUFF: Omit<TextureSpec, 'id'> = { scale: 70, angle: 90, opacity: 0.4 }
 export const CUFF_FABRIC: TextureSpec = { id: 'ribfine', ...FABRIC_CUFF }
-export const SOCKS_FABRIC: TextureSpec = { id: 'ribfine', scale: 110, opacity: 0.1, mix: 50 }
-export const SOCK_LAYER_FABRIC: TextureSpec = { id: 'ribfine', scale: 100, angle: 0, opacity: 0.15 }
-export const STITCH_DEFAULT: StitchSpec = { kind: 'dashed', side: 'center', opacity: 0.31, scale: 45, relief: 11 }
+export const SOCKS_FABRIC: TextureSpec = { id: 'ribfine', scale: 110, angle: 0, opacity: 0.1, mix: 20 }
+export const SOCK_LAYER_FABRIC: TextureSpec = { id: 'ribfine', scale: 100, angle: 0, opacity: 0.25 }
+/** The fly / back seam is one thin line (a dashed one). */
+export const MID_STITCH: StitchSpec = { kind: 'dashed', side: 'center', opacity: 0.3, scale: 45, relief: 0 }
+export const STITCH_DEFAULT: StitchSpec = { kind: 'dashed', side: 'center', opacity: 0.3, scale: 45, relief: 0 }
 export type StitchKind = 'dashed' | 'dotted' | 'double' | 'solid' | 'zigzag' | 'cross'
 export interface StitchSpec { kind: StitchKind; side: 'in' | 'out' | 'center'; opacity: number /* 0..1 */; scale: number /* % */; color?: string /* thread colour; default = shadow */; relief?: number /* 0 … 100: raised fabric along the seam (3D preview only) */ }
 export const STITCH_KINDS: [StitchKind, string][] = [['dashed', 'Pesponto (tracejado)'], ['double', 'Pesponto duplo'], ['dotted', 'Pontos'], ['solid', 'Linha contínua'], ['zigzag', 'Zigue-zague'], ['cross', 'Ponto cruz']]
@@ -472,7 +474,8 @@ export function defaultDesign(slot: string, c1 = '#1f4fb4', c2 = '#ffffff'): Kit
     // written in the old (pre-v6) sense: migrateKit flips it, so a new kit ends with NUMBER_DEFAULTS (1 = right leg)
     config: { Collar: 66, WinterCollar: 66, ShirtModel: 144, ShortsModel: 1, TightKit: 1, ...NUMBER_DEFAULTS, ShortsNumberSide: 1 - NUMBER_DEFAULTS.ShortsNumberSide }
   })
-  return { ...d, fabric: MAIN_FABRIC, hemStitch: HEM_STITCH, shortsHem: HEM_STITCH, shortsMid: HEM_STITCH }
+  // new kits: name / numbers and logos with their own shininess on (logos: the general value; socks sponsors off by default)
+  return { ...d, fabric: MAIN_FABRIC, hemStitch: HEM_STITCH, shortsHem: HEM_STITCH, shortsMid: MID_STITCH, numberShine: { all: true, value: 90 }, logoShine: { all: false, value: 75 } }
 }
 
 /** Name / number defaults for new kits (the user's choice, 2026-11-14; the height sliders run inverted: shown 17 = BackNumberY 12, shown 7 = NameY 32). */
@@ -493,7 +496,7 @@ export function migrateKit(k: KitDesign): KitDesign {
 
 /** v9 (0.4.19): the shorts hem and middle seam start switched on (kits of 0.4.18 had them off by default). */
 function toV9(k: KitDesign): KitDesign {
-  return { ...k, v: 9, shortsHem: k.shortsHem ?? HEM_STITCH, shortsMid: k.shortsMid ?? HEM_STITCH }
+  return { ...k, v: 9, shortsHem: k.shortsHem ?? HEM_STITCH, shortsMid: k.shortsMid ?? MID_STITCH }
 }
 
 /** v8 (0.4.18): the sock texture is a fabric on the sock base (kits saved before get the former 3D look as a real fabric); shorts seams are options (none in older kits). */

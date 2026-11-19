@@ -2,6 +2,17 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.20] - 2026-11-19
+### Changed
+- Editor speed: the 3D relief map, the sock relief map and the shininess map are only built when something needs them, and wait until you stop moving a slider (0.7 s).
+- Fabric, stitching and embroidery remember their last values when switched off and on again. Changing a layer's design keeps its fabric, stitching, embroidery and relief.
+- All stitching starts at strength 30, size 45, relief 0 (cuffs centred). The fly / back seam is a single thin dashed line.
+- The kit's hem stitching is only the bottom hem of the shirt (not the cuffs).
+- Cuffs start with the fine rib fabric at size 70, angle 90, strength 40 (also cuff layers); sock base fabric starts at size 110, angle 0, strength 10, mix 20; fabric on sock layers at size 100, angle 0, strength 25.
+- New kits start with shininess on for name and numbers (90) and for emblems, brands and sponsors (general 75, "Same in all" off); a logo without its own value follows the general one; sponsors on the socks start with shininess off.
+- Collar: the design of the outside (below the fold) is reflected above it, leaving a free space at the top for the inside of the shirt (no collar colour or fabric there).
+- First tab: the "3D preview" area was removed.
+
 ## [0.4.19] - 2026-11-19
 ### Changed
 - Shorts: the hem and fly / back stitching options are inside the Base row again (no separate row); both start switched on (also in kits saved with 0.4.18).

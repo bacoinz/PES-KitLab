@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useApp, assetFromFile, rawAssetFromFile, previewAssetFromFile, PRESET_TEAM, USER_TPL_TEAM, stepTime } from '../state'
 import type { PanelStyle, TextPlacement, PanelKind, KitDesign, OverlayLayer, Asset, LogoPlacement, LogoTint, Fill, PatternSpec, FabricLayer, FabricZone, Zone, Logos, StitchKind, StitchSpec, TextureSpec } from '../model/design'
 import { describeStep } from './history'
-import { PANEL_STYLES, SLOT_LABEL, uid, defaultDesign, contrastOn, slotOrder, solid, fillMain, normalizeGroups, dropLayer, migrateKit, LOGO_SIZES, NUMBER_DEFAULTS, STITCH_KINDS, FABRIC_COLLAR, FABRIC_SLEEVE, COLLAR_FABRIC, CUFF_FABRIC, FABRIC_CUFF, SOCK_LAYER_FABRIC, MAIN_FABRIC, HEM_STITCH, STITCH_DEFAULT, mergeLogos, copyNumbers, groupColors, swapGroupColor, resolveGroups } from '../model/design'
+import { PANEL_STYLES, SLOT_LABEL, uid, defaultDesign, contrastOn, slotOrder, solid, fillMain, normalizeGroups, dropLayer, migrateKit, LOGO_SIZES, NUMBER_DEFAULTS, STITCH_KINDS, FABRIC_COLLAR, FABRIC_SLEEVE, COLLAR_FABRIC, CUFF_FABRIC, FABRIC_CUFF, SOCK_LAYER_FABRIC, MAIN_FABRIC, HEM_STITCH, MID_STITCH, STITCH_DEFAULT, mergeLogos, copyNumbers, groupColors, swapGroupColor, resolveGroups } from '../model/design'
 import { TEMPLATES, applyTemplate } from '../model/templates'
 import { TORSO_PATTERNS, SLEEVE_PATTERNS, SHORTS_PATTERNS, SOCKS_PATTERNS, TEXTURES, STROKES } from '../compositor/patterns'
 import { composeKit, composeLive, composeShine, composeRelief, composeSockCover, COLLAR_DESIGNS, collarParams, collarDefaults, frontThumb, raglanBend } from '../compositor/compose'
@@ -127,9 +127,12 @@ function TextureRow({ label, list, value, onChange, angle = true, slots, default
   slots?: { names: string[]; value?: number[]; onChange: (v?: number[]) => void }
 }): JSX.Element {
   const look = value ? TEXTURE_LOOK[value.id] : undefined
+  // switching it off and on again brings the previous values back
+  const last = useRef<TextureSpec | undefined>(undefined)
+  if (value) last.current = value
   return (
     <>
-      <Row label={label}><Select value={value?.id ?? ''} options={[['', 'Nenhum'], ...list]} onChange={(id) => onChange(id ? { ...defaults, ...value, id } : undefined)} /></Row>
+      <Row label={label}><Select value={value?.id ?? ''} options={[['', 'Nenhum'], ...list]} onChange={(id) => onChange(id ? { ...defaults, ...last.current, ...value, id } : undefined)} /></Row>
       {value && (
         <div className="subsec">
           <div className="subsec-title">{label} · {list.find((x) => x[0] === value.id)?.[1]}</div>
@@ -200,13 +203,12 @@ function LogoBlock({ title, lp, assets, onChange, onAsset, folderHint, onRemove,
           <Row label="Esquerda / direita"><Slider value={lp.dx} min={-600} max={600} snaps={[0]} onChange={(dx) => onChange({ ...lp, dx })} /></Row>
           <Row label="Baixo / cima"><Slider invert value={lp.dy} min={-600} max={600} snaps={[0]} onChange={(dy) => onChange({ ...lp, dy })} /></Row>
           <Row label="Rotação"><Slider value={lp.rot ?? 0} min={-180} max={180} snaps={ROT_SNAPS} onChange={(rot) => onChange({ ...lp, rot: rot || undefined })} /></Row>
-          {ownShine && ownShine.all && (
+          {ownShine && (
             <Row label="Brilho">
-              <label className="check" title="Só na pré-visualização 3D"><input type="checkbox" checked={lp.shine !== -1} onChange={(e) => onChange({ ...lp, shine: e.target.checked ? undefined : -1 })} /> {lp.shine === -1 ? 'Desligado' : lp.shine == null ? 'Igual em todos' : ''}</label>
+              <label className="check" title="Só na pré-visualização 3D"><input type="checkbox" checked={lp.shine !== -1} onChange={(e) => onChange({ ...lp, shine: e.target.checked ? undefined : -1 })} /> {lp.shine === -1 ? 'Desligado' : lp.shine == null ? (ownShine.all ? 'Igual em todos' : 'Brilho geral') : ''}</label>
               {lp.shine !== -1 && <Slider value={lp.shine ?? ownShine.value} min={0} max={100} onChange={(shine) => onChange({ ...lp, shine })} />}
             </Row>
           )}
-          {ownShine && !ownShine.all && <ShineRow value={lp.shine} fallback={ownShine.value} onChange={(shine) => onChange({ ...lp, shine })} />}
         </>
       )}
       </div>}
@@ -299,7 +301,10 @@ function ZonePicker({ value, onChange }: { value: FabricZone[]; onChange: (z: Fa
 
 /** Stitching controls (layers, groups, cuffs). New stitching: topstitch, centred, intensity 32, scale 45. */
 function StitchEditor({ value: st, onChange, label = 'Costura', def }: { value: StitchSpec | undefined; onChange: (s: StitchSpec | undefined) => void; label?: string; def?: StitchSpec }): JSX.Element {
-  const setSt = (patch: Partial<StitchSpec>): void => onChange({ kind: 'dashed', side: 'center', opacity: 0.32, scale: 45, ...def, ...st, ...patch })
+  // switching it off and on again brings the previous values back
+  const last = useRef<StitchSpec | undefined>(undefined)
+  if (st) last.current = st
+  const setSt = (patch: Partial<StitchSpec>): void => onChange({ kind: 'dashed', side: 'center', opacity: 0.3, scale: 45, relief: 0, ...def, ...last.current, ...st, ...patch })
   return (
     <>
       <Row label={label}><Select value={st?.kind ?? ''} options={[['', 'Nenhum'], ...STITCH_KINDS]} onChange={(k) => (k ? setSt({ kind: k as StitchKind }) : onChange(undefined))} /></Row>
@@ -533,7 +538,7 @@ export function Editor(): JSX.Element {
       // the preview name / numbers, one image per part, when they have their own shininess
       const decos = kit.numberShine && showNames ? (['back', 'name', 'chest', 'leg'] as const).map((part) => ({ part, key: part + JSON.stringify([kit.config, sampleName, sampleNum, kit.numbers.nameBelow, Object.keys(atlases)]), img: decorationOverlay({ back: atlases.back, leg: atlases.leg, name: atlases.name, config: kit.config, playerName: sampleName, number: sampleNum, nameBelow: kit.numbers.nameBelow, only: part }) })) : []
       composeShine(kit, project.assets, 512, decos).then((m) => { if (alive) setShineMap(m) }).catch(() => undefined)
-    }, 250)
+    }, 700)
     return () => { alive = false; clearTimeout(t) }
   }, [kit, project, mode, atlases, showNames, sampleName, sampleNum]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -542,7 +547,7 @@ export function Editor(): JSX.Element {
   useEffect(() => {
     if (!kit || !project || mode !== '3d') return
     let alive = true
-    const t = setTimeout(() => { (showStitch ? composeRelief(kit, project.assets) : Promise.resolve(null)).then((m) => { if (alive) setReliefMap(m) }).catch(() => undefined) }, 300)
+    const t = setTimeout(() => { (showStitch ? composeRelief(kit, project.assets) : Promise.resolve(null)).then((m) => { if (alive) setReliefMap(m) }).catch(() => undefined) }, 700)
     return () => { alive = false; clearTimeout(t) }
   }, [kit, project, mode, showStitch])
 
@@ -551,7 +556,7 @@ export function Editor(): JSX.Element {
   useEffect(() => {
     if (!kit || !project || mode !== '3d' || !kit.socksFabric) { setSockCover(null); return }
     let alive = true
-    const t = setTimeout(() => { composeSockCover(kit, project.assets).then((m) => { if (alive) setSockCover(m) }).catch(() => undefined) }, 300)
+    const t = setTimeout(() => { composeSockCover(kit, project.assets).then((m) => { if (alive) setSockCover(m) }).catch(() => undefined) }, 700)
     return () => { alive = false; clearTimeout(t) }
   }, [kit, project, mode])
 
@@ -1549,9 +1554,6 @@ export function Editor(): JSX.Element {
           <button className="btn small" onClick={loadUserTpls}>Carregar template ▸</button>
         </div>
       </Section>
-      <Section group={tab} title="Pré-visualização 3D">
-        <div className="muted small">A textura das meias está na base das meias (Tecido); o tecido do kit na camada "Tecido e costuras" da camisola.</div>
-      </Section>
       <Section group={tab} title="Copiar para todos os kits">
         <div className="muted small">Copia deste kit ({SLOT_LABEL[kit.slot] ?? kit.slot}) para os outros equipamentos da equipa. Os logos que um kit já tem ficam como estão; só se acrescenta o que falta.</div>
         <label className="check"><input type="checkbox" checked={copyColors} onChange={(e) => setCopyColors(e.target.checked)} /> Copiar também as cores</label>
@@ -1753,7 +1755,7 @@ export function Editor(): JSX.Element {
           <>
             <FillRow label="Cor base" value={F.shorts ?? solid(kit.colors.shorts)} onChange={(f) => setFill('shorts', f)} />
             <StitchEditor label="Costura da bainha" def={HEM_STITCH} value={kit.shortsHem ?? undefined} onChange={(shortsHem) => up((k) => ({ ...k, shortsHem: shortsHem ?? null }))} />
-            <StitchEditor label="Costura da braguilha e de trás" def={HEM_STITCH} value={kit.shortsMid ?? undefined} onChange={(shortsMid) => up((k) => ({ ...k, shortsMid: shortsMid ?? null }))} />
+            <StitchEditor label="Costura da braguilha e de trás" def={MID_STITCH} value={kit.shortsMid ?? undefined} onChange={(shortsMid) => up((k) => ({ ...k, shortsMid: shortsMid ?? null }))} />
           </>
         ) : recolorRows('shorts')}
       </>) }
@@ -1893,7 +1895,7 @@ export function Editor(): JSX.Element {
           </div>
         )
       })}
-      <button className="btn small" onClick={() => setList('socksSponsors', [...listOf('socksSponsors'), newLogo(120, { enabled: false, dy: listOf('socksSponsors').length * 90 })])}>+ Patrocinador nas meias</button>
+      <button className="btn small" onClick={() => setList('socksSponsors', [...listOf('socksSponsors'), newLogo(120, { enabled: false, shine: -1, dy: listOf('socksSponsors').length * 90 })])}>+ Patrocinador nas meias</button>
       <button className="btn small" title="Põe a marca da camisola também nos calções e nas meias" onClick={() => setLogos((l) => ({ ...l, shortsBrand: { ...l.shortsBrand, assetId: l.brand.assetId, enabled: !!l.brand.assetId }, socksBrand: { ...l.socksBrand, assetId: l.brand.assetId, enabled: !!l.brand.assetId } }))}>Usar a marca da camisola em tudo</button>
     </div>
     </LogoShineCtx.Provider>
@@ -2069,11 +2071,11 @@ export function Editor(): JSX.Element {
     const target = texPick.replace ? kit.layers.find((l) => l.id === texPick.replace) : undefined
     const add = (L: OverlayLayer): void => {
       if (target) {
-        const keep = { id: target.id, visible: target.visible, opacity: target.opacity, color: target.color, colors: target.colors ?? L.colors, fill: target.fill, group: target.group, zones: target.zones, maskLayer: target.maskLayer, maskInvert: target.maskInvert, stitch: target.stitch, shine: target.shine, blend: target.blend, locked: target.locked }
+        const keep = { id: target.id, visible: target.visible, opacity: target.opacity, color: target.color, colors: target.colors ?? L.colors, fill: target.fill, group: target.group, zones: target.zones, maskLayer: target.maskLayer, maskInvert: target.maskInvert, stitch: target.stitch, fabric: target.fabric, fabricSlots: target.fabricSlots, embroidery: target.embroidery, outlineRelief: target.outlineRelief, shine: target.shine, blend: target.blend, locked: target.locked }
         setLayer(target.id, () => ({ ...L, ...keep }))
         setOpenLayer(target.id); close(); return
       }
-      const withFab = L.part === 'socks' && !L.fabric && ['design', 'panel', 'shape', 'pattern', 'texture'].includes(L.kind) ? { ...L, fabric: SOCK_LAYER_FABRIC } : L
+      const withFab = L.part === 'socks' && !L.fabric && ['design', 'panel', 'shape', 'pattern', 'texture'].includes(L.kind) ? { ...L, fabric: SOCK_LAYER_FABRIC } : L.kind === 'panel' && L.panel === 'cuffs' && !L.fabric ? { ...L, fabric: CUFF_FABRIC } : L
       up((k) => ({ ...k, layers: [...k.layers, withFab] })); setOpenLayer(L.id); close()
     }
     const fileItems: CatItem[] = texLib.items.map((f) => ({
