@@ -21,7 +21,9 @@ export interface KitColors {
   armband: string
 }
 
-export interface PatternSpec { id: string; color: string; count: number; width: number /* 5..95 */; angle?: number; fill?: Fill; stripeW?: number; gap?: number; offset?: number; dx?: number; dy?: number /* offset of the whole design (px) */; warp?: number /* sleeves: bend of the line along the arm and over the shoulders (−150 … 150) */; maskLayer?: string; maskInvert?: boolean /* sleeve design: only where another layer is (or is not) */ }
+export interface PatternSpec { id: string; color: string; count: number; width: number /* 5..95 */; angle?: number; fill?: Fill; stripeW?: number; gap?: number; offset?: number; dx?: number; dy?: number /* offset of the whole design (px) */; warp?: number /* sleeves: bend of the line along the arm and over the shoulders (−150 … 150) */; maskLayer?: string; maskInvert?: boolean /* sleeve design: only where another layer is (or is not) */
+  /** shorts / socks base design: stitching and fabric on the design's elements */
+  stitch?: StitchSpec; fabric?: TextureSpec }
 
 export interface OverlayLayer {
   id: string
@@ -59,6 +61,7 @@ export interface OverlayLayer {
   flipX?: boolean // mirror left ↔ right
   mirrorCenter?: boolean // add a mirrored copy (symmetric about the centre)
   mirrorBack?: boolean // back zone: mirror left ↔ right instead of repeating the front
+  mirrorLegs?: boolean // socks: on the right sock the layer goes on the opposite side of the leg (mirror image of the left sock)
   blur?: number // softness, texture px
   // panels (kind 'panel'): drawn straight in texture space along the garment seams; width in `size`
   panel?: PanelKind
@@ -87,6 +90,7 @@ export interface OverlayLayer {
   letterSpacing?: number // −50 … 1000
   arch?: number // −150 … 150 (bend the line into an arc)
   italic?: boolean
+  vertical?: boolean // text: letters stacked one under the other
   border?: boolean
   borderW?: number // 1 … 8
   borderColor?: string
@@ -276,6 +280,7 @@ export interface Logos {
   shortsBrand: LogoPlacement
   shortsSponsor?: LogoPlacement // legacy single shorts sponsor (migrated into shortsSponsors)
   shortsSponsors?: LogoPlacement[]
+  socksSponsors?: LogoPlacement[] // more logos on the socks besides the brand
   socksBrand: LogoPlacement
 }
 
@@ -428,7 +433,7 @@ export function normalizeLogos(lg: Logos): Logos {
   if (!l.sponsors?.length && l.sponsor?.assetId) l.sponsors = [{ ...l.sponsor }]
   if (!l.backSponsors?.length && l.backSponsor?.assetId) l.backSponsors = [{ ...l.backSponsor }]
   if (!l.sleeveBadges?.length && l.sleeveBadge?.assetId) l.sleeveBadges = [{ ...l.sleeveBadge, side: l.sleeveBadge.side ?? 'both' }]
-  l.sponsors ??= []; l.backSponsors ??= []; l.sleeveBadges ??= []
+  l.sponsors ??= []; l.backSponsors ??= []; l.sleeveBadges ??= []; l.socksSponsors ??= []
   l.shortsSponsor ??= { enabled: false, tint: 'auto', size: 160, dx: 0, dy: 0, spot: 'back' }
   // several shorts sponsors (0.4.0): the old single one becomes the first of the list
   if (!l.shortsSponsors) { l.shortsSponsors = l.shortsSponsor.assetId ? [{ ...l.shortsSponsor }] : []; l.shortsSponsor = { ...l.shortsSponsor, enabled: false, assetId: undefined } }
@@ -598,7 +603,7 @@ export function mergeLogos(to: Logos, from: Logos, withColors: boolean): Logos {
   return {
     ...to,
     crest: one(to.crest, src.crest)!, brand: one(to.brand, src.brand)!, shortsCrest: one(to.shortsCrest, src.shortsCrest)!, shortsBrand: one(to.shortsBrand, src.shortsBrand)!, socksBrand: one(to.socksBrand, src.socksBrand)!,
-    sponsors: list(to.sponsors, src.sponsors), backSponsors: list(to.backSponsors, src.backSponsors), sleeveBadges: list(to.sleeveBadges, src.sleeveBadges), shortsSponsors: list(to.shortsSponsors, src.shortsSponsors)
+    sponsors: list(to.sponsors, src.sponsors), backSponsors: list(to.backSponsors, src.backSponsors), sleeveBadges: list(to.sleeveBadges, src.sleeveBadges), shortsSponsors: list(to.shortsSponsors, src.shortsSponsors), socksSponsors: list(to.socksSponsors, src.socksSponsors)
   }
 }
 

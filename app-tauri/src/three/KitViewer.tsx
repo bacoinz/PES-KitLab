@@ -396,7 +396,7 @@ export function KitViewer({ texture, version = 0, collar, longSleeves, shortsMod
       if (f.bumpMap !== m.bumpMap) { f.bumpMap = m.bumpMap; f.needsUpdate = true }
       f.bumpScale = m.bumpScale
       const k = s.sock
-      k.bumpMap = sockKnitRef.current ? (k.userData.rib as THREE.Texture) : m.bumpMap; k.bumpScale = sockKnitRef.current ? 1.4 * sockStrengthRef.current / 100 : m.bumpScale
+      k.bumpMap = sockKnitRef.current ? (k.userData.rib as THREE.Texture) : m.bumpMap; k.bumpScale = sockKnitRef.current ? 3 * sockStrengthRef.current / 100 : m.bumpScale
       if (k.map !== m.map || k.roughnessMap !== m.roughnessMap) { k.map = m.map; k.roughnessMap = m.roughnessMap; k.needsUpdate = true }
       k.roughness = m.roughness; k.envMapIntensity = m.envMapIntensity
       ctl.update(); renderer.render(scene, cam); s.raf = requestAnimationFrame(loop)
@@ -405,7 +405,7 @@ export function KitViewer({ texture, version = 0, collar, longSleeves, shortsMod
     // with the same light instead of a dark gap)
     const front = mat.clone(); front.side = THREE.FrontSide
     // socks: a stretchier knit than the shirt (own relief, 3D only)
-    const sock = mat.clone(); sock.userData.rib = sockBumpTex(100, 100); sock.bumpMap = sock.userData.rib as THREE.Texture; sock.bumpScale = 1.4
+    const sock = mat.clone(); sock.userData.rib = sockBumpTex(100, 100); sock.bumpMap = sock.userData.rib as THREE.Texture; sock.bumpScale = 3
     st.current = { renderer, scene, cam, ctl, mat, tex, group, raf: 0, fly: null, key, fill, pmrem, envMul: 1, envTex, front, sock }
     // scripted checks: point the camera anywhere
     ;(window as unknown as { __kcView: unknown }).__kcView = (p: [number, number, number], t: [number, number, number]): void => {
@@ -531,7 +531,8 @@ export function KitViewer({ texture, version = 0, collar, longSleeves, shortsMod
         if (!alive || !st.current) return
         if (geos.some(Boolean)) {
           s.group.clear()
-          for (const g of geos) if (g) s.group.add(new THREE.Mesh(g, s.mat))
+          // the socks get their own (stretchy knit) material
+          geos.forEach((g, gi) => { if (g) s.group.add(new THREE.Mesh(g, /socks/i.test(files[gi]) ? s.sock : s.mat)) })
           const collarCount = gameCollarLen
           // with the game's sleeves the template's armband sleeve is not used: add the armband band itself
           if (bandFit) s.group.add(armbandMesh(s.mat, bandFit))

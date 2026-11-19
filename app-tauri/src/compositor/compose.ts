@@ -351,6 +351,12 @@ function drawTextBody(l: G, L: OverlayLayer): void {
     if (lw) { l.strokeStyle = strokeC; l.lineWidth = lw; l.strokeText(ch, x, y) }
     l.fillStyle = fillC; l.fillText(ch, x, y)
   }
+  // vertical: the letters stacked one under the other, each upright
+  if (L.vertical) {
+    const chars = [...text], lh = size * 1.05 + spacing, total = lh * (chars.length - 1)
+    chars.forEach((c, i) => glyph(c, 0, -total / 2 + i * lh))
+    return
+  }
   const arch = L.arch ?? 0
   if (!arch && !spacing) { glyph(text, 0, 0); return }
   // lay the letters out one by one (spacing / arch)
@@ -499,11 +505,13 @@ function shortsSpots(lp: LogoPlacement, kind: 'leg' | 'back' | 'middle' | 'backL
 }
 
 /** Socks: upright (x around the leg, y down the leg), front-outer side of each sock. */
-function socksSpots(): Spot[] {
-  return [
+function socksSpots(side: 'left' | 'right' | 'both' = 'both', dy = 0): Spot[] {
+  const all: Spot[] = [
     { x: (SOCK_FRAME[0].front + SOCK_FRAME[0].outer) / 2, y: 935, rot: 0, flipDx: true, ox: LOGO_BASE.socks[0], oy: LOGO_BASE.socks[1] },
     { x: (SOCK_FRAME[1].front + SOCK_FRAME[1].outer) / 2, y: 935, rot: 0, ox: LOGO_BASE.socks[0], oy: LOGO_BASE.socks[1] }
   ]
+  const pick = side === 'left' ? [all[0]] : side === 'right' ? [all[1]] : all
+  return pick.map((s) => ({ ...s, oy: (s.oy ?? 0) + dy }))
 }
 
 /** Long sleeves: the short sleeve's badge spot at the same place on the arm (see SLEEVE_FRAMES); along the arm the
@@ -710,12 +718,15 @@ function partDraw(L: OverlayLayer, part: string): (l: G) => void {
     const even = (L.kind === 'image' && L.fit === 'tile') || L.kind === 'texture'
     for (const m of frames) {
       l.save(); l.transform(...m)
+      // "Espelhar entre as meias": on the right sock the layer lands on the opposite side of the leg
+      const mirrored = m[0] * m[3] - m[1] * m[2] < 0
+      if (L.mirrorLegs && mirrored) { l.translate(2 * FRONT_CENTER.x, 0); l.scale(-1, 1) }
       if (even) {
         const ax = Math.hypot(m[0], m[1]), ay = Math.hypot(m[2], m[3]), k = Math.sqrt(ax * ay)
         l.translate(FRONT_CENTER.x, FRONT_CENTER.y); l.scale(k / ax, k / ay); l.translate(-FRONT_CENTER.x, -FRONT_CENTER.y)
       }
       // mirrored frame (right sock): the layer lands on the same side of the leg, but text keeps reading normally
-      unflipText = m[0] * m[3] - m[1] * m[2] < 0
+      unflipText = mirrored && !L.mirrorLegs
       try { drawFrontLayer(l, L) } finally { unflipText = false }
       l.restore()
     }
@@ -1097,9 +1108,9 @@ async function layerPassesRaw(out: Pass[], L: OverlayLayer, all: OverlayLayer[],
     if (!frames) return
     for (const m of frames) for (const c of copies) {
       // frames are not similarities (legs are narrower than tall): map the box axes separately
-      const [cx, cy] = apply(m, c.x, y)
-      const ax = Math.hypot(m[0], m[1]), ay = Math.hypot(m[2], m[3])
       const det = m[0] * m[3] - m[1] * m[2]
+      const [cx, cy] = apply(m, L.mirrorLegs && det < 0 ? 2 * FRONT_CENTER.x - c.x : c.x, y)
+      const ax = Math.hypot(m[0], m[1]), ay = Math.hypot(m[2], m[3])
       // a mirrored frame (right sock) moves the image to the mirrored spot but does not flip the image itself
       const place = det < 0 ? { img, cx, cy, w: c.w * ax, h: h * ay, rot: c.rot } : { img, cx, cy, w: c.w * ax, h: h * ay, rot: c.rot + Math.atan2(m[1], m[0]) }
       out.push({ t: 'image', clip: part, opacity: op, blend, place })
@@ -1237,7 +1248,8 @@ async function collarPasses(out: Pass[], d: KitDesign, layersDrawn: boolean, lay
     const fc = String(P.faces ?? 'both')
     // the inside of the shirt (everything past the band) is the shirt's primary colour, not the collar's
     if (!layer) out.push({ t: 'fill', fill: solid(fillMain(d.fills?.shirt, d.colors.shirt)), clip: 'collar' })
-    band('face', cs.c1, centre(HF + 4))
+    // the collar colour is the outer face (above the fold); the inner face (below it) is the inside of the shirt
+    band('face', cs.c1, (g) => g.fillRect(x0, F - HF - 4, w, HF + 4))
     // rims: centred on the fold, next to the shirt (the seam, at the far end of each face), or both
     if (st === 'tipped' || st === 'outerTrim' || st === 'innerTrim' || st === 'doubleTrim') {
       const tw = n('trimW'), off = n('trimOff'), pos = String(P.pos) === 'edge' ? 'fold' : String(P.pos) // 'edge': saved by 0.4.6/7
@@ -1406,6 +1418,12 @@ async function armbandPasses(out: Pass[], d: KitDesign, assets: Record<string, A
   }
 }
 
+/** Stitching and fabric of a shorts / socks base design: on the design's elements (the base colour is under it). */
+function patternExtras(out: Pass[], pass: Pass, spec: PatternSpec, key: string): void {
+  if (spec.stitch) stitchPasses(out, [pass], spec.stitch, 'pst:' + key + JSON.stringify(spec.stitch), 1)
+  texturePasses(out, [pass], spec.fabric, 'pfab:' + key, 1)
+}
+
 /** The kit's main fabric (soft light) over everything, except where a layer or logo has its own shininess. */
 function mainFabricPass(out: Pass[], spec: TextureSpec | null | undefined, shiny: Pass[], shinyKey: string): void {
   if (!spec) return
@@ -1548,12 +1566,20 @@ export async function buildPasses(design: KitDesign, assets: Record<string, Asse
       else out.push(sp)
     }
     const shortsBase: Pass[] = [{ t: 'fill', fill: F.shorts ?? solid(c.shorts), clip: 'shorts' }]
-    if (d.shortsPattern.id !== 'none') shortsBase.push({ t: 'fill', fill: specFill(d.shortsPattern), clip: 'shorts', mask: { key: 'shorts:' + specKey(d.shortsPattern), draw: (l) => rotIslands(l, d.shortsPattern.angle, SHORTS_RECTS, (g) => drawShortsPattern(g, { ...d.shortsPattern, color: '#fff' }), d.shortsPattern.dx, d.shortsPattern.dy) } })
+    if (d.shortsPattern.id !== 'none') {
+      const sp: Pass = { t: 'fill', fill: specFill(d.shortsPattern), clip: 'shorts', mask: { key: 'shorts:' + specKey(d.shortsPattern), draw: (l) => rotIslands(l, d.shortsPattern.angle, SHORTS_RECTS, (g) => drawShortsPattern(g, { ...d.shortsPattern, color: '#fff' }), d.shortsPattern.dx, d.shortsPattern.dy) } }
+      shortsBase.push(sp)
+      patternExtras(shortsBase, sp, d.shortsPattern, 'shorts:' + specKey(d.shortsPattern))
+    }
     out.push(...shortsBase)
     // moved among the layers: the design goes over the layers below it, the base colour stays under all of them
     if (d.baseAfter?.shorts && shortsBase.length > 1) { out.pop(); deferred.set(d.baseAfter.shorts, [...(deferred.get(d.baseAfter.shorts) ?? []), ...shortsBase.slice(1)]) }
     const socksBase: Pass[] = [{ t: 'fill', fill: F.socks ?? solid(c.socks), clip: 'socks' }]
-    if (d.socksPattern.id !== 'none') socksBase.push({ t: 'fill', fill: specFill(d.socksPattern), clip: 'socks', mask: { key: 'socks:' + specKey(d.socksPattern), draw: (l) => rotIslands(l, d.socksPattern.angle, SOCKS_RECTS, (g) => drawSocksPattern(g, { ...d.socksPattern, color: '#fff' }), d.socksPattern.dx, d.socksPattern.dy) } })
+    if (d.socksPattern.id !== 'none') {
+      const sp: Pass = { t: 'fill', fill: specFill(d.socksPattern), clip: 'socks', mask: { key: 'socks:' + specKey(d.socksPattern), draw: (l) => rotIslands(l, d.socksPattern.angle, SOCKS_RECTS, (g) => drawSocksPattern(g, { ...d.socksPattern, color: '#fff' }), d.socksPattern.dx, d.socksPattern.dy) } }
+      socksBase.push(sp)
+      patternExtras(socksBase, sp, d.socksPattern, 'socks:' + specKey(d.socksPattern))
+    }
     out.push(...socksBase)
     if (d.baseAfter?.socks && socksBase.length > 1) { out.pop(); deferred.set(d.baseAfter.socks, [...(deferred.get(d.baseAfter.socks) ?? []), ...socksBase.slice(1)]) }
     await collarPasses(out, d, false)
@@ -1644,7 +1670,7 @@ export async function buildPasses(design: KitDesign, assets: Record<string, Asse
   // 3. logos (flat in 2D, in each part's own frame)
   if (!opt.skipLogos) for (const g of await allLogoPasses(d, assets)) {
     out.push(...g.passes)
-    if (g.lp.shine != null) { shiny.push(...g.passes); shinyKey += JSON.stringify([g.lp.assetId, g.lp.size, g.lp.dx, g.lp.dy, g.lp.rot, g.lp.shine]) }
+    if (logoShineOf(d, g.lp) != null) { shiny.push(...g.passes); shinyKey += JSON.stringify([g.lp.assetId, g.lp.size, g.lp.dx, g.lp.dy, g.lp.rot, g.lp.shine, d.logoShine]) }
     if (g.lp.outlineRelief && (g.lp.outlineWidth ?? 0) > 0) outlineRelief(out, g.passes, g.lp.outlineRelief, 'lg' + JSON.stringify([g.lp.assetId, g.lp.size, g.lp.dx, g.lp.dy, g.lp.rot, g.lp.side, g.lp.spot, g.lp.place]))
     if (g.lp.embroidery) texturePasses(out, g.passes, g.lp.embroidery, 'lemb:' + JSON.stringify([g.lp.assetId, g.lp.size, g.lp.dx, g.lp.dy, g.lp.rot, g.lp.side, g.lp.spot, g.lp.place, g.passes.length]), 1)
   }
@@ -1696,6 +1722,7 @@ async function allLogoPasses(d: KitDesign, assets: Record<string, Asset>): Promi
       await logoPasses(out, ss, assets, shortsSpots(ss, kind, legSide(ss.side, 'right'), ss.size * 0.5), c.shorts, 'shorts')
     }
     await logoPasses(out, L.socksBrand, assets, socksSpots(), c.socks, 'socks')
+    for (const ss of L.socksSponsors ?? []) await logoPasses(out, ss, assets, socksSpots(ss.side === 'left' || ss.side === 'right' ? ss.side : 'both'), c.socks, 'socks')
   }
   return res
 }
@@ -1741,11 +1768,19 @@ function grayOf(key: string, img: ImageSource, color: string): OffscreenCanvas {
  * layer / logo / name and number with its own shininess painted with its shape. Null when nothing differs.
  * `decos`: the preview name and numbers, one image per part (they are not part of the kit texture).
  */
+/** A logo's shininess: with "Igual em todos" the overall value unless the logo has its own (−1 = switched off here); otherwise its own. */
+function logoShineOf(d: KitDesign, lp: LogoPlacement): number | null {
+  const ls = d.logoShine
+  if (!ls) return lp.shine != null && lp.shine >= 0 ? lp.shine : null
+  if (ls.all) return lp.shine === -1 ? null : lp.shine ?? ls.value
+  return lp.shine != null && lp.shine >= 0 ? lp.shine : null
+}
+
 export async function composeShine(design: KitDesign, assets: Record<string, Asset>, size = 512, decos: { part: DecoPart; key: string; img: ImageSource }[] = []): Promise<{ width: number; height: number; data: Uint8Array } | null> {
   const d = migrateKit(design)
   const layers = resolveGroups(d.layers).filter((l) => l.visible && l.shine != null)
   const ls = d.logoShine, ns = d.numberShine
-  const logoOn = !!ls && (ls.all || Object.values(d.logos).some((v) => (Array.isArray(v) ? v.some((x) => x.shine != null) : v?.shine != null)))
+  const logoOn = !!ls && (ls.all || Object.values(d.logos).some((v) => (Array.isArray(v) ? v.some((x) => logoShineOf(d, x) != null) : !!v && logoShineOf(d, v) != null)))
   if (!layers.length && !d.shine && !logoOn && !ns) return null
   const gray = (shine: number): string => { const v = Math.round(shineToRoughness(shine) * 255).toString(16).padStart(2, '0'); return '#' + v + v + v }
   const out: Pass[] = [{ t: 'fill', fill: solid(gray(d.shine ?? 0)), clip: 'all' }]
@@ -1766,7 +1801,7 @@ export async function composeShine(design: KitDesign, assets: Record<string, Ass
     for (const p of tmp) paint(p, L.shine!)
   }
   if (logoOn && ls) for (const g of await allLogoPasses(d, assets)) {
-    const v = ls.all ? ls.value : g.lp.shine
+    const v = logoShineOf(d, g.lp)
     if (v != null) for (const p of g.passes) paint(p, v)
   }
   if (ns) for (const dc of decos) {

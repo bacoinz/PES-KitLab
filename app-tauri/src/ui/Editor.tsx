@@ -116,7 +116,7 @@ let layerClipboard: { layers: OverlayLayer[]; assets: Record<string, Asset> } | 
 let logoClipboard: { lp: LogoPlacement; asset?: Asset } | null = null
 
 /** Logos tab with each logo's own shininess: the overall value new rows start from (undefined = not in that mode). */
-const LogoShineCtx = createContext<number | undefined>(undefined)
+const LogoShineCtx = createContext<{ all: boolean; value: number } | undefined>(undefined)
 
 /**
  * A texture over a layer / logo / cuff: type (list), size, angle and strength. Used for the fabric ("Tecido") of layers,
@@ -199,7 +199,13 @@ function LogoBlock({ title, lp, assets, onChange, onAsset, folderHint, onRemove,
           <Row label="Esquerda / direita"><Slider value={lp.dx} min={-600} max={600} snaps={[0]} onChange={(dx) => onChange({ ...lp, dx })} /></Row>
           <Row label="Baixo / cima"><Slider invert value={lp.dy} min={-600} max={600} snaps={[0]} onChange={(dy) => onChange({ ...lp, dy })} /></Row>
           <Row label="Rotação"><Slider value={lp.rot ?? 0} min={-180} max={180} snaps={ROT_SNAPS} onChange={(rot) => onChange({ ...lp, rot: rot || undefined })} /></Row>
-          {ownShine !== undefined && <ShineRow value={lp.shine} fallback={ownShine} onChange={(shine) => onChange({ ...lp, shine })} />}
+          {ownShine && ownShine.all && (
+            <Row label="Brilho">
+              <label className="check" title="Só na pré-visualização 3D"><input type="checkbox" checked={lp.shine !== -1} onChange={(e) => onChange({ ...lp, shine: e.target.checked ? undefined : -1 })} /> {lp.shine === -1 ? 'Desligado' : lp.shine == null ? 'Igual em todos' : ''}</label>
+              {lp.shine !== -1 && <Slider value={lp.shine ?? ownShine.value} min={0} max={100} onChange={(shine) => onChange({ ...lp, shine })} />}
+            </Row>
+          )}
+          {ownShine && !ownShine.all && <ShineRow value={lp.shine} fallback={ownShine.value} onChange={(shine) => onChange({ ...lp, shine })} />}
         </>
       )}
       </div>}
@@ -378,7 +384,7 @@ export function Editor(): JSX.Element {
     window.kc.listUserTemplates().then((l) => setUserTpl(l.map((j) => { try { return JSON.parse(j) } catch { return null } }).filter(Boolean).sort((a, b) => String(b.date).localeCompare(String(a.date))))).catch(() => setUserTpl([])) }
   const [ctx, setCtx] = useState<{ x: number; y: number; layer?: string; part: 'torso' | 'shorts' | 'socks' } | null>(null)
   const [copyColors, setCopyColors] = useState(false)
-  const [logoCtx, setLogoCtx] = useState<{ x: number; y: number; lp: LogoPlacement; set: (n: LogoPlacement) => void; key?: 'sponsors' | 'backSponsors' | 'sleeveBadges' | 'shortsSponsors'; i?: number } | null>(null)
+  const [logoCtx, setLogoCtx] = useState<{ x: number; y: number; lp: LogoPlacement; set: (n: LogoPlacement) => void; key?: 'sponsors' | 'backSponsors' | 'sleeveBadges' | 'shortsSponsors' | 'socksSponsors'; i?: number } | null>(null)
   useEffect(() => {
     if (!logoCtx) return
     const close = (): void => setLogoCtx(null)
@@ -1037,6 +1043,7 @@ export function Editor(): JSX.Element {
             )}
             <Row label="Espaçamento de letras"><Slider value={L.letterSpacing ?? 0} min={-50} max={1000} snaps={[0]} onChange={(letterSpacing) => ch({ letterSpacing: letterSpacing || undefined })} /></Row>
             <Toggle on={!!L.italic} label="Itálico" onChange={(v) => ch({ italic: v || undefined })} />
+            <Toggle on={!!L.vertical} label="Texto vertical (letras empilhadas)" onChange={(v) => ch({ vertical: v || undefined })} />
           </>
         )}
         {L.kind === 'image' && (
@@ -1076,6 +1083,7 @@ export function Editor(): JSX.Element {
               <Toggle on={!!L.flipX} label="Espelhar" onChange={(v) => ch({ flipX: v || undefined })} />
               <Toggle on={!!L.mirrorCenter} label="Espelhar (centro)" onChange={(v) => ch({ mirrorCenter: v || undefined })} />
               {part === 'torso' && <Toggle on={!!L.mirrorBack} label="Espelhar nas costas" onChange={(v) => ch({ mirrorBack: v || undefined })} />}
+              {part === 'socks' && <Toggle on={!!L.mirrorLegs} label="Espelhar entre as meias" onChange={(v) => ch({ mirrorLegs: v || undefined })} />}
             </div>
 
             {/* 5. offset, size, rotation */}
@@ -1340,6 +1348,8 @@ export function Editor(): JSX.Element {
             <Row label="Deslocamento (x)"><Slider value={p.dx ?? 0} min={-400} max={400} snaps={[0]} onChange={(dx) => up((k) => ({ ...k, [field]: { ...p, dx: dx || undefined } }))} /></Row>
             <Row label="Deslocamento (y)"><Slider value={p.dy ?? 0} min={-400} max={400} snaps={[0]} onChange={(dy) => up((k) => ({ ...k, [field]: { ...p, dy: dy || undefined } }))} /></Row>
             {part === 'sleeves' && <Row label="Curvar"><Slider value={p.warp ?? 0} min={-150} max={150} snaps={[0]} onChange={(warp) => up((k) => ({ ...k, [field]: { ...p, warp: warp || undefined } }))} /></Row>}
+            {part !== 'sleeves' && <StitchEditor value={p.stitch} onChange={(stitch) => up((k) => ({ ...k, [field]: { ...p, stitch } }))} />}
+            {part !== 'sleeves' && <TextureRow label="Tecido" list={LAYER_FABRICS} value={p.fabric} onChange={(fabric) => up((k) => ({ ...k, [field]: { ...p, fabric } }))} />}
             {part === 'sleeves' && p.id === 'three' && <Row label="Espaçamento"><Slider value={p.gap ?? Math.round(((80 * Math.max(5, p.width) / 100) / 0.4) * 0.45 * 0.9)} min={0} max={120} onChange={(gap) => up((k) => ({ ...k, [field]: { ...p, gap } }))} /></Row>}
           </>
         )}
@@ -1446,7 +1456,7 @@ export function Editor(): JSX.Element {
   // ---------------------------------------------------------------- tabs
   const clean = kit.base.clean ?? (kit.base.cleanLogos ? CLEAN_AREAS.map((c) => c[0]) : [])
   const logos = kit.logos
-  type ListKey = 'sponsors' | 'backSponsors' | 'sleeveBadges' | 'shortsSponsors'
+  type ListKey = 'sponsors' | 'backSponsors' | 'sleeveBadges' | 'shortsSponsors' | 'socksSponsors'
   // "add to the other kits": a sponsor / badge goes into the same list of every other kit of the team (not twice)
   const toOtherKits = (key: ListKey, lp: LogoPlacement): void => {
     if (!lp.assetId) return notify('err', 'Escolhe primeiro a imagem deste logo')
@@ -1750,15 +1760,15 @@ export function Editor(): JSX.Element {
 
   const lsh = kit.logoShine
   const logosTab = (
-    <LogoShineCtx.Provider value={lsh && !lsh.all ? lsh.value : undefined}>
+    <LogoShineCtx.Provider value={lsh}>
     <div className="layers-panel logos-tab">
         <div className="sub-title">Brilho (3D)</div>
         <label className="check"><input type="checkbox" checked={!!lsh} onChange={(e) => up((k) => ({ ...k, logoShine: e.target.checked ? { all: true, value: 60 } : undefined }))} /> Brilho próprio nos emblemas, marcas e patrocínios</label>
         {lsh && (
           <>
             <Toggle on={lsh.all} label="Igual em todos" onChange={(all) => up((k) => ({ ...k, logoShine: { ...lsh, all } }))} />
-            <Row label={lsh.all ? 'Brilho' : 'Brilho geral'}><Slider value={lsh.value} min={0} max={100} onChange={(value) => up((k) => ({ ...k, logoShine: { ...lsh, value } }))} /></Row>
-            {!lsh.all && <div className="muted small">Cada logo tem agora o seu "Brilho" (abre a linha do logo).</div>}
+            <Row label={lsh.all ? 'Brilho de todos' : 'Brilho geral'}><Slider value={lsh.value} min={0} max={100} onChange={(value) => up((k) => ({ ...k, logoShine: { ...lsh, value } }))} /></Row>
+            <div className="muted small">{lsh.all ? 'Todos ligados por defeito; cada logo tem o seu "Brilho" (abre a linha do logo) para mudar a intensidade ou desligar.' : 'Cada logo tem agora o seu "Brilho" (abre a linha do logo).'}</div>
           </>
         )}
 
@@ -1867,6 +1877,20 @@ export function Editor(): JSX.Element {
       </div>
       <div className="sub-title">Meias</div>
       <div onPointerDown={at('socks')} {...logoMenu(logos.socksBrand, (socksBrand) => setLogos((l) => ({ ...l, socksBrand })))}><LogoBlock title="Marca · Meias" lp={logos.socksBrand} assets={assets} onAsset={addAsset} folderHint="Brands" onChange={(socksBrand) => setLogos((l) => ({ ...l, socksBrand }))} /></div>
+      {listOf('socksSponsors').map((sp, i) => {
+        const setOne = (n: LogoPlacement): void => setList('socksSponsors', listOf('socksSponsors').map((x, j) => (j === i ? n : x)))
+        return (
+          <div key={i} onPointerDown={at('socks')} {...logoMenu(sp, setOne, 'socksSponsors', i)}>
+            <LogoBlock title={`Patrocinador · Meias ${i + 1}`} lp={sp} assets={assets} onAsset={addAsset} folderHint="Sponsors" onChange={setOne}
+              onRemove={() => setList('socksSponsors', listOf('socksSponsors').filter((_, j) => j !== i))}
+              extra={<>
+                <Row label="Onde"><Select value={sp.side === 'left' || sp.side === 'right' ? sp.side : 'both'} options={[['both', 'Ambas as meias'], ['left', 'Meia esquerda'], ['right', 'Meia direita']]} onChange={(side) => setOne({ ...sp, side: side as 'left' | 'right' | 'both' })} /></Row>
+                {toOthersBtn('socksSponsors', sp)}
+              </>} />
+          </div>
+        )
+      })}
+      <button className="btn small" onClick={() => setList('socksSponsors', [...listOf('socksSponsors'), newLogo(120, { enabled: false, dy: listOf('socksSponsors').length * 90 })])}>+ Patrocinador nas meias</button>
       <button className="btn small" title="Põe a marca da camisola também nos calções e nas meias" onClick={() => setLogos((l) => ({ ...l, shortsBrand: { ...l.shortsBrand, assetId: l.brand.assetId, enabled: !!l.brand.assetId }, socksBrand: { ...l.socksBrand, assetId: l.brand.assetId, enabled: !!l.brand.assetId } }))}>Usar a marca da camisola em tudo</button>
     </div>
     </LogoShineCtx.Provider>
