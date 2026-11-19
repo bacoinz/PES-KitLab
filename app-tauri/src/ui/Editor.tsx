@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useApp, assetFromFile, rawAssetFromFile, previewAssetFromFile, PRESET_TEAM, USER_TPL_TEAM, stepTime } from '../state'
 import type { PanelStyle, TextPlacement, PanelKind, KitDesign, OverlayLayer, Asset, LogoPlacement, LogoTint, Fill, PatternSpec, FabricLayer, FabricZone, Zone, Logos, StitchKind, StitchSpec, TextureSpec } from '../model/design'
 import { describeStep } from './history'
-import { PANEL_STYLES, SLOT_LABEL, uid, defaultDesign, contrastOn, slotOrder, solid, fillMain, normalizeGroups, dropLayer, migrateKit, LOGO_SIZES, NUMBER_DEFAULTS, STITCH_KINDS, FABRIC_COLLAR, FABRIC_SLEEVE, COLLAR_FABRIC, CUFF_FABRIC, FABRIC_CUFF, SOCK_LAYER_FABRIC, MAIN_FABRIC, HEM_STITCH, MID_STITCH, STITCH_DEFAULT, mergeLogos, copyNumbers, groupColors, swapGroupColor, resolveGroups } from '../model/design'
+import { PANEL_STYLES, SLOT_LABEL, uid, defaultDesign, contrastOn, slotOrder, solid, fillMain, normalizeGroups, dropLayer, migrateKit, LOGO_SIZES, NUMBER_DEFAULTS, STITCH_KINDS, FABRIC_COLLAR, FABRIC_SLEEVE, COLLAR_FABRIC, CUFF_FABRIC, FABRIC_CUFF, SOCK_LAYER_FABRIC, MAIN_FABRIC, HEM_STITCH, SHORTS_HEM_STITCH, MID_STITCH, STITCH_DEFAULT, mergeLogos, copyNumbers, groupColors, swapGroupColor, resolveGroups } from '../model/design'
 import { TEMPLATES, applyTemplate } from '../model/templates'
 import { TORSO_PATTERNS, SLEEVE_PATTERNS, SHORTS_PATTERNS, SOCKS_PATTERNS, TEXTURES, STROKES } from '../compositor/patterns'
 import { composeKit, composeLive, composeShine, composeRelief, composeSockCover, onStaleRender, composeLiveShared, COLLAR_DESIGNS, collarParams, collarDefaults, frontThumb, raglanBend } from '../compositor/compose'
@@ -73,7 +73,7 @@ function layerLabel(L: OverlayLayer): string {
   if (L.kind === 'collar') return 'Gola · ' + (COLLAR_DESIGNS.find((c) => c[0] === L.collarStyle)?.[1] ?? '')
   if (L.kind === 'freeform') return 'Pincel'
   if (L.kind === 'image' && L.fit === 'tile') return 'Padrão personalizado'
-  return L.kind === 'pattern' ? `Design: ${TORSO_PATTERNS.find((t) => t[0] === L.pattern)?.[1] ?? L.pattern}`
+  return L.kind === 'pattern' ? `Design: ${(L.part === 'shorts' ? SHORTS_PATTERNS : TORSO_PATTERNS).find((t) => t[0] === L.pattern)?.[1] ?? L.pattern}`
     : L.kind === 'texture' ? TEXTURES.find((t) => t[0] === L.pattern)?.[1] ?? 'Textura'
       : L.kind === 'text' ? `“${L.text}”` : L.kind === 'image' ? (L.fit === 'part' ? 'Imagem (peça inteira)' : 'Imagem') : SHAPES.find((s) => s[0] === L.shape)?.[1] ?? 'Forma'
 }
@@ -1027,7 +1027,17 @@ export function Editor(): JSX.Element {
             </>
           )
         })()}
-        {L.kind === 'pattern' && (
+        {L.kind === 'pattern' && L.part === 'shorts' && (
+          <>
+            <Row label="Design"><Select value={L.pattern ?? 'side'} options={SHORTS_PATTERNS.filter((t) => t[0] !== 'none')} onChange={(pattern) => ch({ pattern })} /></Row>
+            <Row label="Quantidade"><Slider value={L.count ?? 3} min={1} max={20} onChange={(count) => ch({ count })} /></Row>
+            <Row label="Largura"><Slider value={L.width ?? 40} min={5} max={95} onChange={(width) => ch({ width })} /></Row>
+            <Row label="Rotação"><Slider value={L.rotation ?? 0} min={-180} max={180} snaps={ROT_SNAPS} onChange={(rotation) => ch({ rotation: rotation || undefined })} /></Row>
+            <Row label="Deslocamento (x)"><Slider value={L.dx ?? 0} min={-400} max={400} snaps={[0]} onChange={(dx) => ch({ dx: dx || undefined })} /></Row>
+            <Row label="Deslocamento (y)"><Slider value={L.dy ?? 0} min={-400} max={400} snaps={[0]} onChange={(dy) => ch({ dy: dy || undefined })} /></Row>
+          </>
+        )}
+        {L.kind === 'pattern' && L.part !== 'shorts' && (
           <>
             <ThumbButton label={TORSO_PATTERNS.find((t) => t[0] === L.pattern)?.[1] ?? 'Design'} onClick={() => setFly({ kind: 'layerPattern', layer: L.id })}
               load={() => patternPreview({ ...kit, layers: [], torso: { id: 'none', color: L.color, count: L.count ?? 3, width: L.width ?? 40 } }, 'torso', L.pattern ?? 'stripes', assets)} deps={[L.pattern, kit.colors.shirt, L.color, L.count, L.width]} />
@@ -1765,10 +1775,12 @@ export function Editor(): JSX.Element {
         {kit.base.kind === 'template' ? (
           <>
             <FillRow label="Cor base" value={F.shorts ?? solid(kit.colors.shorts)} onChange={(f) => setFill('shorts', f)} />
-            <StitchEditor label="Costura da bainha" def={HEM_STITCH} value={kit.shortsHem ?? undefined} onChange={(shortsHem) => up((k) => ({ ...k, shortsHem: shortsHem ?? null }))} />
-            <StitchEditor label="Costura da braguilha e de trás" def={MID_STITCH} value={kit.shortsMid ?? undefined} onChange={(shortsMid) => up((k) => ({ ...k, shortsMid: shortsMid ?? null }))} />
           </>
         ) : recolorRows('shorts')}
+        {kit.fabric && <Toggle on={kit.fabricShorts !== false} label="Tecido do kit nos calções" onChange={(v) => up((k) => ({ ...k, fabricShorts: v ? undefined : false }))} />}
+        <StitchEditor label="Costura da bainha" def={SHORTS_HEM_STITCH} value={kit.shortsHem ?? undefined} onChange={(shortsHem) => up((k) => ({ ...k, shortsHem: shortsHem ?? null }))} />
+        <StitchEditor label="Costura da braguilha e de trás" def={MID_STITCH} value={kit.shortsMid ?? undefined} onChange={(shortsMid) => up((k) => ({ ...k, shortsMid: shortsMid ?? null }))} />
+        {kit.base.kind !== 'template' && <div className="muted small">O tecido do kit (separador da camisola, "Tecido e costuras") também cobre os calções.</div>}
       </>) }
       ])}</div>
     </>
@@ -2011,7 +2023,7 @@ export function Editor(): JSX.Element {
 
   const socksTab = (
     <div className="layers-panel">{layerList('socks', [
-      { id: 'socksBase', label: 'Base', icon: 'base', movable: kit.base.kind === 'template', color: fillMain(F.socks, kit.colors.socks), setColor: (c) => setFill('socks', solid(c)), body: (kit.base.kind === 'template' ? <><FillRow label="Cor" value={F.socks ?? solid(kit.colors.socks)} onChange={(f) => setFill('socks', f)} /><Toggle on={!!kit.socksColor2} label="Uma cor por meia" onChange={(v) => up((k) => ({ ...k, socksColor2: v ? k.socksColor2 ?? k.colors.shirt2 : undefined }))} />{kit.socksColor2 && <Row label="Cor da outra meia"><ColorInput value={kit.socksColor2} onChange={(socksColor2) => up((k) => ({ ...k, socksColor2 }))} /></Row>}<TextureRow label="Tecido" list={LAYER_FABRICS} value={kit.socksFabric ?? undefined} defaults={{ scale: 110, opacity: 0.1, mix: 50 }} mix onChange={(socksFabric) => up((k) => ({ ...k, socksFabric: socksFabric ?? null }))} /></> : <>{recolorRows('socks')}</>) }
+      { id: 'socksBase', label: 'Base', icon: 'base', movable: kit.base.kind === 'template', color: fillMain(F.socks, kit.colors.socks), setColor: (c) => setFill('socks', solid(c)), body: (kit.base.kind === 'template' ? <><FillRow label="Cor" value={F.socks ?? solid(kit.colors.socks)} onChange={(f) => setFill('socks', f)} /><Toggle on={!!kit.socksColor2} label="Uma cor por meia" onChange={(v) => up((k) => ({ ...k, socksColor2: v ? k.socksColor2 ?? k.colors.shirt2 : undefined }))} />{kit.socksColor2 && <Row label="Cor da outra meia"><ColorInput value={kit.socksColor2} onChange={(socksColor2) => up((k) => ({ ...k, socksColor2 }))} /></Row>}<TextureRow label="Tecido" list={LAYER_FABRICS} value={kit.socksFabric ?? undefined} defaults={{ scale: 110, opacity: 0.1, mix: 50 }} mix onChange={(socksFabric) => up((k) => ({ ...k, socksFabric: socksFabric ?? null }))} /></> : <>{recolorRows('socks')}<TextureRow label="Tecido" list={LAYER_FABRICS} value={kit.socksFabric ?? undefined} defaults={{ scale: 110, opacity: 0.1, mix: 50 }} mix onChange={(socksFabric) => up((k) => ({ ...k, socksFabric: socksFabric ?? null }))} /></>) }
     ])}</div>
   )
 

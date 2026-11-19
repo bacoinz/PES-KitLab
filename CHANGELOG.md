@@ -2,6 +2,12 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.23] - 2026-11-19
+### Changed
+- Shorts stitching defaults (hem, fly and back): dashed topstitch, centred, intensity 40, scale 20, relief 5.
+- Kits that had a shorts design inside Base now get it as a normal layer on the shorts (same drawing, stitching and fabric), so it stays editable.
+- Imported kits: fabric and stitching can also be changed on the shorts (hem, fly / back seam, kit fabric) and the socks (fabric).
+
 ## [0.4.22] - 2026-11-19
 ### Changed
 - 3D speed without losing quality: the kit texture is now drawn straight inside the 3D view's own WebGL context (copying the 2048² texture between contexts took ~40 ms on every change); the half-size draft while dragging is gone. Moving a slider on the AVS kits went from ~65 ms to ~15–25 ms per change.

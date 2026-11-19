@@ -780,6 +780,10 @@ function layerMask(L: OverlayLayer, s2s: boolean): MaskSrc | null {
   if (L.kind === 'panel') return { key: 'panel:' + geomKey(L, 0), draw: blurred(L, (g) => drawPanel(g, L)) }
   if (L.kind === 'freeform') return { key: 'free:' + geomKey(L, 0), draw: blurred(L, (g) => drawStrokes(g, L)) }
   const part = L.part === 'shirt' ? 'torso' : L.part
+  // the shorts' former base design (kits before 0.4.23) lives on as a layer: same drawing, turned / moved per leg
+  if (L.kind === 'pattern' && part === 'shorts') {
+    return { key: 'shortsPat:' + geomKey(L, 0), draw: blurred(L, (g) => rotIslands(g, L.rotation, SHORTS_RECTS, (q) => drawShortsPattern(q, { id: L.pattern ?? 'side', color: '#fff', count: L.count ?? 3, width: L.width ?? 40 }), L.dx, L.dy)) }
+  }
   if (part === 'torso') {
     const zones = L.zones ?? ['front', 'back']
     return { key: 'layer:' + geomKey(L, [zones, s2s, JSON.stringify(shoulderShape)]), zones: true, draw: blurred(L, (g) => zoneChannels(g, zoneDraws(L))) }
@@ -1681,6 +1685,8 @@ export async function buildPasses(design: KitDesign, assets: Record<string, Asse
         return cv
       }
     })
+    // imported kits: the sock fabric (an option) over the imported socks
+    if (d.socksFabric) texturePasses(out, [{ t: 'fill', fill: solid('#fff'), clip: 'socks', mask: { key: 'socksAll', draw: (g) => g.fillRect(0, 0, S, S) } }], d.socksFabric, 'sockfab', 1)
   } else {
     out.push({ t: 'fill', fill: solid(fillMain(F.shirt, c.shirt)), clip: 'all' })
     if (F.shirt && F.shirt.kind === 'gradient') out.push({ t: 'fill', fill: F.shirt, clip: 'torso' })

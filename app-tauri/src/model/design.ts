@@ -126,7 +126,9 @@ export const CUFF_FABRIC: TextureSpec = { id: 'ribfine', ...FABRIC_CUFF }
 export const SOCKS_FABRIC: TextureSpec = { id: 'ribfine', scale: 110, angle: 0, opacity: 0.1, mix: 20 }
 export const SOCK_LAYER_FABRIC: TextureSpec = { id: 'ribfine', scale: 100, angle: 0, opacity: 0.25 }
 /** The fly / back seam is one thin line (a dashed one). */
-export const MID_STITCH: StitchSpec = { kind: 'dashed', side: 'center', opacity: 0.3, scale: 45, relief: 0 }
+export const MID_STITCH: StitchSpec = { kind: 'dashed', side: 'center', opacity: 0.4, scale: 20, relief: 5 }
+/** The shorts hem: same look as the fly / back seam (the user's choice, 2026-11-19). */
+export const SHORTS_HEM_STITCH: StitchSpec = { ...MID_STITCH }
 export const STITCH_DEFAULT: StitchSpec = { kind: 'dashed', side: 'center', opacity: 0.3, scale: 45, relief: 0 }
 export type StitchKind = 'dashed' | 'dotted' | 'double' | 'solid' | 'zigzag' | 'cross'
 export interface StitchSpec { kind: StitchKind; side: 'in' | 'out' | 'center'; opacity: number /* 0..1 */; scale: number /* % */; color?: string /* thread colour; default = shadow */; relief?: number /* 0 … 100: raised fabric along the seam (3D preview only) */ }
@@ -373,7 +375,7 @@ export interface KitDesign {
   fabricShorts?: boolean // the kit's main fabric on the shorts too (default yes)
   shortsHem?: StitchSpec | null
   shortsMid?: StitchSpec | null
-  v?: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
+  v?: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10
 }
 
 export interface Asset { id: string; name: string; dataUrl: string; w?: number; h?: number }
@@ -475,7 +477,7 @@ export function defaultDesign(slot: string, c1 = '#1f4fb4', c2 = '#ffffff'): Kit
     config: { Collar: 66, WinterCollar: 66, ShirtModel: 144, ShortsModel: 1, TightKit: 1, ...NUMBER_DEFAULTS, ShortsNumberSide: 1 - NUMBER_DEFAULTS.ShortsNumberSide }
   })
   // new kits: name / numbers and logos with their own shininess on (logos: the general value; socks sponsors off by default)
-  return { ...d, fabric: MAIN_FABRIC, hemStitch: HEM_STITCH, shortsHem: HEM_STITCH, shortsMid: MID_STITCH, numberShine: { all: true, value: 90 }, logoShine: { all: false, value: 75 } }
+  return { ...d, fabric: MAIN_FABRIC, hemStitch: HEM_STITCH, shortsHem: SHORTS_HEM_STITCH, shortsMid: MID_STITCH, numberShine: { all: true, value: 90 }, logoShine: { all: false, value: 75 } }
 }
 
 /** Name / number defaults for new kits (the user's choice, 2026-11-14; the height sliders run inverted: shown 17 = BackNumberY 12, shown 7 = NameY 32). */
@@ -490,13 +492,38 @@ export function defaultFabrics(): FabricLayer[] {
 
 /** Bring any saved design up to the current model (v2): torso pattern → layer, single logos → lists, defaults. */
 export function migrateKit(k: KitDesign): KitDesign {
-  if (k.v === 9) return k
-  return toV9(k.v === 8 ? k : toV8(k.v === 7 ? k : toV7(k.v === 6 ? k : toV6(k.v === 5 ? k : toV5(k.v === 4 ? k : toV4(migrateV3(k)))))))
+  if (k.v === 10) return k
+  return toV10(k.v === 9 ? k : toV9(k.v === 8 ? k : toV8(k.v === 7 ? k : toV7(k.v === 6 ? k : toV6(k.v === 5 ? k : toV5(k.v === 4 ? k : toV4(migrateV3(k))))))))
+}
+
+/**
+ * v10 (0.4.23): the shorts' base design (inside "Base") is a layer of its own, so it stays editable; imported kits
+ * never drew the sock fabric, so it starts off there (they can switch it on).
+ */
+function toV10(k: KitDesign): KitDesign {
+  const d: KitDesign = { ...k, v: 10 }
+  if (k.base.kind === 'image' && k.socksFabric) d.socksFabric = null
+  const p = k.shortsPattern
+  if (p && p.id !== 'none' && k.base.kind !== 'image') {
+    const L: OverlayLayer = {
+      id: uid(), kind: 'pattern', part: 'shorts', pattern: p.id, color: p.color, fill: p.fill, count: p.count, width: p.width, visible: true, opacity: 1,
+      rotation: p.angle || undefined, dx: p.dx || undefined, dy: p.dy || undefined, stitch: p.stitch, fabric: p.fabric, fromTemplate: true
+    }
+    // right after the layer the base design was moved behind (else at the bottom of the shorts layers)
+    const layers = [...k.layers]
+    const after = k.baseAfter?.shorts
+    let at = 0
+    if (after) { const idx = layers.map((l, i) => (l.id === after || l.group === after ? i : -1)).filter((i) => i >= 0); if (idx.length) at = Math.max(...idx) + 1 }
+    layers.splice(at, 0, L)
+    d.layers = layers
+    d.shortsPattern = { ...NONE }
+  }
+  return d
 }
 
 /** v9 (0.4.19): the shorts hem and middle seam start switched on (kits of 0.4.18 had them off by default). */
 function toV9(k: KitDesign): KitDesign {
-  return { ...k, v: 9, shortsHem: k.shortsHem ?? HEM_STITCH, shortsMid: k.shortsMid ?? MID_STITCH }
+  return { ...k, v: 9, shortsHem: k.shortsHem ?? SHORTS_HEM_STITCH, shortsMid: k.shortsMid ?? MID_STITCH }
 }
 
 /** v8 (0.4.18): the sock texture is a fabric on the sock base (kits saved before get the former 3D look as a real fabric); shorts seams are options (none in older kits). */

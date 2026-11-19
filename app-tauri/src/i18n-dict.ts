@@ -501,6 +501,7 @@ export const DICT: Record<string, [string, string]> = {
   'Atrás (rabo), ao centro': ['Back (seat), centred', 'Detrás (trasero), centrado'],
   'Frente ao centro': ['Front, centred', 'Frente, centrado'],
   'Também nos calções': ['Also on the shorts', 'También en el pantalón'],
+  'Tecido do kit nos calções': ['Kit fabric on the shorts', 'Tejido del kit en el pantalón'],
   'Simetria (esquerda ↔ direita)': ['Symmetry (left ↔ right)', 'Simetría (izquierda ↔ derecha)'],
   'Limpar desenho': ['Clear drawing', 'Limpiar dibujo'],
   'Apagar todo o desenho desta camada?': ['Delete all the drawing on this layer?', '¿Borrar todo el dibujo de esta capa?'],
