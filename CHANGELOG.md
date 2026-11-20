@@ -2,6 +2,10 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.16] - 2026-11-20
+### Fixed
+- The "From the library" button was missing from the "Add layer" grid of the editor, so saved layer sets could not be inserted.
+
 ## [0.5.15] - 2026-11-20
 ### Added
 - New "Analyzer" tab (between "Bulk generator" and "Library"). The texture analyser moved out of the editor into its own screen with a large texture view (wheel zoom, drag to pan). The source is a PNG / FTEX file or a kit read straight from the game (pick team and kit). Open a team to apply the result to one of its kits (or a free slot).
