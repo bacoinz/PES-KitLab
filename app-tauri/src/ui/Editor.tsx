@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { useApp, assetFromFile, rawAssetFromFile, previewAssetFromFile, PRESET_TEAM, USER_TPL_TEAM, stepTime } from '../state'
+import { useApp, assetFromFile, rawAssetFromFile, previewAssetFromFile, PRESET_TEAM, USER_TPL_TEAM, LAYERSET_TEAM, stepTime } from '../state'
 import type { PanelStyle, TextPlacement, PanelKind, KitDesign, OverlayLayer, Asset, LogoPlacement, LogoTint, Fill, PatternSpec, FabricLayer, FabricZone, Zone, Logos, StitchKind, StitchSpec, TextureSpec } from '../model/design'
 import { describeStep } from './history'
 import { PANEL_STYLES, SLOT_LABEL, ALL_SLOTS, uid, defaultDesign, contrastOn, slotOrder, solid, fillMain, normalizeGroups, dropLayer, migrateKit, LOGO_SIZES, NUMBER_DEFAULTS, STITCH_KINDS, FABRIC_COLLAR, FABRIC_SLEEVE, COLLAR_FABRIC, CUFF_FABRIC, FABRIC_CUFF, SOCK_LAYER_FABRIC, MAIN_FABRIC, HEM_STITCH, SHORTS_HEM_STITCH, MID_STITCH, STITCH_DEFAULT, mergeLogos, copyNumbers, groupColors, swapGroupColor, resolveGroups, kitAssetIds } from '../model/design'
@@ -713,8 +713,13 @@ export function Editor(): JSX.Element {
 
   const presetMode = project.teamId === PRESET_TEAM
   const tplMode = project.teamId === USER_TPL_TEAM
+  const lsMode = project.teamId === LAYERSET_TEAM
   const doSave = async (): Promise<void> => {
     setBusy(true)
+    if (lsMode) {
+      try { await useApp.getState().saveLayerSet(); notify('ok', 'Camadas guardadas na biblioteca') } catch (e) { notify('err', String((e as Error).message ?? e)) } finally { setBusy(false) }
+      return
+    }
     if (tplMode) {
       try { await useApp.getState().saveUserTemplate(); notify('ok', 'Template guardado') } catch (e) { notify('err', String((e as Error).message ?? e)) } finally { setBusy(false) }
       return
@@ -2453,7 +2458,8 @@ export function Editor(): JSX.Element {
     <div className="editor">
       <aside className="panel" style={{ width }}>
         <div className="panel-head">
-          <div className="team-title"><b>{project.teamName}</b>{!presetMode && !tplMode && <span className="muted">#{project.teamId}</span>}{dirty && <span className="dirty">● por guardar</span>}</div>
+          <div className="team-title"><b>{project.teamName}</b>{!presetMode && !tplMode && !lsMode && <span className="muted">#{project.teamId}</span>}{dirty && <span className="dirty">● por guardar</span>}</div>
+          {lsMode && <div className="preset-banner">A editar um conjunto de camadas da biblioteca. Podes mudar, vetorizar (Converter em vetor), acrescentar e apagar camadas; "Guardar" grava as alterações no conjunto.</div>}
           {tplMode && <div className="preset-banner">A editar um template guardado (sem emblema nem patrocinadores). "Guardar" grava as alterações no template.</div>}
           {presetMode && <div className="preset-banner">Templates do kit novo: cada equipamento aqui (Principal, Alternativo, 3.º, 4.º, GR) é o template desse tipo. "Guardar" passa a usá-los nos kits novos, com as cores de cada equipa.</div>}
           <div className="slot-tabs">
@@ -2550,7 +2556,7 @@ export function Editor(): JSX.Element {
           }}>Eliminar kit</button>
           <button className="btn" disabled={!dirty || !savedProject} onClick={() => { if (confirm('Descartar todas as alterações por guardar desta equipa?')) discardAll() }}>Descartar tudo</button>
           <button className="btn primary" disabled={busy || !dirty} onClick={doSave}>{busy ? 'A guardar…' : 'Guardar'}</button>
-          <button className="btn ghost" onClick={() => setView(presetMode ? 'settings' : tplMode ? 'library' : 'teams')} title={presetMode ? 'Voltar às Definições' : tplMode ? 'Voltar à Biblioteca' : 'Voltar às equipas'}>✕</button>
+          <button className="btn ghost" onClick={() => setView(presetMode ? 'settings' : tplMode || lsMode ? 'library' : 'teams')} title={presetMode ? 'Voltar às Definições' : tplMode || lsMode ? 'Voltar à Biblioteca' : 'Voltar às equipas'}>✕</button>
         </div>
         <div className="viewport">
           {mode === '3d'

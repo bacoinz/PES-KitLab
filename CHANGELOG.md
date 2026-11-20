@@ -2,6 +2,10 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.20] - 2026-11-20
+### Added
+- Library → "Saved layers": each set has an "Edit" button. It opens the set in the editor (3D model and 2D texture) as a sandbox kit, where its layers can be changed, hidden, reordered, converted to vector and edited with the pen, and new layers can be added. "Save" writes the changes back to the set (layers, base colours and preview); the X button goes back to the Library.
+
 ## [0.5.19] - 2026-11-20
 ### Changed
 - Analyzer, layer list: parts and layers are now one list of boxed rows (each part, its colour layers and its details). Clicking a row only highlights it (on the texture and the before / after view); Ctrl or Shift + click selects several. The checkbox is what switches a row on or off, and that now really takes it out of the result.

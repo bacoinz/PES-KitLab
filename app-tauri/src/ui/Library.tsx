@@ -43,6 +43,7 @@ export function Library(): JSX.Element {
   // saved shirt templates (KitCreatorData/templates)
   const [tpls, setTpls] = useState<UserTemplate[]>([])
   const openUserTemplate = useApp((s) => s.openUserTemplate)
+  const openLayerSet = useApp((s) => s.openLayerSet)
   const loadTpls = (): void => { window.kc.listUserTemplates().then((l) => setTpls(l.map((j) => { try { return JSON.parse(j) as UserTemplate } catch { return null } }).filter((x): x is UserTemplate => !!x).sort((a, b) => String(b.date).localeCompare(String(a.date))))).catch(() => setTpls([])) }
   useEffect(loadTpls, [])
   const [lsets, setLsets] = useState<UserLayerSet[]>([])
@@ -105,6 +106,7 @@ export function Library(): JSX.Element {
                 <b title={t.name}>{t.name}</b>
                 <span className="muted small">{`${t.layers.length} camada(s) · ${new Date(t.date).toLocaleDateString()}`}</span>
                 <div className="btn-row">
+                  <button className="btn small" title="Abre no editor (3D e textura 2D) para mudar, vetorizar e acrescentar camadas" onClick={() => openLayerSet(t)}>Editar</button>
                   <button className="btn small ghost" onClick={async () => {
                     const name = prompt('Nome do conjunto de camadas', t.name)
                     if (!name || name === t.name) return

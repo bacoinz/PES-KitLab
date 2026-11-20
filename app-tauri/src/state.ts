@@ -4,7 +4,8 @@ import type { Settings, LibraryItem, DraftInfo, PresetType, KitDefaults } from '
 import type { TeamProject, KitDesign, KitColors, Asset, Logos, OverlayLayer } from './model/design'
 import { defaultLogos, uid, slotOrder, migrateProject, migrateKit, kitAssetIds } from './model/design'
 import { generateSet, teamColorsFromPalette, applyTemplate, TEMPLATES } from './model/templates'
-import { luminance, colorDist, defaultDesign } from './model/design'
+import { luminance, colorDist, defaultDesign, NONE } from './model/design'
+import { layersThumb } from './analyzeView'
 import { composeKit, composeRgba, composeLive, composeRelief, composeShine, designConfig, frontThumb } from './compositor/compose'
 import { palette, dataUrlFromBytes, rgbaToCanvas, canvasToDataUrl, canvasRgba, loadAsset, canvas, ctx2d, trim } from './compositor/images'
 import { findBoxes, recolorNumbers, renderNumbers, type NumberPart } from './compositor/numbers'
@@ -43,6 +44,9 @@ interface State {
   /** Editor on one saved shirt template; Guardar writes it back. */
   openUserTemplate(t: UserTemplate): void
   saveUserTemplate(): Promise<void>
+  editingLayerSet: UserLayerSet | null
+  openLayerSet(s: UserLayerSet): void
+  saveLayerSet(): Promise<void>
   editingTemplate: UserTemplate | null
   loadProject(p: TeamProject, saved?: TeamProject | null): void
   refreshDrafts(): Promise<void>
@@ -69,6 +73,8 @@ let lastStep = 0
 export const PRESET_TEAM = -1
 /** Sandbox project used to edit one saved shirt template (Biblioteca → Templates). */
 export const USER_TPL_TEAM = -2
+/** Sandbox project used to edit a saved layer set (Biblioteca → Camadas guardadas → Editar). */
+export const LAYERSET_TEAM = -3
 /** Layers saved from the analyser (KitCreatorData/layers), to insert in other kits. */
 export interface UserLayerSet { id: string; name: string; date: string; layers: OverlayLayer[]; assets: Record<string, Asset>; colors?: Partial<Record<'torso' | 'sleeves' | 'shorts' | 'socks', string>>; thumb?: string }
 export interface UserTemplate { id: string; name: string; date: string; kit: KitDesign; assets: Record<string, Asset> }
@@ -199,6 +205,36 @@ export const useApp = create<State>((set, get) => ({
     const nt: UserTemplate = { ...t, date: new Date().toISOString(), kit, assets: Object.fromEntries([...used].filter((a) => p.assets[a]).map((a) => [a, p.assets[a]])) }
     await window.kc.saveUserTemplate(t.id, JSON.stringify(nt))
     set({ savedProject: p, editingTemplate: nt })
+  },
+  editingLayerSet: null,
+  openLayerSet: (s) => {
+    const k0 = defaultDesign('p1')
+    const c = s.colors ?? {}
+    const colors = { ...k0.colors }
+    if (c.torso) { colors.shirt = c.torso; colors.collar = c.torso }
+    if (c.sleeves) { colors.sleeves = c.sleeves; colors.cuffs = c.sleeves }
+    if (c.shorts) colors.shorts = c.shorts
+    if (c.socks) colors.socks = c.socks
+    const L = k0.logos
+    const kit = migrateKit({
+      ...k0, colors, fills: {}, torso: { ...NONE }, sleevePattern: { ...NONE }, shortsPattern: { ...NONE }, socksPattern: { ...NONE },
+      logos: { ...L, crest: { ...L.crest, enabled: false }, brand: { ...L.brand, enabled: false } },
+      layers: JSON.parse(JSON.stringify(s.layers))
+    })
+    const proj: TeamProject = { version: 1, teamId: LAYERSET_TEAM, teamName: 'Camadas: ' + s.name, league: '', updateGameEmblem: false, kits: [kit], assets: JSON.parse(JSON.stringify(s.assets ?? {})) }
+    get().loadProject(proj, proj)
+    set({ view: 'editor', activeSlot: 'p1', editingLayerSet: s })
+  },
+  saveLayerSet: async () => {
+    const p = get().project, t = get().editingLayerSet
+    if (!p || p.teamId !== LAYERSET_TEAM || !t) return
+    const kit = p.kits[0]
+    const used = kitAssetIds(kit)
+    const assets = Object.fromEntries([...used].filter((a) => p.assets[a]).map((a) => [a, p.assets[a]]))
+    const thumb = (await layersThumb(kit.layers, assets)) ?? t.thumb
+    const ns: UserLayerSet = { ...t, date: new Date().toISOString(), layers: kit.layers, assets, colors: { torso: kit.colors.shirt, sleeves: kit.colors.sleeves, shorts: kit.colors.shorts, socks: kit.colors.socks }, thumb }
+    await window.kc.saveUserLayers(t.id, JSON.stringify(ns))
+    set({ savedProject: p, editingLayerSet: ns })
   },
   openPresetEditor: (type) => {
     const def = get().settings?.defaults ?? {}
