@@ -94,6 +94,10 @@ export interface KcApi {
   analyzeTexture(dataUrl: string, opts: { colors?: number; sensitivity?: number }): Promise<unknown>
   readKitlab(path: string): Promise<{ kit: unknown; assets: Record<string, { name: string; dataUrl: string; w: number; h: number }> }>
   listUserTemplates(): Promise<string[]>
+  /** saved layer sets (KitCreatorData/layers): JSON of { id, name, date, layers, assets, thumb } */
+  saveUserLayers(id: string, json: string): Promise<void>
+  listUserLayers(): Promise<string[]>
+  deleteUserLayers(id: string): Promise<void>
   deleteUserTemplate(id: string): Promise<void>
   /** full kit textures (PNG / JPG) in KitCreatorData/templates */
   listTemplateImages(): Promise<{ path: string; name: string; category: string }[]>

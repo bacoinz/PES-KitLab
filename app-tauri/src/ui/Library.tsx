@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useApp, assetFromFile, previewAssetFromFile, type UserTemplate } from '../state'
+import { useApp, assetFromFile, previewAssetFromFile, type UserTemplate, type UserLayerSet } from '../state'
 import { kitPreview3d } from '../previews'
 import type { KitDesign } from '../model/design'
 import { defaultDesign } from '../model/design'
 import { LocalImg, AssetPicker } from './common'
 import { MonoLogoModal } from './MonoLogo'
+import { listLayerSets } from './LayerSets'
 import type { Asset } from '../model/design'
 
 /** 3D preview of a PNG kit texture. */
@@ -44,6 +45,10 @@ export function Library(): JSX.Element {
   const openUserTemplate = useApp((s) => s.openUserTemplate)
   const loadTpls = (): void => { window.kc.listUserTemplates().then((l) => setTpls(l.map((j) => { try { return JSON.parse(j) as UserTemplate } catch { return null } }).filter((x): x is UserTemplate => !!x).sort((a, b) => String(b.date).localeCompare(String(a.date))))).catch(() => setTpls([])) }
   useEffect(loadTpls, [])
+  const [lsets, setLsets] = useState<UserLayerSet[]>([])
+  const loadSets = (): void => { listLayerSets().then(setLsets) }
+  useEffect(loadSets, [])
+  const showSets = folder === '\u0000layers'
   const showTpls = folder === '\u0000templates'
   const showImgs = folder === '\u0000tplimgs'
   const [imgs, setImgs] = useState<{ path: string; name: string; category: string }[]>([])
@@ -60,6 +65,7 @@ export function Library(): JSX.Element {
     <div className="library">
       <aside className="leagues">
         <div className="leagues-head">Pastas</div>
+        <button className={'league' + (showSets ? ' active' : '')} onClick={() => { setFolder('\u0000layers'); loadSets() }}>Camadas guardadas <span>{lsets.length}</span></button>
         <button className={'league' + (showTpls ? ' active' : '')} onClick={() => { setFolder('\u0000templates'); loadTpls() }}>Templates de camisolas <span>{tpls.length}</span></button>
         <button className={'league' + (showImgs ? ' active' : '')} onClick={() => { setFolder('\u0000tplimgs'); loadImgs() }}>Templates de texturas (PNG) <span>{imgs.length}</span></button>
         <button className={'league' + (!folder ? ' active' : '')} onClick={() => setFolder('')}>Todas <span>{library.length}</span></button>
@@ -90,6 +96,27 @@ export function Library(): JSX.Element {
           <input className="search" placeholder="Pesquisar…" value={q} onChange={(e) => setQ(e.target.value)} />
           <button className="btn ghost" onClick={refreshLibrary}>⟳</button>
         </div>
+        {showSets && (
+          <div className="tpl-grid">
+            {!lsets.length && <div className="muted pad">Ainda não há camadas guardadas. No separador Analisador, analisa uma textura e usa «Guardar na biblioteca». No editor: Adicionar camada → Da biblioteca.</div>}
+            {lsets.filter((t) => t.name.toLowerCase().includes(q.toLowerCase())).map((t) => (
+              <div key={t.id} className="tpl-card">
+                <div className="tpl-img az-thumb">{t.thumb ? <img src={t.thumb} alt="" /> : null}</div>
+                <b title={t.name}>{t.name}</b>
+                <span className="muted small">{`${t.layers.length} camada(s) · ${new Date(t.date).toLocaleDateString()}`}</span>
+                <div className="btn-row">
+                  <button className="btn small ghost" onClick={async () => {
+                    const name = prompt('Nome do conjunto de camadas', t.name)
+                    if (!name || name === t.name) return
+                    await window.kc.saveUserLayers(t.id, JSON.stringify({ ...t, name }))
+                    loadSets()
+                  }}>Renomear</button>
+                  <button className="btn small ghost danger-text" onClick={async () => { if (!confirm(`Apagar "${t.name}"?`)) return; await window.kc.deleteUserLayers(t.id); loadSets() }}>Apagar</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         {showTpls && (
           <div className="tpl-grid">
             {!tpls.length && <div className="muted pad">Ainda não há templates. No editor: Origem → "Guardar como template…".</div>}
@@ -128,7 +155,7 @@ export function Library(): JSX.Element {
             ))}
           </div>
         )}
-        {!showTpls && !showImgs && <div className="lib-grid big">
+        {!showTpls && !showImgs && !showSets && <div className="lib-grid big">
           {items.map((it) => (
             <div key={it.path} className="lib-item" title={it.path + ' — clicar para fazer uma versão monocromática'} onClick={() => assetFromFile(it.path).then(setMono).catch((e) => notify('err', String(e)))}><LocalImg path={it.path} /><span>{it.name}</span></div>
           ))}

@@ -26,12 +26,12 @@ import { Swatch, ColorCtx, type NamedColor } from './ColorPicker'
 import { registerHandlers } from './shortcuts'
 import { exportKitlab, parseKitlab, usePendingKitlab, type ParsedKitlab } from '../kitlab'
 import { KitlabImportModal } from './KitlabImportModal'
+import { LayerSetPicker, instantiateSet } from './LayerSets'
 import { ContrastPanel } from './ContrastPanel'
 import { ReferencePanel } from './ReferencePanel'
-import { TextureAnalyzeModal } from './TextureAnalyzeModal'
 import { uvToUnit, vectorizeMask, vectorLayerFrom } from '../analyze'
 import { ReferenceWindow } from './ReferenceWindow'
-import { useRef2, useReferenceInput } from './reference'
+import { useRef2, useReferenceInput, loadReferenceFromPath, REF_EXTS } from './reference'
 import { nudgeLayer, resizeLayer, rotateLayer, reorderLayer, duplicateLayer } from './layerKeys'
 import { layerBox, handleAt, hitLayer, toFrame, dragTo, boxOutline, type Zone2D, type DragStart } from './select2d'
 import { Section, Row, ColorInput, Slider, Select, AssetPicker, CropModal, pickColorTarget, TeamColors } from './common'
@@ -446,11 +446,21 @@ export function Editor(): JSX.Element {
   useEffect(() => { if (designPick) { setFly(null); setTexPick(null) } }, [designPick])
   const [tab, setTab] = useState<Tab>('shirt')
   const [kitlabFile, setKitlabFile] = useState<ParsedKitlab | null>(null)
-  const [analyzeOpen, setAnalyzeOpen] = useState(false)
+  const [setsOpen, setSetsOpen] = useState(false)
   // a .kitlab chosen on a team card in the Teams screen
   const pendingKitlab = usePendingKitlab((s) => s.file)
   useEffect(() => { if (pendingKitlab && project) { setKitlabFile(pendingKitlab); usePendingKitlab.getState().set(null) } }, [pendingKitlab, project]) // eslint-disable-line react-hooks/exhaustive-deps
   const refImg = useRef2((r) => r.img), refOv = useRef2((r) => r.overlay)
+  // button next to the camera: shows / hides the floating reference window (asks for an image the first time)
+  const refOpen = useRef2((r) => !!r.url && r.win.open)
+  const toggleRef = async (): Promise<void> => {
+    const r = useRef2.getState()
+    if (r.url) { r.setWin({ open: !r.win.open, min: false }); return }
+    try {
+      const [p] = await window.kc.pickFiles([{ name: 'Imagens', extensions: REF_EXTS }])
+      if (p) await loadReferenceFromPath(p)
+    } catch (e) { useApp.getState().notify('err', String((e as Error).message ?? e)) }
+  }
   const reference = useMemo(() => (refImg ? { img: refImg, o: refOv } : null), [refImg, refOv])
   useReferenceInput(useCallback((m: string) => useApp.getState().notify('err', m), []))
   const [width, setWidth] = useState(readWidth)
@@ -1271,6 +1281,7 @@ export function Editor(): JSX.Element {
       ['Padrão personalizado', 'tile', () => addLayer(base('image', { fit: 'tile', tileTint: 'original', size: 160, gap: 0 }))],
       ['Caneta', 'freeform', () => { const id = uid(); addLayer({ id, kind: 'vector', part, visible: true, opacity: 1, color: kit.colors.shirt2, vpaths: [], zones: part === 'torso' ? ['front', 'back'] : undefined }); setVecEdit(id) }],
       ['Imagem/textura', 'logo', () => addLayer(base('image'))],
+      ['Da biblioteca', 'image', () => setSetsOpen(true)],
       ['Texto', 'text', () => addLayer(base('text', { x: 1024, y: 1350, size: 90 }))],
       ['Grupo', 'group', () => addLayer({ id: uid(), kind: 'group', part, visible: true, opacity: 1, color: '#888888', name: 'Grupo ' + (kit.layers.filter((x) => x.kind === 'group').length + 1) })]
     ]
@@ -1680,13 +1691,13 @@ export function Editor(): JSX.Element {
           notify('ok', `${kits.length} variante(s) criada(s)`)
         }} />
       </Section>
-      <Section group={tab} title="Analisar textura">
-        <div className="muted small">Abre uma textura de kit (PNG ou FTEX, ou a do jogo) e separa-a em camadas de cor que podes recolorir, esconder e reordenar, com os emblemas e desenhos que não são cores lisas à parte.</div>
-        <div className="btn-row"><button className="btn small" onClick={() => setAnalyzeOpen(true)}>Analisar textura…</button></div>
-      </Section>
-      <Section group={tab} title="Imagem de referência">
-        <ReferencePanel />
-      </Section>
+      {kit.base.kind === 'template' && (
+        <Section group={tab} title="Template completo">
+          <div className="muted small">Aplica um conjunto pronto (design da camisola, mangas, calções e meias) com as cores atuais. Depois afinas tudo nas outras abas.</div>
+          <ThumbButton label={TEMPLATES.find((t) => t.id === kit.templateId)?.name ?? 'Escolher template'} onClick={() => setFly({ kind: 'template' })}
+            load={() => templatePreview(kit, kit.templateId ?? 'classic', assets)} deps={[kit.templateId, kit.colors.shirt, kit.colors.shirt2, kit.colors.shirt3]} />
+        </Section>
+      )}
       <Section group={tab} title="Copiar para todos os kits">
         <div className="muted small">Copia deste kit ({SLOT_LABEL[kit.slot] ?? kit.slot}) para os outros equipamentos da equipa. Os logos que um kit já tem ficam como estão; só se acrescenta o que falta.</div>
         <label className="check"><input type="checkbox" checked={copyColors} onChange={(e) => setCopyColors(e.target.checked)} /> Copiar também as cores</label>
@@ -1704,13 +1715,9 @@ export function Editor(): JSX.Element {
           }}>Números, nomes e fontes → todos</button>
         </div>
       </Section>
-      {kit.base.kind === 'template' && (
-        <Section group={tab} title="Template completo">
-          <div className="muted small">Aplica um conjunto pronto (design da camisola, mangas, calções e meias) com as cores atuais. Depois afinas tudo nas outras abas.</div>
-          <ThumbButton label={TEMPLATES.find((t) => t.id === kit.templateId)?.name ?? 'Escolher template'} onClick={() => setFly({ kind: 'template' })}
-            load={() => templatePreview(kit, kit.templateId ?? 'classic', assets)} deps={[kit.templateId, kit.colors.shirt, kit.colors.shirt2, kit.colors.shirt3]} />
-        </Section>
-      )}
+      <Section group={tab} title="Imagem de referência">
+        <ReferencePanel />
+      </Section>
     </>
   )
 
@@ -2400,7 +2407,21 @@ export function Editor(): JSX.Element {
         </div>
       )
     })()}
-    {analyzeOpen && <TextureAnalyzeModal kit={kit} onClose={() => setAnalyzeOpen(false)} />}
+    {setsOpen && <LayerSetPicker onClose={() => setSetsOpen(false)} onInsert={(s, withColors) => {
+      const { layers, assets: na } = instantiateSet(s)
+      const c = withColors ? s.colors ?? {} : {}
+      setProject((p) => ({ ...p, assets: { ...p.assets, ...na }, kits: p.kits.map((k) => {
+        if (k.slot !== kit.slot) return k
+        const colors = { ...k.colors }
+        if (c.torso) { colors.shirt = c.torso; colors.collar = c.torso }
+        if (c.sleeves) { colors.sleeves = c.sleeves; colors.cuffs = c.sleeves }
+        if (c.shorts) colors.shorts = c.shorts
+        if (c.socks) colors.socks = c.socks
+        return { ...k, colors, layers: [...k.layers, ...layers] }
+      }) }))
+      setSetsOpen(false)
+      notify('ok', `${layers.length} camada(s) inseridas: ${s.name}`)
+    }} />}
     {kitlabFile && <KitlabImportModal file={kitlabFile} onClose={() => setKitlabFile(null)} />}
     {logoCtx && (() => {
       const { lp, set, key, i } = logoCtx
@@ -2634,6 +2655,12 @@ export function Editor(): JSX.Element {
               {([['front', 'Camisola (frente)', 'base'], ['back', 'Camisola (costas)', 'back'], ['sleeve', 'Mangas', 'sleeves'], ['collar', 'Gola', 'collar'], ['shorts', 'Calções', 'shorts'], ['socks', 'Meias', 'sock']] as [CamView, string, IconName][]).map(([v, label, ic]) => <button key={v} className={'icon-cam' + (cam.view === v ? ' active' : '')} title={label} onClick={() => { setSpin(false); go(v, true) }}><Icon name={ic} size={18} /></button>)}
               <span className="cam-sep" />
               <button className={'icon-cam' + (camMenu ? ' active' : '')} title="Câmara: mais vistas, rodar, luz e imagem" onClick={() => setCamMenu(!camMenu)}><Icon name="camera" size={18} /></button>
+              <button className={'icon-cam' + (refOpen ? ' active' : '')} title="Janela de referência: mostrar / esconder (a imagem fica carregada)" onClick={toggleRef}><Icon name="image" size={18} /></button>
+            </div>
+          )}
+          {mode === '2d' && (
+            <div className="cam-buttons">
+              <button className={'icon-cam' + (refOpen ? ' active' : '')} title="Janela de referência: mostrar / esconder (a imagem fica carregada)" onClick={toggleRef}><Icon name="image" size={18} /></button>
             </div>
           )}
           {mode === '3d' && camMenu && (

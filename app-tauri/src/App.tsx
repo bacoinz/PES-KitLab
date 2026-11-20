@@ -3,6 +3,7 @@ import { useApp, type View } from './state'
 import { Teams } from './ui/Teams'
 import { Editor } from './ui/Editor'
 import { Bulk } from './ui/Bulk'
+import { Analyzer } from './ui/Analyzer'
 import { Library } from './ui/Library'
 import { Settings } from './ui/Settings'
 import { Footer, KofiButton } from './ui/Footer'
@@ -10,7 +11,7 @@ import { setLang } from './i18n'
 import { CommandPalette, ShortcutSheet } from './ui/CommandPalette'
 import { installShortcuts, registerHandlers, setUserKeys } from './ui/shortcuts'
 
-const NAV: [View, string][] = [['teams', 'Equipas'], ['editor', 'Editor'], ['bulk', 'Gerador em massa'], ['library', 'Biblioteca'], ['settings', 'Definições']]
+const NAV: [View, string][] = [['teams', 'Equipas'], ['editor', 'Editor'], ['bulk', 'Gerador em massa'], ['analyzer', 'Analisador'], ['library', 'Biblioteca'], ['settings', 'Definições']]
 
 function Brand({ version }: { version: string }): JSX.Element {
   return (
@@ -110,7 +111,7 @@ export function App(): JSX.Element {
         <div className="game-chip" title={status.root}>{status.teamCount} equipas · {status.kitsRoot ? 'Sider kit-server ✓' : 'sem kit-server'}</div>
       </header>}
       <main className="content">
-        {!status ? <Splash version={version} booting={booting} /> : view === 'teams' ? <Teams /> : view === 'editor' && project ? <Editor /> : view === 'bulk' ? <Bulk /> : view === 'library' ? <Library /> : view === 'settings' ? <Settings /> : <Teams />}
+        {!status ? <Splash version={version} booting={booting} /> : view === 'teams' ? <Teams /> : view === 'editor' && project ? <Editor /> : view === 'bulk' ? <Bulk /> : view === 'analyzer' ? <Analyzer /> : view === 'library' ? <Library /> : view === 'settings' ? <Settings /> : <Teams />}
       </main>
       {palette && <CommandPalette onClose={() => setPalette(false)} />}
       {sheet && <ShortcutSheet onClose={() => setSheet(false)} />}

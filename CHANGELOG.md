@@ -2,6 +2,17 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.15] - 2026-11-20
+### Added
+- New "Analyzer" tab (between "Bulk generator" and "Library"). The texture analyser moved out of the editor into its own screen with a large texture view (wheel zoom, drag to pan). The source is a PNG / FTEX file or a kit read straight from the game (pick team and kit). Open a team to apply the result to one of its kits (or a free slot).
+- Selection tools on the texture after the analysis: "Colour" (click a colour or a detail to take it out or put it back), "Rectangle" and "Lasso" with "Take out what is inside" / "Keep only what is inside" (red / green outlines), plus "Undo selection" and "Reset all". The before / after slider now reflects every choice at once (colours, merges, parts, details and selections), with the "Difference map" and the mean difference computed from what you chose.
+- "Generated layers" list in the Analyzer: tick the layers you want and "Save N layer(s)" puts them in the user library (KitCreatorData\layers).
+- Library → "Saved layers": preview, rename, delete. In the editor, Add layer → "From the library" inserts a saved set into the open kit (optionally with its base colours).
+- The camera buttons of the viewer have a new "Reference window" button (3D and 2D): it shows / hides the floating reference window without losing the image; with no image loaded it asks for one.
+
+### Changed
+- Origin tab order: Kit colours, Origin, Pattern generator, Colour variants, Full template, Copy to all kits, Reference image. The "Analyze texture" section was removed from the editor (it is the Analyzer tab now).
+
 ## [0.5.14] - 2026-11-20
 ### Added
 - Team cards (Teams screen) have "Import .kitlab": pick a file, the team opens in the editor (its saved work, or new kits) and the import dialog follows, with the usual choices for crest, brand and sponsors.

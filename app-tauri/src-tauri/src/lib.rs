@@ -678,6 +678,18 @@ fn template_dir_path(st: State<AppState>) -> String { template_dir(&st).to_strin
 #[tauri::command]
 fn delete_user_template(st: State<AppState>, id: String) -> R<()> { let _ = fs::remove_file(template_dir(&st).join(format!("{}.json", safe_id(&id)))); Ok(()) }
 
+// ---------------------------------------------------------------- saved layer sets (KitCreatorData/layers/<id>.json)
+fn layers_dir(st: &State<AppState>) -> PathBuf { let d = st.data_dir.join("layers"); let _ = fs::create_dir_all(&d); d }
+#[tauri::command]
+fn save_user_layers(st: State<AppState>, id: String, json: String) -> R<()> { fs::write(layers_dir(&st).join(format!("{}.json", safe_id(&id))), json).map_err(e2s) }
+#[tauri::command]
+fn list_user_layers(st: State<AppState>) -> Vec<String> {
+    let Ok(rd) = fs::read_dir(layers_dir(&st)) else { return vec![] };
+    rd.flatten().filter(|e| e.file_name().to_string_lossy().ends_with(".json")).filter_map(|e| read_text(&e.path())).collect()
+}
+#[tauri::command]
+fn delete_user_layers(st: State<AppState>, id: String) -> R<()> { let _ = fs::remove_file(layers_dir(&st).join(format!("{}.json", safe_id(&id)))); Ok(()) }
+
 #[tauri::command]
 fn list_drafts(st: State<AppState>) -> Vec<Value> {
     let Ok(rd) = fs::read_dir(draft_dir(&st)) else { return vec![] };
@@ -752,6 +764,16 @@ fn run_script(app: AppHandle, file: String) {
         let mut log = vec![];
         std::thread::sleep(std::time::Duration::from_millis(1500));
         let Some(win) = app.get_webview_window("main") else { return };
+        // KC_MONITOR=2: test window on that monitor (1-based; the screenshots capture that screen)
+        if let Some(n) = std::env::var("KC_MONITOR").ok().and_then(|v| v.parse::<usize>().ok()) {
+            if let Ok(ms) = win.available_monitors() {
+                if let Some(m) = ms.get(n.saturating_sub(1)) {
+                    let p = m.position();
+                    let _ = win.set_position(tauri::PhysicalPosition::new(p.x + 40, p.y + 40));
+                    std::thread::sleep(std::time::Duration::from_millis(600));
+                }
+            }
+        }
         let _ = win.set_focus();
         for s in steps {
             if let Some(ms) = s["wait"].as_u64() { std::thread::sleep(std::time::Duration::from_millis(ms)); }
@@ -789,7 +811,7 @@ pub fn run() {
             get_settings, get_version, save_settings, pick_folder, export_kitserver, pick_files, save_file, open_game, list_teams, read_kit_texture,
             read_emblem, read_model, list_collars, list_number_sets, read_file, list_fonts, decode_image_file, fetch_url, list_library, list_textures, export_team,
             restore_original, list_snapshots, save_snapshot, rename_snapshot, delete_snapshot, activate_snapshot, load_snapshot_project,
-            export_snapshot_zip, backup_original_zip, open_path, save_draft, load_draft, delete_draft, list_drafts, launch_game, save_user_template, export_kitlab, read_kitlab, analyze_texture, vectorize_mask, list_user_templates, delete_user_template, list_template_images, template_dir_path, screen_pixel, licence_hint,
+            export_snapshot_zip, backup_original_zip, open_path, save_draft, load_draft, delete_draft, list_drafts, launch_game, save_user_template, export_kitlab, read_kitlab, analyze_texture, vectorize_mask, list_user_templates, delete_user_template, save_user_layers, list_user_layers, delete_user_layers, list_template_images, template_dir_path, screen_pixel, licence_hint,
             script_result
         ])
         .setup(|app| {

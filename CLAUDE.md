@@ -15,7 +15,7 @@ app-tauri/
   src/compositor/  gpu.ts, compose.ts, uv.ts, designs.ts, template.ts (2D = fonte)
   src/three/       KitViewer.tsx, comet.ts (3D só embrulha o 2D)
   src/model/       design.ts (KitDesign, migrações vN), templates.ts
-  src/ui/          Editor, Teams, Bulk, Settings, common
+  src/ui/          Editor, Teams, Bulk, Analyzer, Library, Settings, common
   src/i18n*.ts     tradução PT→EN/ES por correspondência exata
   scripts/         export_comet_glb.py (Blender → public/models)
   public/          modelos GLB, kit-template.png, logo

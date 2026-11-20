@@ -15,6 +15,18 @@ const LI = { en: 0, es: 1 } as const
 
 /** Messages with values: [regex, en, es]; $1.. are the captured groups (translated too when they are known). */
 const RULES: [RegExp, string, string][] = [
+  [/^(\d+) camada\(s\) guardada\(s\) na biblioteca: (.+)$/, '$1 layer(s) saved to the library: $2', '$1 capa(s) guardada(s) en la biblioteca: $2'],
+  [/^(\d+) camada\(s\) inseridas: (.+)$/, '$1 layer(s) inserted: $2', '$1 capa(s) insertadas: $2'],
+  [/^Guardar (\d+) camada\(s\)$/, 'Save $1 layer(s)', 'Guardar $1 capa(s)'],
+  [/^(\d+) camada\(s\) · (.+)$/, '$1 layer(s) · $2', '$1 capa(s) · $2'],
+  [/^(\d+) camada\(s\)$/, '$1 layer(s)', '$1 capa(s)'],
+  [/^(\d+) seleção\(ões\) desenhada\(s\); (\d+) cor\(es\) tirada\(s\)\.$/, '$1 selection(s) drawn; $2 colour(s) taken out.', '$1 selección(es) dibujada(s); $2 color(es) quitado(s).'],
+  [/^Diferença média: (.+) em 255$/, 'Mean difference: $1 of 255', 'Diferencia media: $1 de 255'],
+  [/^(.+) · detalhe \(fica\)$/, '$1 · detail (stays)', '$1 · detalle (queda)'],
+  [/^(.+) · detalhe \(fora\)$/, '$1 · detail (out)', '$1 · detalle (fuera)'],
+  [/^(.+) · (#[0-9a-f]{6}) \(fica\)$/, '$1 · $2 (stays)', '$1 · $2 (queda)'],
+  [/^(.+) · (#[0-9a-f]{6}) \(fora\)$/, '$1 · $2 (out)', '$1 · $2 (fuera)'],
+  [/^(.+) \(kit aberto\)$/, '$1 (open kit)', '$1 (kit abierto)'],
   [/^Gola (\d+)$/, 'Collar $1', 'Cuello $1'],
   [/^Gola · (.+)$/, 'Collar · $1', 'Cuello · $1'],
   [/^Template: (.+)$/, 'Template: $1', 'Plantilla: $1'],

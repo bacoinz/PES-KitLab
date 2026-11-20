@@ -590,3 +590,26 @@ kbd { font: 11px/1.4 ui-monospace, Consolas, monospace; padding: 1px 6px; border
 .var-card input { position: absolute; left: 6px; top: 6px; }
 .var-card img { width: 100%; max-height: 120px; object-fit: contain; }
 .var-sw { display: flex; gap: 4px; align-items: center; }
+
+/* ---- Analisador (separador) */
+.analyzer { display: flex; height: 100%; min-height: 0; }
+.az-side { width: 300px; flex: none; padding: 12px; display: flex; flex-direction: column; gap: 8px; overflow: auto; border-right: 1px solid var(--line); background: var(--bg2); }
+.az-side.az-right { width: 360px; border-right: 0; border-left: 1px solid var(--line); }
+.az-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.az-stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 8px; }
+.az-empty { text-align: center; }
+.az-frame { position: relative; overflow: hidden; border-radius: 8px; background: repeating-conic-gradient(#2a2f39 0 25%, #20242d 0 50%) 0 0/16px 16px; flex: none; }
+.az-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; touch-action: none; user-select: none; cursor: crosshair; }
+.az-world.tool-pick { cursor: pointer; }
+.az-world.tool-pan { cursor: grab; }
+.az-world .az-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; pointer-events: none; }
+.az-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.az-reg { fill: #e5484d33; stroke: #e5484d; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.az-reg.keep { fill: #2fbf7133; stroke: #2fbf71; }
+.az-reg.draft { stroke-dasharray: 6 4; }
+.az-busy { position: absolute; inset: 0; display: grid; place-items: center; background: #0006; }
+.az-bar { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-top: 1px solid var(--line); background: var(--bg2); }
+.az-hover { min-width: 190px; text-align: right; font-size: 12px; color: var(--text); }
+.az-tools { display: flex; gap: 6px; flex-wrap: wrap; }
+.az-layer { font-size: 12px; align-items: center; }
+.az-thumb { background: repeating-conic-gradient(#2a2f39 0 25%, #20242d 0 50%) 0 0/12px 12px; }

@@ -1,6 +1,6 @@
 /** Small line icons for the layer list (inline SVG: emoji fonts are not always available in the WebView). */
 export type IconName = 'eye' | 'eyeOff' | 'lock' | 'mask' | 'design' | 'freeform' | 'graphic' | 'pattern' | 'text' | 'tile' | 'logo' | 'panel' | 'group'
-  | 'fabric' | 'collar' | 'sleeves' | 'armband' | 'base' | 'gear' | 'shorts' | 'sock' | 'number' | 'camera' | 'back' | 'rotL' | 'rotR' | 'sideL' | 'sideR' | 'spin' | 'sun' | 'save'
+  | 'fabric' | 'collar' | 'sleeves' | 'armband' | 'base' | 'gear' | 'shorts' | 'sock' | 'number' | 'camera' | 'back' | 'rotL' | 'rotR' | 'sideL' | 'sideR' | 'spin' | 'sun' | 'save' | 'image'
 
 const P: Record<IconName, JSX.Element> = {
   eye: <><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z" /><circle cx="8" cy="8" r="2" /></>,
@@ -33,7 +33,8 @@ const P: Record<IconName, JSX.Element> = {
   sideR: <><path d="M10 2.5H7L5 5.5l1.5 1V14H10z" /><path d="M14 8h-2.5M14 8l-1.5-1.5M14 8l-1.5 1.5" /></>,
   spin: <><path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v2.8h-2.8" /></>,
   sun: <><circle cx="8" cy="8" r="2.6" /><path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1" /></>,
-  save: <><path d="M8 2v8M5 7l3 3 3-3M3 12.5h10" /></>
+  save: <><path d="M8 2v8M5 7l3 3 3-3M3 12.5h10" /></>,
+  image: <><rect x="2" y="3" width="12" height="10" rx="1.2" /><circle cx="5.8" cy="6.5" r="1.1" /><path d="M2.5 12l3.5-3.5 2.5 2.5 2-2 3 3" /></>
 }
 
 export function Icon({ name, size = 15 }: { name: IconName; size?: number }): JSX.Element {

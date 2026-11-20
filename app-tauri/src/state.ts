@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { GameStatus, TeamInfo, TeamExport, KitExport } from '@shared/types'
 import type { Settings, LibraryItem, DraftInfo, PresetType, KitDefaults } from '@shared/ipc'
-import type { TeamProject, KitDesign, KitColors, Asset, Logos } from './model/design'
+import type { TeamProject, KitDesign, KitColors, Asset, Logos, OverlayLayer } from './model/design'
 import { defaultLogos, uid, slotOrder, migrateProject, migrateKit, kitAssetIds } from './model/design'
 import { generateSet, teamColorsFromPalette, applyTemplate, TEMPLATES } from './model/templates'
 import { luminance, colorDist, defaultDesign } from './model/design'
@@ -10,7 +10,7 @@ import { palette, dataUrlFromBytes, rgbaToCanvas, canvasToDataUrl, canvasRgba, l
 import { findBoxes, recolorNumbers, renderNumbers, type NumberPart } from './compositor/numbers'
 import { atlasImage } from './compositor/atlases'
 
-export type View = 'teams' | 'editor' | 'bulk' | 'library' | 'settings'
+export type View = 'teams' | 'editor' | 'bulk' | 'analyzer' | 'library' | 'settings'
 
 interface State {
   settings: Settings | null
@@ -69,6 +69,8 @@ let lastStep = 0
 export const PRESET_TEAM = -1
 /** Sandbox project used to edit one saved shirt template (Biblioteca → Templates). */
 export const USER_TPL_TEAM = -2
+/** Layers saved from the analyser (KitCreatorData/layers), to insert in other kits. */
+export interface UserLayerSet { id: string; name: string; date: string; layers: OverlayLayer[]; assets: Record<string, Asset>; colors?: Partial<Record<'torso' | 'sleeves' | 'shorts' | 'socks', string>>; thumb?: string }
 export interface UserTemplate { id: string; name: string; date: string; kit: KitDesign; assets: Record<string, Asset> }
 export const PRESET_SLOT: Record<PresetType, string> = { home: 'p1', away: 'p2', third: 'p3', fourth: 'p4', gk: 'g1' }
 export const slotType = (slot: string): PresetType => (slot === 'p1' ? 'home' : slot === 'p2' ? 'away' : slot === 'p3' ? 'third' : slot === 'p4' ? 'fourth' : slot[0] === 'p' ? 'fourth' : 'gk')

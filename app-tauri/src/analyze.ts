@@ -21,6 +21,9 @@ export interface AnalysisResult {
 }
 
 /** What the user decided in the review: colours merged into others or dropped, detail kept or not. */
+/** A selection made on the texture: `cut` takes what is inside out of the layers, `keep` keeps only what is inside. */
+export interface Region { mode: 'cut' | 'keep'; pts: [number, number][] }
+
 export interface AnalysisEdits {
   /** palette index → index it is merged into (the mask joins that colour) */
   merge: Record<number, number>
@@ -28,8 +31,10 @@ export interface AnalysisEdits {
   noDetail: Record<string, boolean>
   /** parts left alone (the kit keeps what it has there) */
   skipPart: Record<string, boolean>
+  /** selections drawn on the texture (texture px) */
+  regions: Region[]
 }
-export const noEdits = (): AnalysisEdits => ({ merge: {}, drop: {}, noDetail: {}, skipPart: {} })
+export const noEdits = (): AnalysisEdits => ({ merge: {}, drop: {}, noDetail: {}, skipPart: {}, regions: [] })
 
 export const PART_LABEL: Record<PartKey, string> = { torso: 'Camisola', sleeves: 'Mangas', shorts: 'Calções', socks: 'Meias' }
 
@@ -50,6 +55,38 @@ async function unionPng(pngs: string[], size: number): Promise<string> {
   const g = c.getContext('2d')!
   for (const p of pngs) g.drawImage(await loadImg(p), 0, 0)
   return c.toDataURL('image/png')
+}
+
+const polyPath = (g: CanvasRenderingContext2D, pts: [number, number][], k = 1): void => { g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x * k, y * k) : g.moveTo(x * k, y * k))); g.closePath() }
+
+/** Paints the regions as two masks (alpha): what is cut, and what is kept (`keepAny` = there is a keep region). */
+export function regionMasks(regions: Region[], size: number, k = 1): { cut: HTMLCanvasElement; keep: HTMLCanvasElement; keepAny: boolean } {
+  const mk = (mode: Region['mode']): HTMLCanvasElement => {
+    const c = document.createElement('canvas'); c.width = size; c.height = size
+    const g = c.getContext('2d')!
+    g.fillStyle = '#fff'
+    for (const r of regions) if (r.mode === mode && r.pts.length > 2) { polyPath(g, r.pts, k); g.fill() }
+    return c
+  }
+  return { cut: mk('cut'), keep: mk('keep'), keepAny: regions.some((r) => r.mode === 'keep' && r.pts.length > 2) }
+}
+
+/** The mask / detail PNG with the regions applied; null when nothing is left. */
+async function clipPng(png: string, regions: Region[], size: number): Promise<string | null> {
+  if (!regions.length) return png
+  const img = await loadImg(png)
+  const c = document.createElement('canvas'); c.width = size; c.height = size
+  const g = c.getContext('2d', { willReadFrequently: true })!
+  g.drawImage(img, 0, 0)
+  const m = regionMasks(regions, size)
+  g.globalCompositeOperation = 'destination-out'; g.drawImage(m.cut, 0, 0)
+  if (m.keepAny) { g.globalCompositeOperation = 'destination-in'; g.drawImage(m.keep, 0, 0) }
+  g.globalCompositeOperation = 'source-over'
+  const d = new Uint32Array(g.getImageData(0, 0, size, size).data.buffer)
+  let any = false
+  for (let i = 0; i < d.length; i += 3) if (d[i] >>> 24) { any = true; break }
+  if (!any) for (let i = 0; i < d.length; i++) if (d[i] >>> 24) { any = true; break }
+  return any ? c.toDataURL('image/png') : null
 }
 
 export interface PlannedLayer { layer: OverlayLayer; asset?: Asset }
@@ -116,7 +153,9 @@ export async function planLayers(r: AnalysisResult, e: AnalysisEdits, o: PlanOpt
     }
     for (const [c, ms] of [...groups].sort((a, b) => b[1].reduce((s, m) => s + m.area, 0) - a[1].reduce((s, m) => s + m.area, 0))) {
       const hex = r.palette[c].hex
-      const png = await unionPng(ms.map((m) => m.png), r.width)
+      const whole = await unionPng(ms.map((m) => m.png), r.width)
+      const png = await clipPng(whole, e.regions, r.width)
+      if (!png) continue
       const id = uid() + 'm'
       const name = `${PART_LABEL[p.part]} · ${hex}`
       // regular stripes, bands and halves of the shirt are the kit's own designs
@@ -138,8 +177,10 @@ export async function planLayers(r: AnalysisResult, e: AnalysisEdits, o: PlanOpt
     if (e.skipPart[p.part] || e.noDetail[p.part] || !p.detail) continue
     const id = uid() + 'd'
     const name = `Detalhes · ${PART_LABEL[p.part]}`
+    const det = await clipPng(p.detail, e.regions, r.width)
+    if (!det) continue
     layers.push({
-      asset: { id, name, dataUrl: p.detail, w: r.width, h: r.width },
+      asset: { id, name, dataUrl: det, w: r.width, h: r.width },
       layer: { id: uid(), kind: 'image', part: p.part, assetId: id, fit: 'uv', visible: true, opacity: 1, color: '#ffffff', name }
     })
     nDetail++
@@ -176,4 +217,4 @@ export function applyPlan(kit: KitDesign, plan: Plan, e: AnalysisEdits): KitDesi
 }
 
 // exposed for scripted verification runs (KC_SCRIPT)
-;(window as unknown as { __kcAnalyze: object }).__kcAnalyze = { planLayers, applyPlan, noEdits, vectorizeMask, recognizeTorso }
+;(window as unknown as { __kcAnalyze: object }).__kcAnalyze = { planLayers, regionMasks, applyPlan, noEdits, vectorizeMask, recognizeTorso }
