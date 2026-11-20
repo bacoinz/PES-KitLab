@@ -3,7 +3,7 @@ import { useApp, type View } from './state'
 import { Teams } from './ui/Teams'
 import { Editor } from './ui/Editor'
 import { Bulk } from './ui/Bulk'
-import { Analyzer } from './ui/Analyzer'
+import { Analyzer, azHooks } from './ui/Analyzer'
 import { Library } from './ui/Library'
 import { Settings } from './ui/Settings'
 import { Footer, KofiButton } from './ui/Footer'
@@ -91,8 +91,8 @@ export function App(): JSX.Element {
   useEffect(() => registerHandlers((id) => ({
     'palette.open': () => setPalette((v) => !v),
     'help.open': () => setSheet(true),
-    'edit.undo': () => undo(),
-    'edit.redo': () => redo()
+    'edit.undo': () => (useApp.getState().view === 'analyzer' ? azHooks.undo() : undo()),
+    'edit.redo': () => (useApp.getState().view === 'analyzer' ? azHooks.redo() : redo())
   } as Record<string, () => void>)[id]), [undo, redo])
 
   return (

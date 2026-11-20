@@ -613,3 +613,10 @@ kbd { font: 11px/1.4 ui-monospace, Consolas, monospace; padding: 1px 6px; border
 .az-tools { display: flex; gap: 6px; flex-wrap: wrap; }
 .az-layer { font-size: 12px; align-items: center; }
 .az-thumb { background: repeating-conic-gradient(#2a2f39 0 25%, #20242d 0 50%) 0 0/12px 12px; }
+
+.az-row { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg3); cursor: pointer; }
+.az-row:hover { border-color: var(--muted); }
+.az-row.part { margin-top: 4px; }
+.az-row.sel { border-color: #ffd200; box-shadow: 0 0 0 1px #ffd200 inset; background: #ffd2001a; }
+.az-row.off { opacity: 0.5; }
+.az-hl { pointer-events: none; mix-blend-mode: normal; }

@@ -2,6 +2,13 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.19] - 2026-11-20
+### Changed
+- Analyzer, layer list: parts and layers are now one list of boxed rows (each part, its colour layers and its details). Clicking a row only highlights it (on the texture and the before / after view); Ctrl or Shift + click selects several. The checkbox is what switches a row on or off, and that now really takes it out of the result.
+- Analyzer: "Merge N selected" joins the selected layers and parts into the one clicked last: they take its colour (per part, so a colour merged in the shirt is not touched in the shorts). Merging a layer into a part absorbs it into the base colour; merging parts gives them the same colour.
+- Analyzer: Undo / Redo buttons (left panel and under the texture) and Ctrl+Z / Ctrl+Shift+Z (Ctrl+Y too) step through every change of the review, repeatedly.
+- Analyzer: the Rectangle and Lasso tools now add by default ("Keep only what is inside": several selections add up); "Take out what is inside" is the other option.
+
 ## [0.5.16] - 2026-11-20
 ### Changed
 - Pen tool: the mouse wheel zooms around the cursor (up to 60×), and the canvas pans with the right or middle button or Alt + drag; the + / − buttons use the same zoom.

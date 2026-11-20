@@ -6,7 +6,7 @@
  */
 import type { Asset, OverlayLayer } from './model/design'
 import { hexToRgb } from './model/design'
-import { regionMasks, repOf, type AnalysisEdits, type AnalysisResult } from './analyze'
+import { PART_LABEL, effColor, regionMasks, type AnalysisEdits, type AnalysisResult, type PartKey } from './analyze'
 import { uvVectorCanvas } from './compositor/compose'
 
 export const DETAIL = 255
@@ -53,7 +53,8 @@ export interface Composed { canvas: HTMLCanvasElement; diff: HTMLCanvasElement; 
 export function composeAfter(L: Labels, res: AnalysisResult, e: AnalysisEdits): Composed {
   const n = L.n
   const rgb = res.palette.map((p) => hexToRgb(p.hex))
-  const base = res.parts.map((p) => (p.dominant !== null ? rgb[repOf(p.dominant, e.merge)] : null))
+  const domOf = res.parts.map((p) => (p.dominant !== null ? effColor(e, p.part, p.dominant) : null))
+  const base = domOf.map((d) => (d !== null ? rgb[d] : null))
   const rm = regionMasks(e.regions, n, n / res.width)
   const cutD = rm.cut.getContext('2d', { willReadFrequently: true })!.getImageData(0, 0, n, n).data
   const keepD = rm.keepAny ? rm.keep.getContext('2d', { willReadFrequently: true })!.getImageData(0, 0, n, n).data : null
@@ -71,7 +72,7 @@ export function composeAfter(L: Labels, res: AnalysisResult, e: AnalysisEdits): 
         const cl = L.col[i]
         let px: [number, number, number] = bs
         if (cl === DETAIL) { if (!e.noDetail[key]) px = [r, g, b] }
-        else { const c = repOf(cl, e.merge); if (!e.drop[c] && !e.drop[cl]) px = rgb[c] }
+        else { const c = effColor(e, key, cl); if (c !== domOf[pi] && !e.drop[c] && !e.drop[cl] && !e.off[`${key}:${c}`]) px = rgb[c] }
         // regions: what is cut or outside the kept area falls back to the base colour of the part
         if (cutD[o + 3] > 127 || (keepD && keepD[o + 3] <= 127)) px = bs
         ;[r, g, b] = px
@@ -114,4 +115,49 @@ export async function layersThumb(layers: OverlayLayer[], assets: Record<string,
   }
   g.globalAlpha = 1
   return drew ? c.toDataURL('image/png') : null
+}
+
+/** One line of the layer list: a part (its base colour), a colour layer of a part, or the details of a part. */
+export interface Row { key: string; kind: 'part' | 'color' | 'detail'; part: PartKey; color?: number; hex: string; name: string; share: number }
+
+/** The rows with the current edits, parts in order: the part, its colour layers (biggest first), its details. */
+export function buildRows(res: AnalysisResult, e: AnalysisEdits): Row[] {
+  const rows: Row[] = []
+  for (const p of res.parts) {
+    const dom = p.dominant !== null ? effColor(e, p.part, p.dominant) : null
+    const total = p.masks.reduce((s, m) => s + m.area, 0) + p.detailArea || 1
+    rows.push({ key: p.part, kind: 'part', part: p.part as PartKey, color: dom ?? undefined, hex: dom !== null ? res.palette[dom].hex : '#808080', name: PART_LABEL[p.part as PartKey], share: 1 })
+    const by = new Map<number, number>()
+    for (const m of p.masks) { const c = effColor(e, p.part, m.color); if (c !== dom) by.set(c, (by.get(c) ?? 0) + m.area) }
+    for (const [c, a] of [...by].sort((x, y) => y[1] - x[1])) rows.push({ key: `${p.part}:${c}`, kind: 'color', part: p.part as PartKey, color: c, hex: res.palette[c].hex, name: `${PART_LABEL[p.part as PartKey]} · ${res.palette[c].hex}`, share: a / total })
+    if (p.detail) rows.push({ key: `${p.part}:d`, kind: 'detail', part: p.part as PartKey, hex: '#ffffff', name: `Detalhes · ${PART_LABEL[p.part as PartKey]}`, share: p.detailArea / total })
+  }
+  return rows
+}
+
+/** The row a pixel belongs to (a pixel of the base colour belongs to its part). */
+export function rowKeyAt(L: Labels, res: AnalysisResult, e: AnalysisEdits, i: number): string | null {
+  const pi = L.part[i]
+  if (pi === NONE_PART) return null
+  const p = res.parts[pi]
+  if (L.col[i] === DETAIL) return `${p.part}:d`
+  const c = effColor(e, p.part, L.col[i])
+  const dom = p.dominant !== null ? effColor(e, p.part, p.dominant) : null
+  return c === dom ? p.part : `${p.part}:${c}`
+}
+
+/** A highlight (translucent yellow) over the pixels of the selected rows; a part row highlights the whole part. */
+export function highlightCanvas(L: Labels, res: AnalysisResult, e: AnalysisEdits, sel: Set<string>): HTMLCanvasElement | null {
+  if (!sel.size) return null
+  const n = L.n
+  const out = new Uint8ClampedArray(n * n * 4)
+  for (let i = 0; i < n * n; i++) {
+    const pi = L.part[i]
+    if (pi === NONE_PART) continue
+    const k = rowKeyAt(L, res, e, i)
+    if (k && (sel.has(k) || sel.has(res.parts[pi].part))) { out[i * 4] = 255; out[i * 4 + 1] = 210; out[i * 4 + 2] = 0; out[i * 4 + 3] = 150 }
+  }
+  const c = document.createElement('canvas'); c.width = n; c.height = n
+  c.getContext('2d')!.putImageData(new ImageData(out, n, n), 0, 0)
+  return c
 }

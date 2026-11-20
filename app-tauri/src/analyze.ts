@@ -33,8 +33,12 @@ export interface AnalysisEdits {
   skipPart: Record<string, boolean>
   /** selections drawn on the texture (texture px) */
   regions: Region[]
+  /** per part: palette index → index it becomes in that part only (merging layers / parts) */
+  pm: Record<string, Record<number, number>>
+  /** colour layers switched off, keyed `part:colour` (colour = the palette index the layer ends up with) */
+  off: Record<string, boolean>
 }
-export const noEdits = (): AnalysisEdits => ({ merge: {}, drop: {}, noDetail: {}, skipPart: {}, regions: [] })
+export const noEdits = (): AnalysisEdits => ({ merge: {}, drop: {}, noDetail: {}, skipPart: {}, regions: [], pm: {}, off: {} })
 
 export const PART_LABEL: Record<PartKey, string> = { torso: 'Camisola', sleeves: 'Mangas', shorts: 'Calções', socks: 'Meias' }
 
@@ -43,6 +47,11 @@ export function repOf(i: number, merge: Record<number, number>): number {
   let c = i
   for (let k = 0; k < 20 && merge[c] !== undefined && merge[c] !== c; k++) c = merge[c]
   return c
+}
+
+/** The colour a palette entry ends up as in one part: that part's own merges first, then the global ones. */
+export function effColor(e: AnalysisEdits, part: string, c: number): number {
+  return repOf(repOf(c, e.pm[part] ?? {}), e.merge)
 }
 
 const loadImg = (url: string): Promise<HTMLImageElement> => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('máscara inválida')); i.src = url })
@@ -142,13 +151,13 @@ export async function planLayers(r: AnalysisResult, e: AnalysisEdits, o: PlanOpt
   let nColor = 0, nDetail = 0, nPattern = 0, nVector = 0
   for (const p of r.parts) {
     if (e.skipPart[p.part]) continue
-    const dom = p.dominant !== null ? repOf(p.dominant, e.merge) : null
+    const dom = p.dominant !== null ? effColor(e, p.part, p.dominant) : null
     if (dom !== null) colors[p.part] = r.palette[dom].hex
     // masks grouped by the colour they end up as; the base colour and dropped colours need no layer
     const groups = new Map<number, AnalysisMask[]>()
     for (const m of p.masks) {
-      const c = repOf(m.color, e.merge)
-      if (c === dom || e.drop[c] || e.drop[m.color]) continue
+      const c = effColor(e, p.part, m.color)
+      if (c === dom || e.drop[c] || e.drop[m.color] || e.off[`${p.part}:${c}`]) continue
       groups.set(c, [...(groups.get(c) ?? []), m])
     }
     for (const [c, ms] of [...groups].sort((a, b) => b[1].reduce((s, m) => s + m.area, 0) - a[1].reduce((s, m) => s + m.area, 0))) {

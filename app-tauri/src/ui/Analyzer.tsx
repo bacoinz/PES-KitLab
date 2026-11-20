@@ -8,12 +8,15 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useApp, assetFromFile, type UserLayerSet } from '../state'
 import { ALL_SLOTS, SLOT_LABEL, slotOrder, uid, type Asset } from '../model/design'
 import { canvasToDataUrl, rgbaToCanvas } from '../compositor/images'
-import { PART_LABEL, applyPlan, noEdits, planLayers, repOf, type AnalysisEdits, type AnalysisResult, type PartKey, type Plan, type Region } from '../analyze'
-import { buildLabels, composeAfter, layersThumb, DETAIL, NONE_PART, type Labels } from '../analyzeView'
+import { applyPlan, effColor, noEdits, planLayers, repOf, type AnalysisEdits, type AnalysisResult, type Plan, type Region } from '../analyze'
+import { buildLabels, buildRows, composeAfter, highlightCanvas, layersThumb, rowKeyAt, NONE_PART, type Labels, type Row } from '../analyzeView'
 
 const MAX_COLOR_LAYERS = 24
 type Tool = 'pick' | 'rect' | 'lasso' | 'pan'
 type Pt = [number, number]
+
+/** The Analyzer's undo / redo, for the app-wide Ctrl+Z / Ctrl+Y (the app calls these while this tab is open). */
+export const azHooks: { undo: () => void; redo: () => void } = { undo: () => undefined, redo: () => undefined }
 
 export function Analyzer(): JSX.Element {
   const { project, teams, activeSlot, setProject, setActiveSlot, setView, notify } = useApp()
@@ -24,6 +27,12 @@ export function Analyzer(): JSX.Element {
   const [res, setRes] = useState<AnalysisResult | null>(null)
   const [labels, setLabels] = useState<Labels | null>(null)
   const [ed, setEd] = useState<AnalysisEdits>(noEdits())
+  const edRef = useRef(ed)
+  edRef.current = ed
+  const [past, setPast] = useState<AnalysisEdits[]>([])
+  const [future, setFuture] = useState<AnalysisEdits[]>([])
+  const [sel, setSel] = useState<Set<string>>(new Set()) // highlighted rows of the layer list
+  const anchor = useRef<string | null>(null)
   const [plan, setPlan] = useState<Plan | null>(null)
   const [cut, setCut] = useState(50)
   const [showDiff, setShowDiff] = useState(false)
@@ -35,12 +44,11 @@ export function Analyzer(): JSX.Element {
   const [gSlot, setGSlot] = useState<string>(activeSlot || 'p1')
   // tools
   const [tool, setTool] = useState<Tool>('pick')
-  const [mode, setMode] = useState<Region['mode']>('cut')
+  const [mode, setMode] = useState<Region['mode']>('keep')
   const [draft, setDraft] = useState<Pt[] | null>(null)
   const [hover, setHover] = useState<string>('')
   const [view, setViewBox] = useState({ z: 1, x: 0, y: 0 })
   // saving / applying
-  const [unsel, setUnsel] = useState<Set<string>>(new Set())
   const [setName, setSetName] = useState('')
   const [target, setTarget] = useState('')
 
@@ -48,6 +56,7 @@ export function Analyzer(): JSX.Element {
   const worldRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
   const afterRef = useRef<HTMLCanvasElement>(null)
+  const hlRef = useRef<HTMLCanvasElement>(null)
   const [side, setSide] = useState(640)
   useEffect(() => {
     const el = stageRef.current
@@ -60,7 +69,8 @@ export function Analyzer(): JSX.Element {
   const guard = async (fn: () => Promise<void>): Promise<void> => {
     try { await fn() } catch (e) { notify('err', String((e as Error).message ?? e)) }
   }
-  const reset = (): void => { setRes(null); setLabels(null); setEd(noEdits()); setPlan(null); setUnsel(new Set()); setViewBox({ z: 1, x: 0, y: 0 }); setDraft(null) }
+  const resetHist = (): void => { setPast([]); setFuture([]); setSel(new Set()); anchor.current = null }
+  const reset = (): void => { setRes(null); setLabels(null); setEd(noEdits()); resetHist(); setPlan(null); setViewBox({ z: 1, x: 0, y: 0 }); setDraft(null) }
   const take = (label: string, url: string): void => { setSrc({ label, url }); reset(); if (!setName) setSetName(label.replace(/\.[a-z0-9]+$/i, '')) }
 
   const pickFile = (): Promise<void> => guard(async () => {
@@ -82,9 +92,32 @@ export function Analyzer(): JSX.Element {
     try {
       const r = (await window.kc.analyzeTexture(src.url, { colors: colors || undefined, sensitivity: sens })) as AnalysisResult
       const lb = await buildLabels(r, src.url)
-      setRes(r); setLabels(lb); setEd(noEdits()); setUnsel(new Set()); setViewBox({ z: 1, x: 0, y: 0 })
+      setRes(r); setLabels(lb); setEd(noEdits()); resetHist(); setViewBox({ z: 1, x: 0, y: 0 })
     } finally { setBusy(false) }
   })
+
+  // every change of the choices goes through `edit`, so undo / redo cover all of them
+  const edit = (fn: (e: AnalysisEdits) => AnalysisEdits): void => {
+    const cur = edRef.current
+    const nx = fn(cur)
+    if (nx === cur) return
+    setPast((h) => [...h.slice(-80), cur]); setFuture([])
+    edRef.current = nx
+    setEd(nx)
+  }
+  const undo = (): void => { const h = past; if (!h.length) return; const cur = edRef.current; setFuture((f) => [cur, ...f]); setPast(h.slice(0, -1)); edRef.current = h[h.length - 1]; setEd(h[h.length - 1]) }
+  const redo = (): void => { const f = future; if (!f.length) return; const cur = edRef.current; setPast((h) => [...h, cur]); setFuture(f.slice(1)); edRef.current = f[0]; setEd(f[0]) }
+  azHooks.undo = undo
+  azHooks.redo = redo
+  useEffect(() => {
+    const k = (e: KeyboardEvent): void => {
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'z') { e.preventDefault(); e.stopPropagation(); azHooks.redo() }
+    }
+    window.addEventListener('keydown', k, true)
+    return () => window.removeEventListener('keydown', k, true)
+  }, [])
 
   // the layers the review would make (heavy: debounced)
   useEffect(() => {
@@ -106,7 +139,7 @@ export function Analyzer(): JSX.Element {
 
   const W = res?.width ?? 2048
   const live = (c: number): boolean => !!res && repOf(c, ed.merge) === c
-  const setMerge = (i: number, to: number | null): void => setEd((e) => {
+  const setMerge = (i: number, to: number | null): void => edit((e) => {
     const merge = { ...e.merge }
     if (to === null) delete merge[i]
     else { merge[i] = to; for (const k of Object.keys(merge)) if (merge[Number(k)] === i) merge[Number(k)] = to }
@@ -124,20 +157,59 @@ export function Analyzer(): JSX.Element {
     const i = y * labels.n + x
     return labels.part[i] === NONE_PART ? null : { part: labels.part[i], col: labels.col[i] }
   }
-  const describe = (p: Pt): string => {
-    const l = labelAt(p)
-    if (!l || !res) return ''
-    const key = res.parts[l.part].part as PartKey
-    if (l.col === DETAIL) return `${PART_LABEL[key]} · detalhe ${ed.noDetail[key] ? '(fora)' : '(fica)'}`
-    const c = repOf(l.col, ed.merge)
-    return `${PART_LABEL[key]} · ${res.palette[c].hex} ${ed.drop[c] || ed.drop[l.col] ? '(fora)' : '(fica)'}`
+  const rows = useMemo(() => (res ? buildRows(res, ed) : []), [res, ed])
+  const isOn = (r: Row): boolean => (r.kind === 'part' ? !ed.skipPart[r.part] : r.kind === 'detail' ? !ed.noDetail[r.part] : !ed.off[r.key] && !(r.color !== undefined && ed.drop[r.color]))
+  const toggleRow = (r: Row): void => edit((e) => (r.kind === 'part' ? { ...e, skipPart: { ...e.skipPart, [r.part]: !e.skipPart[r.part] } } : r.kind === 'detail' ? { ...e, noDetail: { ...e.noDetail, [r.part]: !e.noDetail[r.part] } } : { ...e, off: { ...e.off, [r.key]: !e.off[r.key] } }))
+  const keyAt = (p: Pt): string | null => {
+    if (!labels || !res) return null
+    const x = Math.min(labels.n - 1, Math.floor((p[0] / W) * labels.n)), y = Math.min(labels.n - 1, Math.floor((p[1] / W) * labels.n))
+    return rowKeyAt(labels, res, ed, y * labels.n + x)
   }
-  const clickPick = (p: Pt): void => {
-    const l = labelAt(p)
-    if (!l || !res) return
-    const key = res.parts[l.part].part
-    if (l.col === DETAIL) setEd((x) => ({ ...x, noDetail: { ...x.noDetail, [key]: !x.noDetail[key] } }))
-    else { const c = repOf(l.col, ed.merge); setEd((x) => ({ ...x, drop: { ...x.drop, [c]: !x.drop[c] } })) }
+  const describe = (p: Pt): string => {
+    const k = keyAt(p)
+    const r = rows.find((x) => x.key === k)
+    return r ? `${r.name} ${isOn(r) ? '(fica)' : '(fora)'}` : ''
+  }
+  /** Click on a row (or on the texture): highlights it; Ctrl / Shift add to the selection. Never switches it off. */
+  const selectRow = (key: string, add: boolean): void => {
+    anchor.current = key
+    setSel((cur) => { if (!add) return new Set([key]); const n = new Set(cur); if (n.has(key)) n.delete(key); else n.add(key); return n })
+  }
+  const clickPick = (p: Pt, add: boolean): void => { const k = keyAt(p); if (k) selectRow(k, add); else if (!add) setSel(new Set()) }
+
+  // highlight of the selected rows over the texture
+  useEffect(() => {
+    const c = hlRef.current
+    if (!c) return
+    const h = labels && res ? highlightCanvas(labels, res, ed, sel) : null
+    const g = c.getContext('2d')!
+    g.clearRect(0, 0, c.width, c.height)
+    if (h) { c.width = h.width; c.height = h.height; c.getContext('2d')!.drawImage(h, 0, 0) }
+  }, [labels, res, ed, sel])
+
+  // merge: the selected rows take the colour of the row clicked last (a layer or a part)
+  const mergeSel = (): void => {
+    if (!res) return
+    const tKey = anchor.current && sel.has(anchor.current) ? anchor.current : [...sel][0]
+    const T = rows.find((r) => r.key === tKey)
+    if (!T || T.color === undefined) { notify('err', 'O destino do «Juntar» tem de ser uma camada de cor ou uma parte.'); return }
+    const t = T.color
+    const srcs = rows.filter((r) => sel.has(r.key) && r.key !== tKey && r.kind !== 'detail' && r.color !== undefined && r.color !== t)
+    if (!srcs.length) { notify('err', 'Seleciona pelo menos duas camadas de cor ou partes (Ctrl + clique).'); return }
+    edit((e0) => {
+      let e = e0
+      for (const r of srcs) {
+        const part = res.parts.find((p) => p.part === r.part)!
+        const pm = { ...(e.pm[r.part] ?? {}) }
+        const from = effColor(e, r.part, r.color!)
+        for (const m of part.masks) if (effColor(e, r.part, m.color) === from) pm[m.color] = t
+        if (part.dominant !== null && effColor(e, r.part, part.dominant) === from) pm[part.dominant] = t
+        e = { ...e, pm: { ...e.pm, [r.part]: pm } }
+      }
+      return e
+    })
+    setSel(new Set([tKey]))
+    notify('ok', `${srcs.length} camada(s) juntada(s) em ${T.name}`)
   }
 
   const onDown = (e: React.PointerEvent): void => {
@@ -153,7 +225,7 @@ export function Analyzer(): JSX.Element {
     }
     if (e.button !== 0) return
     const p0 = toTex(e)
-    if (tool === 'pick') { clickPick(p0); return }
+    if (tool === 'pick') { clickPick(p0, e.ctrlKey || e.shiftKey || e.metaKey); return }
     let pts: Pt[] = [p0]
     setDraft(pts)
     const rectOf = (a: Pt, b: Pt): Pt[] => [a, [b[0], a[1]], b, [a[0], b[1]]]
@@ -166,7 +238,7 @@ export function Analyzer(): JSX.Element {
       window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up)
       setDraft(null)
       const area = Math.abs(Math.max(...pts.map((q) => q[0])) - Math.min(...pts.map((q) => q[0]))) * Math.abs(Math.max(...pts.map((q) => q[1])) - Math.min(...pts.map((q) => q[1])))
-      if (pts.length >= 3 && area > 25) setEd((x) => ({ ...x, regions: [...x.regions, { mode, pts: pts.map(([a, b]) => [Math.round(a), Math.round(b)] as Pt) }] }))
+      if (pts.length >= 3 && area > 25) edit((x) => ({ ...x, regions: [...x.regions, { mode, pts: pts.map(([a, b]) => [Math.round(a), Math.round(b)] as Pt) }] }))
     }
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up)
   }
@@ -183,11 +255,7 @@ export function Analyzer(): JSX.Element {
   }
 
   // ---- layers to save / apply
-  const layerKeys = useMemo(() => {
-    const seen = new Map<string, number>()
-    return (plan?.layers ?? []).map((l) => { const n = l.layer.name ?? l.layer.kind; const k = (seen.get(n) ?? 0) + 1; seen.set(n, k); return n + '#' + k })
-  }, [plan])
-  const chosen = (plan?.layers ?? []).filter((_, i) => !unsel.has(layerKeys[i]))
+  const chosen = plan?.layers ?? []
 
   const saveSet = (): Promise<void> => guard(async () => {
     if (!plan || !chosen.length) throw new Error('Escolhe pelo menos uma camada.')
@@ -223,7 +291,7 @@ export function Analyzer(): JSX.Element {
 
   const tooMany = (plan?.nColor ?? 0) > MAX_COLOR_LAYERS
   const sortedTeams = useMemo(() => [...teams].sort((a, b) => a.name.localeCompare(b.name)), [teams])
-  const dropped = (res?.palette ?? []).filter((_, i) => live(i) && ed.drop[i]).length
+  const dropped = rows.filter((r) => !isOn(r)).length
 
   return (
     <div className="analyzer">
@@ -256,20 +324,24 @@ export function Analyzer(): JSX.Element {
           <>
             <div className="sub-title">Ferramentas de seleção</div>
             <div className="az-tools">
-              {([['pick', '☝ Cor', 'Clica numa cor ou num detalhe da textura para o tirar ou voltar a pôr'], ['rect', '▭ Retângulo', 'Desenha um retângulo na textura'], ['lasso', '➰ Laço', 'Desenha à mão livre à volta do que queres'], ['pan', '✥ Mover', 'Arrasta a textura (também: botão direito ou Alt). A roda do rato faz zoom']] as [Tool, string, string][]).map(([t, l, h]) => (
+              <button className="btn small" title="Desfazer (Ctrl+Z)" disabled={!past.length} onClick={undo}>↶ Desfazer</button>
+              <button className="btn small" title="Refazer (Ctrl+Shift+Z)" disabled={!future.length} onClick={redo}>↷ Refazer</button>
+            </div>
+            <div className="az-tools">
+              {([['pick', '☝ Cor', 'Clica na textura para destacar a camada (Ctrl / Shift: várias). Não a desliga'], ['rect', '▭ Retângulo', 'Desenha um retângulo na textura'], ['lasso', '➰ Laço', 'Desenha à mão livre à volta do que queres'], ['pan', '✥ Mover', 'Arrasta a textura (também: botão direito ou Alt). A roda do rato faz zoom']] as [Tool, string, string][]).map(([t, l, h]) => (
                 <button key={t} className={'btn small' + (tool === t ? ' primary' : '')} title={h} onClick={() => setTool(t)}>{l}</button>
               ))}
             </div>
             {(tool === 'rect' || tool === 'lasso') && (
               <div className="az-tools">
+                <button className={'btn small' + (mode === 'keep' ? ' primary' : '')} title="Só o que está dentro das seleções fica nas camadas (várias seleções somam-se)" onClick={() => setMode('keep')}>Ficar só com o de dentro</button>
                 <button className={'btn small' + (mode === 'cut' ? ' primary' : '')} title="O que fica dentro da seleção sai das camadas" onClick={() => setMode('cut')}>Tirar o que está dentro</button>
-                <button className={'btn small' + (mode === 'keep' ? ' primary' : '')} title="Só o que está dentro da seleção fica nas camadas" onClick={() => setMode('keep')}>Ficar só com o de dentro</button>
               </div>
             )}
-            <div className="muted small">{tool === 'pick' ? 'Clica na textura: a cor (ou o detalhe) sai; clica de novo e volta. O que sai fica com a cor de base da parte.' : tool === 'pan' ? 'Arrasta para mover; roda do rato para o zoom.' : 'Desenha na textura. Verde = ficar só, vermelho = tirar.'}</div>
+            <div className="muted small">{tool === 'pick' ? 'Clica na textura para destacar a camada na lista e no kit. Para a desligar usa a caixa da lista.' : tool === 'pan' ? 'Arrasta para mover; roda do rato para o zoom.' : 'Desenha na textura. Verde = ficar só, vermelho = tirar.'}</div>
             <div className="btn-row">
-              <button className="btn small ghost" disabled={!ed.regions.length} onClick={() => setEd((x) => ({ ...x, regions: x.regions.slice(0, -1) }))}>Desfazer seleção</button>
-              <button className="btn small ghost" disabled={!ed.regions.length && !dropped} onClick={() => setEd((x) => ({ ...x, regions: [], drop: {}, noDetail: {} }))}>Repor tudo</button>
+              <button className="btn small ghost" disabled={!ed.regions.length} onClick={() => edit((x) => ({ ...x, regions: x.regions.slice(0, -1) }))}>Desfazer seleção</button>
+              <button className="btn small ghost" disabled={!ed.regions.length && !dropped && !Object.keys(ed.pm).length} onClick={() => edit((x) => ({ ...x, regions: [], drop: {}, noDetail: {}, off: {}, skipPart: {}, pm: {} }))}>Repor tudo</button>
               <button className="btn small ghost" disabled={view.z === 1} onClick={() => setViewBox({ z: 1, x: 0, y: 0 })}>Zoom 1×</button>
             </div>
             <div className="muted small">{`${ed.regions.length} seleção(ões) desenhada(s); ${dropped} cor(es) tirada(s).`}</div>
@@ -286,6 +358,7 @@ export function Analyzer(): JSX.Element {
                 onPointerDown={onDown} onPointerMove={(e) => { if (tool === 'pick' && res && e.buttons === 0) setHover(describe(toTex(e))) }} onPointerLeave={() => setHover('')} onContextMenu={(e) => e.preventDefault()}>
                 <img className="az-img" src={src.url} alt="" draggable={false} />
                 {res && <canvas ref={afterRef} className="az-img top" style={{ clipPath: `inset(0 0 0 ${cut}%)` }} />}
+                {res && <canvas ref={hlRef} className="az-img top az-hl" />}
                 {res && <div className="az-line" style={{ left: `${cut}%`, width: 2 / view.z }} />}
                 {res && (
                   <svg className="az-overlay" viewBox={`0 0 ${W} ${W}`}>
@@ -305,6 +378,8 @@ export function Analyzer(): JSX.Element {
             <button className="btn small" title="Ver a textura inteira" onClick={() => setViewBox({ z: 1, x: 0, y: 0 })}>{`${Math.round(view.z * 100)}%`}</button>
             {!res && <span className="muted small">Roda do rato: zoom · arrasta para mover</span>}
             {res && <>
+            <button className="btn small" title="Desfazer (Ctrl+Z)" disabled={!past.length} onClick={undo}>↶</button>
+            <button className="btn small" title="Refazer (Ctrl+Shift+Z)" disabled={!future.length} onClick={redo}>↷</button>
             <span className="muted small">Original</span>
             <input className="grow" type="range" min={0} max={100} value={cut} onChange={(e) => setCut(Number(e.target.value))} title="Esquerda: original · direita: resultado" />
             <span className="muted small">Resultado</span>
@@ -330,21 +405,9 @@ export function Analyzer(): JSX.Element {
                   <option value="">—</option>
                   {res.palette.map((o, j) => (j !== i && live(j) ? <option key={j} value={j}>{`Juntar com ${o.hex}`}</option> : null))}
                 </select>
-                <label className="check" title="Não criar camada com esta cor"><input type="checkbox" checked={!!ed.drop[i]} onChange={(e) => setEd((x) => ({ ...x, drop: { ...x.drop, [i]: e.target.checked } }))} /> Descartar</label>
+                <label className="check" title="Não criar camada com esta cor"><input type="checkbox" checked={!!ed.drop[i]} onChange={(e) => edit((x) => ({ ...x, drop: { ...x.drop, [i]: e.target.checked } }))} /> Descartar</label>
               </div>
             ))}
-            <div className="sub-title">Partes</div>
-            {res.parts.map((p) => {
-              const base = p.dominant !== null ? res.palette[repOf(p.dominant, ed.merge)].hex : null
-              return (
-                <div key={p.part} className="az-part">
-                  <label className="check"><input type="checkbox" checked={!ed.skipPart[p.part]} onChange={(e) => setEd((x) => ({ ...x, skipPart: { ...x.skipPart, [p.part]: !e.target.checked } }))} /> <b>{PART_LABEL[p.part as PartKey]}</b></label>
-                  {base && <span className="contrast-sw" style={{ background: base }} title="Cor de base" />}
-                  <span className="grow muted small">{`${plan?.layers.filter((l) => l.layer.part === p.part && l.layer.tileTint === 'color').length ?? 0} camada(s) de cor`}</span>
-                  {p.detail && <label className="check"><input type="checkbox" checked={!ed.noDetail[p.part]} onChange={(e) => setEd((x) => ({ ...x, noDetail: { ...x.noDetail, [p.part]: !e.target.checked } }))} /> Detalhes</label>}
-                </div>
-              )
-            })}
             {tooMany && <div className="kitlab-warn">Há muitas camadas de cor; junta ou descarta cores parecidas.</div>}
             <div className="muted small">Sombras, dobras, degradês e texturas fotográficas não se separam bem em cores lisas e ficam como imagem (Detalhes). Desenhos que atravessam costuras ficam divididos pelas partes do kit.</div>
             <div className="sub-title">Formas</div>
@@ -353,19 +416,25 @@ export function Analyzer(): JSX.Element {
             {vector && <div className="set-grid"><label>Tolerância</label><select value={tol} onChange={(e) => setTol(Number(e.target.value))}><option value={1}>Fina (1 px)</option><option value={2}>Normal (2 px)</option><option value={4}>Solta (4 px)</option></select></div>}
             {plan && (plan.nPattern > 0 || plan.nVector > 0) && <div className="muted small">{`${plan.nPattern} reconhecida(s) como desenho do kit, ${plan.nVector} em vetor.`}</div>}
 
-            <div className="sub-title">Camadas geradas</div>
-            {!plan && <div className="muted small"><span className="spinner" /> A preparar as camadas…</div>}
-            {plan && plan.layers.map((l, i) => (
-              <label key={layerKeys[i]} className="check az-layer">
-                <input type="checkbox" checked={!unsel.has(layerKeys[i])} onChange={(e) => setUnsel((s) => { const n = new Set(s); if (e.target.checked) n.delete(layerKeys[i]); else n.add(layerKeys[i]); return n })} />
-                {l.layer.tileTint === 'color' || l.layer.kind === 'vector' ? <span className="contrast-sw" style={{ background: l.layer.color }} /> : null}
-                <span className="grow">{l.layer.name ?? l.layer.kind}</span>
-              </label>
+            <div className="sub-title">Partes e camadas</div>
+            <div className="muted small">Clica numa linha para a destacar no kit (Ctrl / Shift: várias). A caixa liga e desliga. Com duas ou mais selecionadas, «Juntar» dá-lhes a cor da última que clicaste.</div>
+            <div className="btn-row">
+              <button className="btn small primary" disabled={sel.size < 2} onClick={mergeSel}>{`Juntar ${sel.size || ''} selecionadas`}</button>
+              <button className="btn small ghost" disabled={!sel.size} onClick={() => setSel(new Set())}>Limpar seleção</button>
+            </div>
+            {rows.map((r) => (
+              <div key={r.key} className={'az-row ' + r.kind + (sel.has(r.key) ? ' sel' : '') + (isOn(r) ? '' : ' off')} onClick={(e) => selectRow(r.key, e.ctrlKey || e.shiftKey || e.metaKey)}>
+                <input type="checkbox" checked={isOn(r)} title="Ligar / desligar" onClick={(e) => e.stopPropagation()} onChange={() => toggleRow(r)} />
+                {r.kind !== 'detail' && <span className="contrast-sw" style={{ background: r.hex }} />}
+                <span className="grow">{r.kind === 'part' ? <b>{r.name}</b> : r.name}</span>
+                <span className="muted small">{r.kind === 'part' ? 'base' : `${(r.share * 100).toFixed(1)}%`}</span>
+              </div>
             ))}
+            {!plan && <div className="muted small"><span className="spinner" /> A preparar as camadas…</div>}
             {plan && !plan.layers.length && <div className="muted small">Não há camadas (tudo foi tirado ou é a cor de base).</div>}
 
             <div className="sub-title">Guardar na biblioteca</div>
-            <div className="muted small">Guarda as camadas escolhidas acima para as usares noutros kits (no editor: Adicionar camada → Da biblioteca).</div>
+            <div className="muted small">Guarda as camadas do resultado (as que estão ligadas) para as usares noutros kits (no editor: Adicionar camada → Da biblioteca).</div>
             <div className="btn-row"><input className="grow" value={setName} placeholder="Nome" onChange={(e) => setSetName(e.target.value)} /><button className="btn small primary" disabled={!chosen.length} onClick={saveSet}>{`Guardar ${chosen.length} camada(s)`}</button></div>
 
             <div className="sub-title">Aplicar a um kit</div>

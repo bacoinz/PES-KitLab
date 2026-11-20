@@ -15,6 +15,10 @@ const LI = { en: 0, es: 1 } as const
 
 /** Messages with values: [regex, en, es]; $1.. are the captured groups (translated too when they are known). */
 const RULES: [RegExp, string, string][] = [
+  [/^Juntar (\d*) ?selecionadas$/, 'Merge $1 selected', 'Unir $1 seleccionadas'],
+  [/^(\d+) camada\(s\) juntada\(s\) em (.+)$/, '$1 layer(s) merged into $2', '$1 capa(s) unida(s) en $2'],
+  [/^(.+) \((fica)\)$/, '$1 (stays)', '$1 (queda)'],
+  [/^(.+) \((fora)\)$/, '$1 (out)', '$1 (fuera)'],
   [/^(\d+) camada\(s\) guardada\(s\) na biblioteca: (.+)$/, '$1 layer(s) saved to the library: $2', '$1 capa(s) guardada(s) en la biblioteca: $2'],
   [/^(\d+) camada\(s\) inseridas: (.+)$/, '$1 layer(s) inserted: $2', '$1 capa(s) insertadas: $2'],
   [/^Guardar (\d+) camada\(s\)$/, 'Save $1 layer(s)', 'Guardar $1 capa(s)'],
