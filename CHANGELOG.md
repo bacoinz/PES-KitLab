@@ -2,6 +2,13 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.9] - 2026-11-20
+### Added
+- Reference image (Origin tab → "Reference image"): load a photo or screenshot of a real kit to copy from (button, paste with Ctrl+V, or drop it over the viewer). It only lives in this session: it is never part of the kit, the undo history, the exported texture or the 3D view.
+- Floating reference window over the viewer (3D and 2D), in the bottom-right corner above the camera buttons by default. Drag the title bar to move it, the top-left corner to resize it (Shift keeps the shape), use the mouse wheel to zoom around the cursor, drag the image to move it and double click to fit. It can be minimised, closed (the image stays loaded) and reset to its default place; its position and size are remembered.
+- The reference can also be shown over or under the kit on the 2D texture view, with opacity, size, position and rotation. The eyedropper reads colours from the reference window (the droplet button in its title bar, or the eyedropper tool) and from the 2D view including the reference.
+- New command "Show / hide the reference window" (assignable in Settings -> Keyboard shortcuts).
+
 ## [0.5.8] - 2026-11-20
 ### Added
 - Numbers tab: a "Legibility" check. It measures the contrast (WCAG ratio, minimum 3:1) between the back number, the name, the chest number and the shorts number and the kit right under them, so stripes, patterns and fabrics count (the worst 5% of the pixels are left out as noise). With an outline, the outline colour is measured. It is only a warning and never blocks anything.

@@ -549,3 +549,16 @@ kbd { font: 11px/1.4 ui-monospace, Consolas, monospace; padding: 1px 6px; border
 .contrast-row.bad .contrast-mark { color: #e0b050; }
 .contrast-sw { width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--line); flex: none; }
 .contrast-ratio { min-width: 52px; text-align: right; }
+
+/* reference image: floating window and its panel */
+.ref-window { position: absolute; z-index: 4; display: flex; flex-direction: column; background: #14161cee; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; box-shadow: 0 6px 24px #0008; }
+.ref-bar { height: 28px; flex: none; display: flex; align-items: center; gap: 2px; padding: 0 4px 0 14px; cursor: move; background: #1c2028; user-select: none; }
+.ref-title { flex: 1; min-width: 0; font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ref-bar button { width: 24px; height: 22px; border: 0; border-radius: 5px; background: transparent; color: #dfe3ea; cursor: pointer; font-size: 12px; padding: 0; }
+.ref-bar button:hover { background: #2a2f3a; }
+.ref-bar button.on { background: var(--accent); color: #06130b; }
+.ref-body { position: relative; flex: 1; min-height: 0; overflow: hidden; cursor: grab; touch-action: none; background: repeating-conic-gradient(#2a2f39 0 25%, #20242d 0 50%) 0 0/16px 16px; }
+.ref-body.pick { cursor: crosshair; }
+.ref-body img { position: absolute; left: 0; top: 0; transform-origin: 0 0; max-width: none; user-select: none; }
+.ref-grip { position: absolute; left: 0; top: 0; width: 14px; height: 14px; z-index: 2; cursor: nwse-resize; border-left: 3px solid var(--accent); border-top: 3px solid var(--accent); border-top-left-radius: 7px; opacity: 0.7; }
+.ref-panel-thumb { max-width: 100%; max-height: 90px; border-radius: 6px; border: 1px solid var(--line); }

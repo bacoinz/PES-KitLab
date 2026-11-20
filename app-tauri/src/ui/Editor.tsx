@@ -25,6 +25,9 @@ import { registerHandlers } from './shortcuts'
 import { exportKitlab, parseKitlab, type ParsedKitlab } from '../kitlab'
 import { KitlabImportModal } from './KitlabImportModal'
 import { ContrastPanel } from './ContrastPanel'
+import { ReferencePanel } from './ReferencePanel'
+import { ReferenceWindow } from './ReferenceWindow'
+import { useRef2, useReferenceInput } from './reference'
 import { nudgeLayer, resizeLayer, rotateLayer, reorderLayer, duplicateLayer } from './layerKeys'
 import { layerBox, handleAt, hitLayer, toFrame, dragTo, boxOutline, type Zone2D, type DragStart } from './select2d'
 import { Section, Row, ColorInput, Slider, Select, AssetPicker, CropModal, pickColorTarget, TeamColors } from './common'
@@ -439,6 +442,9 @@ export function Editor(): JSX.Element {
   useEffect(() => { if (designPick) { setFly(null); setTexPick(null) } }, [designPick])
   const [tab, setTab] = useState<Tab>('shirt')
   const [kitlabFile, setKitlabFile] = useState<ParsedKitlab | null>(null)
+  const refImg = useRef2((r) => r.img), refOv = useRef2((r) => r.overlay)
+  const reference = useMemo(() => (refImg ? { img: refImg, o: refOv } : null), [refImg, refOv])
+  useReferenceInput(useCallback((m: string) => useApp.getState().notify('err', m), []))
   const [width, setWidth] = useState(readWidth)
   useEffect(() => { document.documentElement.style.setProperty('--sidebar-w', width + 'px') }, [width])
   const [tucked, setTucked] = useState(() => { try { return localStorage.getItem('kc.tucked') === '1' } catch { return false } })
@@ -636,6 +642,7 @@ export function Editor(): JSX.Element {
     const goTab = (i: number): void => { const [t, , view] = TABS[(i + TABS.length) % TABS.length]; setTab(t); go(view); setFly(null) }
     const tabAt = TABS.findIndex(([t]) => t === tab)
     const k: Record<string, () => boolean | void> = {
+      'ref.toggle': () => { const r = useRef2.getState(); if (!r.url) return false; r.setWin({ open: !r.win.open, min: false }) },
       'tab.prev': () => goTab(tabAt - 1),
       'tab.next': () => goTab(tabAt + 1),
       'layer.left': nudge(-1, 0), 'layer.right': nudge(1, 0), 'layer.up': nudge(0, -1), 'layer.down': nudge(0, 1),
@@ -1641,6 +1648,9 @@ export function Editor(): JSX.Element {
           }}>Importar .kitlab…</button>
         </div>
       </Section>
+      <Section group={tab} title="Imagem de referência">
+        <ReferencePanel />
+      </Section>
       <Section group={tab} title="Copiar para todos os kits">
         <div className="muted small">Copia deste kit ({SLOT_LABEL[kit.slot] ?? kit.slot}) para os outros equipamentos da equipa. Os logos que um kit já tem ficam como estão; só se acrescenta o que falta.</div>
         <label className="check"><input type="checkbox" checked={copyColors} onChange={(e) => setCopyColors(e.target.checked)} /> Copiar também as cores</label>
@@ -2485,7 +2495,7 @@ export function Editor(): JSX.Element {
         <div className="viewport">
           {mode === '3d'
             ? <KitViewer texture={tex} version={texV} sharedTexture={() => sharedTexRef.current} collar={cfg('Collar', 66)} longSleeves={longSleeves} shortsModel={cfg('ShortsModel', 1)} camera={cam} armband={!!ab.show} tucked={tucked} tight={cfg('TightKit', 1) === 1} kappa={cfg('ShortSleevesModel', 1) === 2} shine={kit.shine ?? 0} shineMap={shineMap} relief={reliefMap} autoRotate={spin} snapshot={setShot3d} light={light} lightPreset={view3d.preset} env={view3d.env} background={view3d.bg || null} hideShorts={view3d.hideShorts} hideSocks={view3d.hideSocks} sockKnit={!!kit.socksFabric && showFabric} sockScale={kit.socksFabric?.scale ?? 100} sockStrength={Math.round(((kit.socksFabric?.opacity ?? 0.1) / 0.1) * 100)} sockMix={kit.socksFabric?.mix ?? 50} sockCover={sockCover} />
-            : <TexView tex={tex} version={texV} bg={texBg} showBg={showTexBg} islands={islands} outline={showMesh ? meshImg : showOutline ? tplOutline : null} tool={tool} setTool={setTool} onPick={onPickColor}
+            : <TexView reference={reference} tex={tex} version={texV} bg={texBg} showBg={showTexBg} islands={islands} outline={showMesh ? meshImg : showOutline ? tplOutline : null} tool={tool} setTool={setTool} onPick={onPickColor}
               onBrush={(e) => {
                 if (e.type === 'down') {
                   // paint into the open drawing layer, or start a new one
@@ -2568,6 +2578,7 @@ export function Editor(): JSX.Element {
                 g.restore()
               }} />}
           <TeamColors colors={teamColors} />
+          <ReferenceWindow picking={mode === '2d' && tool === 'picker'} onPick={onPickColor} />
           {mode === '3d' && (
             <div className="name-preview">
               <label className="check"><input type="checkbox" checked={showNames} onChange={(e) => setShowNames(e.target.checked)} /> Nome e número</label>

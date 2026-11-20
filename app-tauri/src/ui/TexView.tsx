@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { REGIONS, pathOf } from '../compositor/uv'
 import { rgbToHex } from '../model/design'
+import type { RefOverlay } from './reference'
 
 export type Tool2D = 'hand' | 'select' | 'picker' | 'brush'
 
@@ -26,9 +27,24 @@ export interface TexViewProps {
   /** brush tool: pointer strokes in texture px */
   onBrush?: (e: { type: 'down' | 'move' | 'up'; x: number; y: number }) => void
   overlay?: (g: CanvasRenderingContext2D, px: number) => void // draws selection boxes (in texture px, scale = px)
+  /** reference image shown over / under the kit (editor only; never part of the texture) */
+  reference?: { img: HTMLImageElement; o: RefOverlay } | null
 }
 
-export function TexView({ tex, version, bg, showBg, islands, outline, tool, setTool, onPick, onSelect, onBrush, overlay }: TexViewProps): JSX.Element {
+/** The reference picture in texture px: fitted into the 2048 square, then scaled, moved and turned. */
+function paintRef(g: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, r: { img: HTMLImageElement; o: RefOverlay }): void {
+  const { img, o } = r
+  const k = Math.min(2048 / img.naturalWidth, 2048 / img.naturalHeight) * (o.scale / 100)
+  const w = img.naturalWidth * k, h = img.naturalHeight * k
+  g.save()
+  g.globalAlpha = o.opacity / 100
+  g.translate(1024 + o.dx, 1024 + o.dy)
+  g.rotate((o.rot * Math.PI) / 180)
+  g.drawImage(img, -w / 2, -h / 2, w, h)
+  g.restore()
+}
+
+export function TexView({ tex, version, bg, showBg, islands, outline, tool, setTool, onPick, onSelect, onBrush, overlay, reference }: TexViewProps): JSX.Element {
   const host = useRef<HTMLDivElement>(null)
   const cv = useRef<HTMLCanvasElement>(null)
   const [view, setView] = useState({ z: 0, x: 0, y: 0 }) // z = 0 → fit
@@ -70,6 +86,8 @@ export function TexView({ tex, version, bg, showBg, islands, outline, tool, setT
     g.save()
     g.translate(ox, oy)
     g.scale(scale, scale)
+    const ref = reference?.o.on ? reference : null
+    if (ref && !ref.o.above) paintRef(g, ref)
     g.drawImage(tex as CanvasImageSource, 0, 0, 2048, 2048)
     if (showBg && bgLayer) g.drawImage(bgLayer, 0, 0)
     else if (showBg) {
@@ -83,13 +101,14 @@ export function TexView({ tex, version, bg, showBg, islands, outline, tool, setT
       g.fill(outside, 'evenodd')
       g.restore()
     }
+    if (ref?.o.above) paintRef(g, ref)
     if (outline) { g.save(); g.globalAlpha = 0.55; g.drawImage(outline, 0, 0); g.restore() }
     g.strokeStyle = 'rgba(255,255,255,0.25)'
     g.lineWidth = 1 / scale
     g.strokeRect(0, 0, 2048, 2048)
     overlay?.(g, scale)
     g.restore()
-  }, [tex, version, size, scale, ox, oy, bg, showBg, bgLayer, outline, overlay])
+  }, [tex, version, size, scale, ox, oy, bg, showBg, bgLayer, outline, overlay, reference])
 
   const toTex = (e: { clientX: number; clientY: number }): { x: number; y: number } => {
     const r = cv.current!.getBoundingClientRect()
@@ -100,7 +119,13 @@ export function TexView({ tex, version, bg, showBg, islands, outline, tool, setT
     if (!tex || x < 0 || y < 0 || x >= 2048 || y >= 2048) return null
     const c = new OffscreenCanvas(1, 1), g = c.getContext('2d', { willReadFrequently: true })!
     const k = tex.width / 2048
-    g.drawImage(tex as CanvasImageSource, Math.floor(x * k), Math.floor(y * k), 1, 1, 0, 0, 1, 1)
+    if (reference?.o.on) {
+      // what is on screen: the kit with the reference over (or under) it
+      g.translate(-Math.floor(x), -Math.floor(y))
+      if (!reference.o.above) paintRef(g, reference)
+      g.drawImage(tex as CanvasImageSource, 0, 0, 2048, 2048)
+      if (reference.o.above) paintRef(g, reference)
+    } else g.drawImage(tex as CanvasImageSource, Math.floor(x * k), Math.floor(y * k), 1, 1, 0, 0, 1, 1)
     const d = g.getImageData(0, 0, 1, 1).data
     return rgbToHex(d[0], d[1], d[2])
   }

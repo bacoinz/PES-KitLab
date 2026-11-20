@@ -20,6 +20,7 @@ export const CATALOG: CmdDef[] = [
   { id: 'edit.undo', label: 'Desfazer', group: 'Geral', ctx: 'global', keys: 'Ctrl+Z' },
   { id: 'edit.redo', label: 'Refazer', group: 'Geral', ctx: 'global', keys: 'Ctrl+Y' },
   { id: 'view.toggle', label: 'Alternar vista 3D / textura 2D', group: 'Editor', ctx: 'editor', keys: 'Ctrl+Tab', inInput: true },
+  { id: 'ref.toggle', label: 'Mostrar / esconder a janela de referência', group: 'Editor', ctx: 'editor', keys: null },
   { id: 'tab.prev', label: 'Aba anterior', group: 'Editor', ctx: 'editor', keys: 'Ctrl+Shift+ArrowLeft' },
   { id: 'tab.next', label: 'Aba seguinte', group: 'Editor', ctx: 'editor', keys: 'Ctrl+Shift+ArrowRight' },
   ...TAB_NAMES.map((n, i): CmdDef => ({ id: 'tab.' + (i + 1), label: 'Ir para a aba ' + n, group: 'Editor', ctx: 'editor', keys: 'Alt+' + (i + 1), inInput: true })),
