@@ -1322,4 +1322,12 @@ export const DICT: Record<string, [string, string]> = {
   'A editar um conjunto de camadas da biblioteca. Podes mudar, vetorizar (Converter em vetor), acrescentar e apagar camadas; "Guardar" grava as alterações no conjunto.': ['Editing a layer set from the library. You can change, vectorise (Convert to vector), add and delete layers; "Save" writes the changes to the set.', 'Editando un conjunto de capas de la biblioteca. Puedes cambiar, vectorizar (Convertir en vector), añadir y borrar capas; "Guardar" graba los cambios en el conjunto.'],
   'Abre no editor (3D e textura 2D) para mudar, vetorizar e acrescentar camadas': ['Opens in the editor (3D and 2D texture) to change, vectorise and add layers', 'Abre en el editor (3D y textura 2D) para cambiar, vectorizar y añadir capas'],
   'Camadas guardadas na biblioteca': ['Layers saved to the library', 'Capas guardadas en la biblioteca'],
+  'Apagar os pontos (ou a forma) selecionados — Delete': ['Delete the selected points (or shape) — Delete', 'Borrar los puntos (o la forma) seleccionados — Delete'],
+  '⤓ Simplificar': ['⤓ Simplify', '⤓ Simplificar'],
+  'Simplificar: menos pontos, a mesma forma com curvas suaves. Aplica-se aos pontos selecionados (arrasta uma caixa no canvas; Ctrl+A seleciona todos), à forma selecionada ou a tudo': ['Simplify: fewer points, the same shape with smooth curves. Applies to the selected points (drag a box on the canvas; Ctrl+A selects all), the selected shape or everything', 'Simplificar: menos puntos, la misma forma con curvas suaves. Se aplica a los puntos seleccionados (arrastra una caja en el lienzo; Ctrl+A selecciona todos), a la forma seleccionada o a todo'],
+  'Força da simplificação': ['Simplification strength', 'Fuerza de la simplificación'],
+  'Fina': ['Fine', 'Fina'],
+  'Média': ['Medium', 'Media'],
+  'Forte': ['Strong', 'Fuerte'],
+  'Selecionar (V): arrasta pontos, pegas ou formas; arrasta no vazio para uma caixa de seleção (Shift / Ctrl somam)': ['Select (V): drag points, handles or shapes; drag on the empty canvas for a selection box (Shift / Ctrl add)', 'Seleccionar (V): arrastra puntos, tiradores o formas; arrastra en el vacío para una caja de selección (Shift / Ctrl suman)'],
 }

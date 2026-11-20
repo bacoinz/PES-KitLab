@@ -369,9 +369,12 @@ nav { display: flex; gap: 2px; }
 .fp-name { font-size: 13px; opacity: 0.85; }
 
 /* vector editor */
-.modal.ve { width: auto; }
-.ve-body { display: flex; flex-direction: column; gap: 8px; padding: 10px; }
-.ve-tools { display: flex; flex-wrap: wrap; gap: 4px; max-width: 520px; }
+.modal.ve { width: auto; max-width: 96vw; }
+.ve-body { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 12px; align-items: stretch; }
+.ve-tools { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.ve-simp { display: inline-flex; gap: 2px; align-items: center; }
+.ve-simp select { height: 30px; }
+.ve-canvas { display: block; margin: 0 auto; }
 .ve-btn { min-width: 32px; height: 30px; border-radius: 6px; border: 0; background: var(--bg3); color: var(--text); cursor: pointer; font-size: 15px; padding: 0 7px; }
 .ve-btn.on { background: #14d16b; color: #06130b; }
 .ve-btn:disabled { opacity: 0.35; cursor: default; }

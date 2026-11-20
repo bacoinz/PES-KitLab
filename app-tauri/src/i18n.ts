@@ -15,6 +15,7 @@ const LI = { en: 0, es: 1 } as const
 
 /** Messages with values: [regex, en, es]; $1.. are the captured groups (translated too when they are known). */
 const RULES: [RegExp, string, string][] = [
+  [/^Arrasta pontos, pegas \(Alt = pegas soltas\) ou a forma · caixa no vazio: vários pontos(?: \((\d+) selecionados\))? · roda: zoom · botão direito: mover$/, 'Drag points, handles (Alt = free handles) or the shape · box on empty canvas: several points · wheel: zoom · right button: pan', 'Arrastra puntos, tiradores (Alt = tiradores libres) o la forma · caja en el vacío: varios puntos · rueda: zoom · botón derecho: mover'],
   [/^Juntar (\d*) ?selecionadas$/, 'Merge $1 selected', 'Unir $1 seleccionadas'],
   [/^(\d+) camada\(s\) juntada\(s\) em (.+)$/, '$1 layer(s) merged into $2', '$1 capa(s) unida(s) en $2'],
   [/^(.+) \((fica)\)$/, '$1 (stays)', '$1 (queda)'],

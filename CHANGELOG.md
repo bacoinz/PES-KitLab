@@ -2,6 +2,14 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.21] - 2026-11-20
+### Added
+- Pen tool: box selection. Drag on the empty canvas with the Select tool to select several points (Shift / Ctrl add to the selection, Ctrl+A selects all); the selected points move together and Delete removes them all.
+- Pen tool: "Simplify" button (strength Fine / Medium / Strong). It replaces many points by fewer ones that follow the same outline with smooth Bézier curves (real corners stay sharp), not a straight line. It works on the selected points, the selected shape, or the whole drawing.
+
+### Changed
+- Pen tool window: bigger canvas (up to 680 px, fitted to the window height), centred, with the toolbar in one row and no empty space on the side.
+
 ## [0.5.20] - 2026-11-20
 ### Added
 - Library → "Saved layers": each set has an "Edit" button. It opens the set in the editor (3D model and 2D texture) as a sandbox kit, where its layers can be changed, hidden, reordered, converted to vector and edited with the pen, and new layers can be added. "Save" writes the changes back to the set (layers, base colours and preview); the X button goes back to the Library.
