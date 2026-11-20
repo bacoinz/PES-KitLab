@@ -107,6 +107,7 @@ export const kc: KcApi & { launchGame(): Promise<string> } = {
   saveUserTemplate: (id, json) => call('save_user_template', { id, json }),
   exportKitlab: (name, manifest, assets) => call('export_kitlab', { name, manifest, assets }),
   readKitlab: (path) => call('read_kitlab', { path }),
+  analyzeTexture: (dataUrl, opts) => call('analyze_texture', { dataUrl, opts }),
   listUserTemplates: () => call('list_user_templates'),
   deleteUserTemplate: (id) => call('delete_user_template', { id }),
   listTemplateImages: () => call('list_template_images'),

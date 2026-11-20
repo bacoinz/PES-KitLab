@@ -16,7 +16,7 @@ const EXTS: [&str; 6] = ["png", "jpg", "jpeg", "webp", "gif", "bmp"];
 #[serde(rename_all = "camelCase")]
 pub struct AssetIn { pub id: String, pub data_url: String }
 
-fn b64_decode(s: &str) -> Option<Vec<u8>> {
+pub fn b64_decode(s: &str) -> Option<Vec<u8>> {
     let mut out = Vec::with_capacity(s.len() / 4 * 3);
     let (mut acc, mut bits) = (0u32, 0u32);
     for c in s.bytes() {

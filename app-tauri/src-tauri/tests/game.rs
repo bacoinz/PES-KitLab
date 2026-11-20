@@ -111,3 +111,18 @@ fn export_snapshot_restore() {
     println!("original zip bytes {}", zip.len());
     assert!(zip.len() > 1000);
 }
+
+#[test]
+fn analyzer_on_a_real_kit_texture() {
+    if !has_game() { return; }
+    let gi = GameIndex::build(Path::new(GAME), &out().join("index.json"), &|_| {}).unwrap();
+    let b = gi.read("Asset/model/character/uniform/texture/#windx11/u0191p1.ftex").expect("kit file");
+    let img = decode_ftex(&b, 0).unwrap();
+    let t = Instant::now();
+    let a = kitcreator_lib::game::analyze::analyze(&img.data, img.width as usize, img.height as usize, &Default::default()).unwrap();
+    println!("analyze {}x{} in {:?}: {} colours, mean diff {:.2}", img.width, img.height, t.elapsed(), a.palette.len(), a.mean_diff);
+    for p in &a.parts { println!("  {} dominant {:?} masks {:?} detail {}", p.part, p.dominant, p.masks.iter().map(|m| (m.color, m.area)).collect::<Vec<_>>(), p.detail_area); }
+    println!("  palette {:?}", a.palette.iter().map(|p| (&p.hex, (p.share * 100.0).round())).collect::<Vec<_>>());
+    assert!(a.palette.len() >= 2);
+    assert!(a.mean_diff < 14.0, "mean diff {}", a.mean_diff);
+}

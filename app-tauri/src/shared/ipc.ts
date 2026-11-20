@@ -88,6 +88,8 @@ export interface KcApi {
   saveUserTemplate(id: string, json: string): Promise<void>
   /** .kitlab: writes the file (save dialog; null = cancelled) / reads and checks one */
   exportKitlab(name: string, manifest: string, assets: { id: string; dataUrl: string }[]): Promise<string | null>
+  /** texture analyser: splits a kit texture (PNG data URL) into colour masks and details (see analyze.ts) */
+  analyzeTexture(dataUrl: string, opts: { colors?: number; sensitivity?: number }): Promise<unknown>
   readKitlab(path: string): Promise<{ kit: unknown; assets: Record<string, { name: string; dataUrl: string; w: number; h: number }> }>
   listUserTemplates(): Promise<string[]>
   deleteUserTemplate(id: string): Promise<void>

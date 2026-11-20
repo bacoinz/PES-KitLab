@@ -27,6 +27,7 @@ import { exportKitlab, parseKitlab, type ParsedKitlab } from '../kitlab'
 import { KitlabImportModal } from './KitlabImportModal'
 import { ContrastPanel } from './ContrastPanel'
 import { ReferencePanel } from './ReferencePanel'
+import { TextureAnalyzeModal } from './TextureAnalyzeModal'
 import { ReferenceWindow } from './ReferenceWindow'
 import { useRef2, useReferenceInput } from './reference'
 import { nudgeLayer, resizeLayer, rotateLayer, reorderLayer, duplicateLayer } from './layerKeys'
@@ -443,6 +444,7 @@ export function Editor(): JSX.Element {
   useEffect(() => { if (designPick) { setFly(null); setTexPick(null) } }, [designPick])
   const [tab, setTab] = useState<Tab>('shirt')
   const [kitlabFile, setKitlabFile] = useState<ParsedKitlab | null>(null)
+  const [analyzeOpen, setAnalyzeOpen] = useState(false)
   const refImg = useRef2((r) => r.img), refOv = useRef2((r) => r.overlay)
   const reference = useMemo(() => (refImg ? { img: refImg, o: refOv } : null), [refImg, refOv])
   useReferenceInput(useCallback((m: string) => useApp.getState().notify('err', m), []))
@@ -1654,6 +1656,10 @@ export function Editor(): JSX.Element {
           <PatternGenPanel kit={kit} assets={assets} onApply={(tpl, c1, c2, c3) => up((k) => applyTpl(k, tpl, c1, c2, c3))} />
         </Section>
       )}
+      <Section group={tab} title="Analisar textura">
+        <div className="muted small">Abre uma textura de kit (PNG ou FTEX, ou a do jogo) e separa-a em camadas de cor que podes recolorir, esconder e reordenar, com os emblemas e desenhos que não são cores lisas à parte.</div>
+        <div className="btn-row"><button className="btn small" onClick={() => setAnalyzeOpen(true)}>Analisar textura…</button></div>
+      </Section>
       <Section group={tab} title="Imagem de referência">
         <ReferencePanel />
       </Section>
@@ -2370,6 +2376,7 @@ export function Editor(): JSX.Element {
         </div>
       )
     })()}
+    {analyzeOpen && <TextureAnalyzeModal kit={kit} onClose={() => setAnalyzeOpen(false)} />}
     {kitlabFile && <KitlabImportModal file={kitlabFile} onClose={() => setKitlabFile(null)} />}
     {logoCtx && (() => {
       const { lp, set, key, i } = logoCtx

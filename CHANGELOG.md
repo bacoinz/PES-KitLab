@@ -2,6 +2,13 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.11] - 2026-11-20
+### Added
+- Texture analyser (Origin tab → "Analyse texture"): opens a kit texture (a PNG or FTEX file, the game's kit for the current slot, or the base texture imported in the kit) and splits it into editable layers. The app core smooths the fabric grain and compression noise with an edge-preserving filter, finds the flat colours (the number of colours is automatic or chosen, with a sensitivity slider), and makes one colour mask per colour and kit part (shirt, sleeves, shorts, socks). Each mask becomes an image layer painted in one colour, so it can be recoloured, hidden and reordered; the main colour of each part becomes its base colour.
+- Crests, sponsors, gradients and painted shadows are not flat colours: they are cut out of the original into one "Details" layer per part.
+- Review screen before anything changes: the original against the result with a sliding curtain, a difference map and the mean difference per pixel, the colours found (merge similar colours, drop the ones you do not want), and per part: use it or leave it alone, keep or drop its details. The result goes into the current kit or a free slot and can be undone.
+- Limits shown in the review: shadows, folds, gradients and photographic textures stay as an image, and designs that cross seams are split by kit part.
+
 ## [0.5.10] - 2026-11-20
 ### Added
 - Pattern generator (Origin tab → "Pattern generator", for kits that are not a full imported texture): pick a style (Vertical stripes, Horizontal bands, Halves and quarters, Diagonal sash, 70s retro, Classic Italian), the three colours and optionally the number and width of the stripes, bands or collar panel, see a preview, and press "Generate". The kit gets normal, editable layers (patterns, panels, sleeve / shorts / socks designs, collar and cuffs), not a flat image, and the step can be undone.

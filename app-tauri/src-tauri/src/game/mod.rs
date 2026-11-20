@@ -1,3 +1,4 @@
+pub mod analyze;
 pub mod cpk;
 pub mod fmdl;
 pub mod index;
