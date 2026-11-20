@@ -2,6 +2,11 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.10] - 2026-11-20
+### Added
+- Pattern generator (Origin tab → "Pattern generator", for kits that are not a full imported texture): pick a style (Vertical stripes, Horizontal bands, Halves and quarters, Diagonal sash, 70s retro, Classic Italian), the three colours and optionally the number and width of the stripes, bands or collar panel, see a preview, and press "Generate". The kit gets normal, editable layers (patterns, panels, sleeve / shorts / socks designs, collar and cuffs), not a flat image, and the step can be undone.
+- "Surprise me" tries another variant of the same style; the same seed always gives the same kit.
+
 ## [0.5.9] - 2026-11-20
 ### Added
 - Reference image (Origin tab → "Reference image"): load a photo or screenshot of a real kit to copy from (button, paste with Ctrl+V, or drop it over the viewer). It only lives in this session: it is never part of the kit, the undo history, the exported texture or the 3D view.

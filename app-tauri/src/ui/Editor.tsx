@@ -3,7 +3,8 @@ import { useApp, assetFromFile, rawAssetFromFile, previewAssetFromFile, PRESET_T
 import type { PanelStyle, TextPlacement, PanelKind, KitDesign, OverlayLayer, Asset, LogoPlacement, LogoTint, Fill, PatternSpec, FabricLayer, FabricZone, Zone, Logos, StitchKind, StitchSpec, TextureSpec } from '../model/design'
 import { describeStep } from './history'
 import { PANEL_STYLES, SLOT_LABEL, ALL_SLOTS, uid, defaultDesign, contrastOn, slotOrder, solid, fillMain, normalizeGroups, dropLayer, migrateKit, LOGO_SIZES, NUMBER_DEFAULTS, STITCH_KINDS, FABRIC_COLLAR, FABRIC_SLEEVE, COLLAR_FABRIC, CUFF_FABRIC, FABRIC_CUFF, SOCK_LAYER_FABRIC, MAIN_FABRIC, HEM_STITCH, SHORTS_HEM_STITCH, MID_STITCH, STITCH_DEFAULT, mergeLogos, copyNumbers, groupColors, swapGroupColor, resolveGroups, kitAssetIds } from '../model/design'
-import { TEMPLATES, applyTemplate } from '../model/templates'
+import { TEMPLATES, applyTemplate, applyTpl } from '../model/templates'
+import { PatternGenPanel } from './PatternGenPanel'
 import { TORSO_PATTERNS, SLEEVE_PATTERNS, SHORTS_PATTERNS, SOCKS_PATTERNS, TEXTURES, STROKES } from '../compositor/patterns'
 import { composeKit, composeLive, composeShine, composeRelief, composeSockCover, onStaleRender, composeLiveShared, COLLAR_DESIGNS, collarParams, collarDefaults, frontThumb, raglanBend } from '../compositor/compose'
 import { decorationOverlay, type GlyphAtlas } from '../compositor/decorate'
@@ -1648,6 +1649,11 @@ export function Editor(): JSX.Element {
           }}>Importar .kitlab…</button>
         </div>
       </Section>
+      {kit.base.kind === 'template' && (
+        <Section group={tab} title="Gerador de padrões">
+          <PatternGenPanel kit={kit} assets={assets} onApply={(tpl, c1, c2, c3) => up((k) => applyTpl(k, tpl, c1, c2, c3))} />
+        </Section>
+      )}
       <Section group={tab} title="Imagem de referência">
         <ReferencePanel />
       </Section>

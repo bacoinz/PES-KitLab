@@ -1,7 +1,7 @@
 /** Thumbnail generators for the picker grids (cached object URLs). */
 import * as THREE from 'three'
 import type { KitDesign, Asset, OverlayLayer, PatternSpec } from './model/design'
-import { applyTemplate } from './model/templates'
+import { applyTemplate, applyTpl, type Tpl } from './model/templates'
 import { composeKit, frontThumb } from './compositor/compose'
 import { drawTexture } from './compositor/patterns'
 import { canvas, ctx2d } from './compositor/images'
@@ -28,6 +28,11 @@ export function templatePreview(k: KitDesign, tplId: string, assets: Record<stri
     const d = applyTemplate({ ...k, layers: [] }, tplId, k.colors.shirt, k.colors.shirt2, k.colors.shirt3)
     return kitPreview3d(noLogos(d), assets, 'torso', 'tpl:' + tplId + JSON.stringify(d.colors))
   })
+}
+
+/** Preview of a generated style (model/styles.ts) in the given colours; `key` names every number that went into it. */
+export function recipePreview(k: KitDesign, tpl: Tpl, cols: [string, string, string], assets: Record<string, Asset>, key: string): Promise<string> {
+  return memo('gen:' + key, async () => kitPreview3d(noLogos(applyTpl({ ...k, layers: [] }, tpl, cols[0], cols[1], cols[2])), assets, 'torso', 'gen:' + key))
 }
 
 export type PatternPart = 'torso' | 'sleeves' | 'shorts' | 'socks'

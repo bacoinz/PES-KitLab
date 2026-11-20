@@ -1187,5 +1187,21 @@ export const DICT: Record<string, [string, string]> = {
   'Fechar (a imagem continua carregada)': ['Close (the image stays loaded)', 'Cerrar (la imagen sigue cargada)'],
   'Arrasta para mudar o tamanho (Shift mantém a forma)': ['Drag to resize (Shift keeps the shape)', 'Arrastra para cambiar el tamaño (Mayús mantiene la forma)'],
   'Não consegui abrir essa imagem.': ['I could not open that image.', 'No pude abrir esa imagen.'],
-  'Escolhe uma imagem PNG, JPG, WebP, GIF ou BMP.': ['Choose a PNG, JPG, WebP, GIF or BMP image.', 'Elige una imagen PNG, JPG, WebP, GIF o BMP.']
+  'Escolhe uma imagem PNG, JPG, WebP, GIF ou BMP.': ['Choose a PNG, JPG, WebP, GIF or BMP image.', 'Elige una imagen PNG, JPG, WebP, GIF o BMP.'],
+  'Gerador de padrões': ['Pattern generator', 'Generador de patrones'],
+  'Escolhe um estilo e as cores: o kit fica com camadas normais, que podes ajustar nas outras abas. "Surpreende-me" experimenta outra variante do mesmo estilo.': ['Pick a style and the colours: the kit gets normal layers that you can adjust in the other tabs. "Surprise me" tries another variant of the same style.', 'Elige un estilo y los colores: la equipación queda con capas normales que puedes ajustar en las otras pestañas. "Sorpréndeme" prueba otra variante del mismo estilo.'],
+  'Surpreende-me': ['Surprise me', 'Sorpréndeme'],
+  'Outra variante do mesmo estilo': ['Another variant of the same style', 'Otra variante del mismo estilo'],
+  'Aplica este estilo ao kit (podes desfazer com Ctrl+Z)': ['Applies this style to the kit (you can undo with Ctrl+Z)', 'Aplica este estilo a la equipación (puedes deshacer con Ctrl+Z)'],
+  'Usar as cores do kit': ['Use the kit colours', 'Usar los colores de la equipación'],
+  'Volta às cores atuais do kit': ['Back to the kit\'s current colours', 'Vuelve a los colores actuales de la equipación'],
+  'Bandas horizontais': ['Horizontal bands', 'Bandas horizontales'],
+  'Metades e quartos': ['Halves and quarters', 'Mitades y cuartos'],
+  'Retro anos 70': ['70s retro', 'Retro años 70'],
+  'Clássico italiano': ['Classic Italian', 'Clásico italiano'],
+  'Quantidade de riscas': ['Number of stripes', 'Cantidad de rayas'],
+  'Quantidade de bandas': ['Number of bands', 'Cantidad de bandas'],
+  'Quantidade de faixas': ['Number of sashes', 'Cantidad de bandas'],
+  'Quantidade de linhas': ['Number of lines', 'Cantidad de líneas'],
+  'Largura da gola': ['Collar width', 'Ancho del cuello']
 }

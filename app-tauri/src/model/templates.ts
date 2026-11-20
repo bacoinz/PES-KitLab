@@ -3,7 +3,7 @@ import type { KitDesign, PatternSpec, Logos, OverlayLayer } from './design'
 import { defaultDesign, colorsFrom, contrastOn, luminance, colorDist, mix, hexToRgb, NONE, slotOrder, uid, normalizeLogos, CUFF_FABRIC, STITCH_DEFAULT } from './design'
 
 type Role = 'c1' | 'c2' | 'c3'
-interface Tpl {
+export interface Tpl {
   id: string
   name: string
   torso?: [string, Role, number?, number?] // id, colour role, count, width
@@ -16,10 +16,10 @@ interface Tpl {
   /** extra editable layers (panels, textures, warped / blurred designs…); `mask` = index of another extra layer */
   layers?: TplLayer[]
 }
-type TplLayer = Partial<OverlayLayer> & { kind: OverlayLayer['kind']; role: Role; mask?: number }
-const P = (panel: NonNullable<OverlayLayer['panel']>, role: Role, size: number, more: Partial<OverlayLayer> = {}): TplLayer => ({ kind: 'panel', panel, role, size, part: panel.startsWith('shorts') ? 'shorts' : panel.startsWith('sock') ? 'socks' : 'torso', ...more })
+export type TplLayer = Partial<OverlayLayer> & { kind: OverlayLayer['kind']; role: Role; mask?: number }
+export const P = (panel: NonNullable<OverlayLayer['panel']>, role: Role, size: number, more: Partial<OverlayLayer> = {}): TplLayer => ({ kind: 'panel', panel, role, size, part: panel.startsWith('shorts') ? 'shorts' : panel.startsWith('sock') ? 'socks' : 'torso', ...more })
 const TX = (pattern: string, role: Role, opacity: number, scale = 70, more: Partial<TplLayer> = {}): TplLayer => ({ kind: 'texture', pattern, role, opacity, scale, zones: ['front', 'back'], ...more })
-const D = (pattern: string, role: Role, count: number, width: number, more: Partial<OverlayLayer> = {}): TplLayer => ({ kind: 'pattern', pattern, role, count, width, zones: ['front', 'back'], ...more })
+export const D = (pattern: string, role: Role, count: number, width: number, more: Partial<OverlayLayer> = {}): TplLayer => ({ kind: 'pattern', pattern, role, count, width, zones: ['front', 'back'], ...more })
 
 export const TEMPLATES: Tpl[] = [
   { id: 'classic', name: 'Clássico liso', socks: ['topBand', 'c2', 1, 20], collar: 66 },
@@ -75,7 +75,11 @@ const spec = (t: [string, Role, number?, number?] | undefined, cols: Record<Role
 
 /** Apply a template to a design keeping logos, numbers and config. */
 export function applyTemplate(d: KitDesign, tplId: string, c1: string, c2: string, c3?: string): KitDesign {
-  const t = TEMPLATES.find((x) => x.id === tplId) ?? TEMPLATES[0]
+  return applyTpl(d, TEMPLATES.find((x) => x.id === tplId) ?? TEMPLATES[0], c1, c2, c3)
+}
+
+/** Apply any template description: a built-in one or one made by the style generator (model/styles.ts). */
+export function applyTpl(d: KitDesign, t: Tpl, c1: string, c2: string, c3?: string): KitDesign {
   const cols = { c1, c2, c3: c3 ?? mix(c1, c2, 0.5) }
   const colors = colorsFrom(c1, c2, cols.c3)
   if (t.sleeveColor) colors.sleeves = cols[t.sleeveColor]
