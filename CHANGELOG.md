@@ -3,6 +3,10 @@
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [0.5.16] - 2026-11-20
+### Changed
+- Pen tool: the mouse wheel zooms around the cursor (up to 60×), and the canvas pans with the right or middle button or Alt + drag; the + / − buttons use the same zoom.
+- Analyzer: zoom works as soon as a texture is loaded (before analysing too), with the mouse wheel around the cursor or the new + / − buttons and a "% / fit" button in the bar below the texture; panning also works without the Move tool (right button, Alt or Move).
+
 ### Fixed
 - The "From the library" button was missing from the "Add layer" grid of the editor, so saved layer sets could not be inserted.
 

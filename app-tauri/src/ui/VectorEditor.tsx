@@ -54,13 +54,15 @@ export function VectorEditor({ value, color, onApply, onClose }: { value: VPath[
   const [grid, setGrid] = useState(true)
   const [snap, setSnap] = useState(true)
   const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 }) // px offset of the centre
+  const panDrag = useRef<{ x: number; y: number; px: number; py: number } | null>(null)
   const [shapesOpen, setShapesOpen] = useState(false)
   const drag = useRef<Drag | null>(null)
   const svg = useRef<SVGSVGElement>(null)
   const S = (SIZE - 40) * zoom // px per unit
   const toUnit = (e: { clientX: number; clientY: number }): [number, number] => {
     const r = svg.current!.getBoundingClientRect()
-    let x = (e.clientX - r.left - SIZE / 2) / S, y = (e.clientY - r.top - SIZE / 2) / S
+    let x = (e.clientX - r.left - SIZE / 2 - pan.x) / S, y = (e.clientY - r.top - SIZE / 2 - pan.y) / S
     if (snap) { x = Math.round(x / GRID) * GRID; y = Math.round(y / GRID) * GRID }
     return [+x.toFixed(4), +y.toFixed(4)]
   }
@@ -68,6 +70,17 @@ export function VectorEditor({ value, color, onApply, onClose }: { value: VPath[
   const undo = (): void => { const prev = past[past.length - 1]; if (!prev) return; setFuture((f) => [clone(paths), ...f]); setPast((h) => h.slice(0, -1)); setPaths(prev); setActive(null); setSel(null) }
   const redo = (): void => { const nxt = future[0]; if (!nxt) return; setPast((h) => [...h, clone(paths)]); setFuture((f) => f.slice(1)); setPaths(nxt); setActive(null); setSel(null) }
   const finish = (): void => { setActive(null) }
+  /** zoom by `f` keeping the point under (cx, cy) (px in the canvas) where it is; the mouse wheel uses it too */
+  const zoomAt = (f: number, cx = SIZE / 2, cy = SIZE / 2): void => {
+    const z = Math.max(0.4, Math.min(60, zoom * f))
+    const k = z / zoom
+    setZoom(z)
+    setPan({ x: cx - SIZE / 2 - (cx - SIZE / 2 - pan.x) * k, y: cy - SIZE / 2 - (cy - SIZE / 2 - pan.y) * k })
+  }
+  const onWheel = (e: React.WheelEvent): void => {
+    const r = svg.current!.getBoundingClientRect()
+    zoomAt(e.deltaY < 0 ? 1.25 : 1 / 1.25, e.clientX - r.left, e.clientY - r.top)
+  }
 
   useEffect(() => {
     const k = (e: KeyboardEvent): void => {
@@ -193,13 +206,21 @@ export function VectorEditor({ value, color, onApply, onClose }: { value: VPath[
             {btn('⇋', 'Espelhar (forma selecionada ou tudo)', false, mirror, !paths.length)}
             {btn('#', 'Grelha', grid, () => setGrid(!grid))}
             {btn('Íman', 'Íman: encaixar na grelha', snap, () => setSnap(!snap))}
-            {btn('−', 'Afastar', false, () => setZoom((z) => Math.max(0.4, z / 1.25)))}
-            {btn('+', 'Aproximar', false, () => setZoom((z) => Math.min(4, z * 1.25)))}
-            {btn('⤢', 'Ajustar', false, () => setZoom(1))}
+            {btn('−', 'Afastar (roda do rato)', false, () => zoomAt(1 / 1.25))}
+            {btn('+', 'Aproximar (roda do rato)', false, () => zoomAt(1.25))}
+            {btn('⤢', 'Ajustar', false, () => { setZoom(1); setPan({ x: 0, y: 0 }) })}
             {btn('⟲', 'Repor (apagar tudo)', false, () => { if (confirm('Apagar todas as formas?')) { commit([]); setSel(null); setActive(null) } }, !paths.length)}
           </div>
-          <svg ref={svg} width={SIZE} height={SIZE} className={'ve-canvas tool-' + tool} onPointerDown={(e) => down(e, 'bg')} onPointerMove={move} onPointerUp={up}>
-            <g transform={`translate(${SIZE / 2} ${SIZE / 2}) scale(${S})`}>
+          <svg ref={svg} width={SIZE} height={SIZE} className={'ve-canvas tool-' + tool} onWheel={onWheel}
+            onPointerDownCapture={(e) => {
+              // pan: middle / right button, or Alt + drag
+              if (e.button === 1 || e.button === 2 || e.altKey) { e.stopPropagation(); e.preventDefault(); try { svg.current!.setPointerCapture(e.pointerId) } catch { /* synthetic */ } panDrag.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y } }
+            }}
+            onPointerDown={(e) => down(e, 'bg')}
+            onPointerMove={(e) => { const d = panDrag.current; if (d) setPan({ x: d.px + e.clientX - d.x, y: d.py + e.clientY - d.y }); else move(e) }}
+            onPointerUp={() => { if (panDrag.current) panDrag.current = null; else up() }}
+            onContextMenu={(e) => e.preventDefault()}>
+            <g transform={`translate(${SIZE / 2 + pan.x} ${SIZE / 2 + pan.y}) scale(${S})`}>
               <rect x={-0.5} y={-0.5} width={1} height={1} fill="#e8e8ea" />
               {grid && ticks.map((t) => (
                 <g key={t} stroke={Math.abs(t) < 1e-6 ? '#9a9aa6' : '#d0d0d6'} strokeWidth={1 / S}>
@@ -226,7 +247,7 @@ export function VectorEditor({ value, color, onApply, onClose }: { value: VPath[
             </g>
           </svg>
           <div className="ve-foot">
-            <span className="muted small">{tool === 'pen' ? (paths.some((p) => p.pts.length) ? 'Clica para acrescentar pontos à forma · clica num ponto para continuar a partir dele · no 1.º ponto fecha' : 'Clica para começar a forma (arrasta para curvas)') : 'Arrasta pontos, pegas (Alt = pegas soltas) ou a forma inteira'}</span>
+            <span className="muted small">{tool === 'pen' ? (paths.some((p) => p.pts.length) ? 'Clica para acrescentar pontos à forma · clica num ponto para continuar a partir dele · no 1.º ponto fecha' : 'Clica para começar a forma (arrasta para curvas)') : 'Arrasta pontos, pegas (Alt = pegas soltas) ou a forma inteira · roda do rato: zoom · botão direito ou do meio: mover'}</span>
             <span className="grow" />
             <button className="btn small ghost" onClick={onClose}>Cancelar</button>
             <button className="btn small primary" onClick={() => onApply(paths.filter((p) => p.pts.length > 1))}>Aplicar</button>

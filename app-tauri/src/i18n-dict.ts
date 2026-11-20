@@ -1303,4 +1303,7 @@ export const DICT: Record<string, [string, string]> = {
   'Da biblioteca': ['From the library', 'De la biblioteca'],
   'Nome do conjunto de camadas': ['Name of the layer set', 'Nombre del conjunto de capas'],
   'Janela de referência: mostrar / esconder (a imagem fica carregada)': ['Reference window: show / hide (the image stays loaded)', 'Ventana de referencia: mostrar / ocultar (la imagen sigue cargada)'],
+  'Afastar (roda do rato)': ['Zoom out (mouse wheel)', 'Alejar (rueda del ratón)'],
+  'Aproximar (roda do rato)': ['Zoom in (mouse wheel)', 'Acercar (rueda del ratón)'],
+  'Arrasta pontos, pegas (Alt = pegas soltas) ou a forma inteira · roda do rato: zoom · botão direito ou do meio: mover': ['Drag points, handles (Alt = free handles) or the whole shape · mouse wheel: zoom · right or middle button: pan', 'Arrastra puntos, tiradores (Alt = tiradores libres) o toda la forma · rueda del ratón: zoom · botón derecho o central: mover'],
 }

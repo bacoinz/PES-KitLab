@@ -46,6 +46,7 @@ export function Analyzer(): JSX.Element {
 
   const stageRef = useRef<HTMLDivElement>(null)
   const worldRef = useRef<HTMLDivElement>(null)
+  const frameRef = useRef<HTMLDivElement>(null)
   const afterRef = useRef<HTMLCanvasElement>(null)
   const [side, setSide] = useState(640)
   useEffect(() => {
@@ -140,8 +141,8 @@ export function Analyzer(): JSX.Element {
   }
 
   const onDown = (e: React.PointerEvent): void => {
-    if (!res) return
-    const panning = tool === 'pan' || e.button === 1 || e.button === 2 || e.altKey
+    if (!src) return
+    const panning = tool === 'pan' || !res || e.button === 1 || e.button === 2 || e.altKey
     try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch { /* synthetic events */ }
     if (panning) {
       const s = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }
@@ -169,17 +170,16 @@ export function Analyzer(): JSX.Element {
     }
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up)
   }
+  const zoomBy = (f: number, cx = side / 2, cy = side / 2): void => setViewBox((v) => {
+    const z = Math.max(1, Math.min(16, v.z * f))
+    const k = z / v.z
+    return z === 1 ? { z, x: 0, y: 0 } : { z, x: cx - (cx - v.x) * k, y: cy - (cy - v.y) * k }
+  })
   const onWheel = (e: React.WheelEvent): void => {
-    const el = stageRef.current
-    if (!el || !res) return
-    const r = el.getBoundingClientRect()
-    const cx = e.clientX - r.left - (r.width - side) / 2, cy = e.clientY - r.top - (r.height - side) / 2
-    const f = e.deltaY < 0 ? 1.2 : 1 / 1.2
-    setViewBox((v) => {
-      const z = Math.max(1, Math.min(16, v.z * f))
-      const k = z / v.z
-      return z === 1 ? { z, x: 0, y: 0 } : { z, x: cx - (cx - v.x) * k, y: cy - (cy - v.y) * k }
-    })
+    const fr = frameRef.current
+    if (!fr || !src) return
+    const r = fr.getBoundingClientRect()
+    zoomBy(e.deltaY < 0 ? 1.25 : 1 / 1.25, e.clientX - r.left, e.clientY - r.top)
   }
 
   // ---- layers to save / apply
@@ -281,7 +281,7 @@ export function Analyzer(): JSX.Element {
         <div className="az-stage" ref={stageRef} onWheel={onWheel}>
           {!src && <div className="muted az-empty">Escolhe uma textura à esquerda para a analisar.</div>}
           {src && (
-            <div className="az-frame" style={{ width: side, height: side }}>
+            <div className="az-frame" ref={frameRef} style={{ width: side, height: side }}>
               <div ref={worldRef} className={'az-world tool-' + tool} style={{ width: side, height: side, transform: `translate(${view.x}px, ${view.y}px) scale(${view.z})` }}
                 onPointerDown={onDown} onPointerMove={(e) => { if (tool === 'pick' && res && e.buttons === 0) setHover(describe(toTex(e))) }} onPointerLeave={() => setHover('')} onContextMenu={(e) => e.preventDefault()}>
                 <img className="az-img" src={src.url} alt="" draggable={false} />
@@ -298,14 +298,20 @@ export function Analyzer(): JSX.Element {
             </div>
           )}
         </div>
-        {res && (
+        {src && (
           <div className="az-bar">
+            <button className="btn small" title="Aproximar" onClick={() => zoomBy(1.5)}>＋</button>
+            <button className="btn small" title="Afastar" onClick={() => zoomBy(1 / 1.5)}>－</button>
+            <button className="btn small" title="Ver a textura inteira" onClick={() => setViewBox({ z: 1, x: 0, y: 0 })}>{`${Math.round(view.z * 100)}%`}</button>
+            {!res && <span className="muted small">Roda do rato: zoom · arrasta para mover</span>}
+            {res && <>
             <span className="muted small">Original</span>
             <input className="grow" type="range" min={0} max={100} value={cut} onChange={(e) => setCut(Number(e.target.value))} title="Esquerda: original · direita: resultado" />
             <span className="muted small">Resultado</span>
             <label className="check"><input type="checkbox" checked={showDiff} onChange={(e) => setShowDiff(e.target.checked)} /> Mapa de diferenças</label>
             <span className="muted small">{after ? `Diferença média: ${after.meanDiff.toFixed(1)} em 255` : ''}</span>
             <span className="az-hover">{hover}</span>
+            </>}
           </div>
         )}
       </section>
