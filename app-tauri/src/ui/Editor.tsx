@@ -24,7 +24,7 @@ import { VectorEditor } from './VectorEditor'
 import { DESIGNS, designDef, dp } from '../compositor/designs'
 import { Swatch, ColorCtx, type NamedColor } from './ColorPicker'
 import { registerHandlers } from './shortcuts'
-import { exportKitlab, parseKitlab, type ParsedKitlab } from '../kitlab'
+import { exportKitlab, parseKitlab, usePendingKitlab, type ParsedKitlab } from '../kitlab'
 import { KitlabImportModal } from './KitlabImportModal'
 import { ContrastPanel } from './ContrastPanel'
 import { ReferencePanel } from './ReferencePanel'
@@ -447,6 +447,9 @@ export function Editor(): JSX.Element {
   const [tab, setTab] = useState<Tab>('shirt')
   const [kitlabFile, setKitlabFile] = useState<ParsedKitlab | null>(null)
   const [analyzeOpen, setAnalyzeOpen] = useState(false)
+  // a .kitlab chosen on a team card in the Teams screen
+  const pendingKitlab = usePendingKitlab((s) => s.file)
+  useEffect(() => { if (pendingKitlab && project) { setKitlabFile(pendingKitlab); usePendingKitlab.getState().set(null) } }, [pendingKitlab, project]) // eslint-disable-line react-hooks/exhaustive-deps
   const refImg = useRef2((r) => r.img), refOv = useRef2((r) => r.overlay)
   const reference = useMemo(() => (refImg ? { img: refImg, o: refOv } : null), [refImg, refOv])
   useReferenceInput(useCallback((m: string) => useApp.getState().notify('err', m), []))

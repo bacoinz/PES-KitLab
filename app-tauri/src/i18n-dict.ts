@@ -1256,5 +1256,6 @@ export const DICT: Record<string, [string, string]> = {
   'Vetor': ['Vector', 'Vector'],
   'Converter em vetor': ['Convert to vector', 'Convertir en vector'],
   'Troca a máscara por formas vetoriais (curvas de Bézier) que podes editar com a caneta': ['Replaces the mask with vector shapes (Bézier curves) that you can edit with the pen', 'Sustituye la máscara por formas vectoriales (curvas de Bézier) que puedes editar con la pluma'],
-  'Não encontrei formas nesta camada.': ['I found no shapes in this layer.', 'No encontré formas en esta capa.']
+  'Não encontrei formas nesta camada.': ['I found no shapes in this layer.', 'No encontré formas en esta capa.'],
+  'Grava um dos kits guardados desta equipa num ficheiro .kitlab (com emblema, marca e imagens) para partilhar': ['Saves one of this team\'s saved kits in a .kitlab file (with crest, brand and images) to share', 'Guarda una de las equipaciones guardadas de este equipo en un archivo .kitlab (con escudo, marca e imágenes) para compartir']
 }

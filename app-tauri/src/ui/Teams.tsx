@@ -5,6 +5,8 @@ import { rgbaToCanvas } from '../compositor/images'
 import { frontThumb } from '../compositor/compose'
 import { Snapshots } from './Snapshots'
 import { exportKitserverTeams } from '../state'
+import { SLOT_LABEL, migrateProject, type TeamProject } from '../model/design'
+import { exportKitlab, parseKitlab, usePendingKitlab } from '../kitlab'
 
 const thumbCache = new Map<string, string>()
 const emblemCache = new Map<number, string | null>()
@@ -88,6 +90,7 @@ export function Teams(): JSX.Element {
   const setQ = (q: string): void => setF({ q })
   const [gridW, setGridW] = useState(() => { try { return Number(localStorage.getItem('kc.teamGrid')) || 330 } catch { return 330 } })
   const [snapTeam, setSnapTeam] = useState<TeamInfo | null>(null)
+  const [kitPick, setKitPick] = useState<TeamProject | null>(null) // which kit of a team to export as .kitlab
   /** countries (A→Z, "Seleções"/"Outros" last) → leagues ordered by division (1ª first) */
   const countries = useMemo(() => {
     const m = new Map<string, Map<string, { n: number; tier: number }>>()
@@ -116,6 +119,42 @@ export function Teams(): JSX.Element {
   const leaveOk = (): boolean => {
     const s = useApp.getState()
     return !s.project || s.project === s.savedProject || confirm(`Há alterações por guardar em ${s.project.teamName}. Continuar sem guardar?`)
+  }
+  /** .kitlab of one of the team's saved kits (the work in progress of the team) */
+  const exportKitlabOf = async (t: TeamInfo): Promise<void> => {
+    try {
+      const j = await window.kc.loadDraft(t.id)
+      if (!j) return
+      const p = migrateProject(JSON.parse(j) as TeamProject)
+      if (p.kits.length === 1) await doExportKitlab(p, p.kits[0].slot)
+      else setKitPick(p)
+    } catch (e) { notify('err', String((e as Error).message ?? e)) }
+  }
+  const doExportKitlab = async (p: TeamProject, slot: string): Promise<void> => {
+    try {
+      const kit = p.kits.find((k) => k.slot === slot)
+      if (!kit) return
+      try {
+        if (!localStorage.getItem('kc.kitlabWarned')) {
+          if (!confirm('O ficheiro .kitlab leva o emblema, a marca e todas as imagens deste kit. Logótipos e marcas oficiais podem ter direitos de autor: partilha-o só se tiveres esse direito. Exportar?')) return
+          localStorage.setItem('kc.kitlabWarned', '1')
+        }
+      } catch { /* no storage: nothing to remember */ }
+      const r = await exportKitlab(p, kit, await window.kc.getVersion())
+      if (r.path) notify('ok', 'Kit exportado: ' + r.path)
+    } catch (e) { notify('err', String((e as Error).message ?? e)) }
+  }
+  /** .kitlab into a team: the file is checked, the team opens in the editor, and the import dialog follows */
+  const importKitlabInto = async (t: TeamInfo): Promise<void> => {
+    try {
+      const [path] = await window.kc.pickFiles([{ name: 'PES KitLab', extensions: ['kitlab'] }])
+      if (!path) return
+      const file = await parseKitlab(path)
+      if (!leaveOk()) return
+      if (draftOf.has(t.id)) await openDraft(t.id)
+      else await openTeam(t, { fromGame: false })
+      usePendingKitlab.getState().set(file)
+    } catch (e) { notify('err', String((e as Error).message ?? e)) }
   }
   const open = async (t: TeamInfo, fromGame: boolean): Promise<void> => {
     if (!leaveOk()) return
@@ -209,6 +248,8 @@ export function Teams(): JSX.Element {
                     <button className="btn small" disabled={!t.slots.length} onClick={() => open(t, true)}>Editar kit do jogo</button>
                   </>
                 )}
+                {draftOf.has(t.id) && <button className="btn small ghost" title="Grava um dos kits guardados desta equipa num ficheiro .kitlab (com emblema, marca e imagens) para partilhar" onClick={() => exportKitlabOf(t)}>Exportar .kitlab</button>}
+                <button className="btn small ghost" title="Abre um ficheiro .kitlab e põe o kit num equipamento desta equipa" onClick={() => importKitlabInto(t)}>Importar .kitlab</button>
                 <button className="btn small ghost" onClick={() => setSnapTeam(t)}>Versões</button>
               </div>
             </div>
@@ -216,6 +257,17 @@ export function Teams(): JSX.Element {
         </div>
       </section>
       {snapTeam && <Snapshots team={snapTeam} onClose={() => setSnapTeam(null)} />}
+      {kitPick && (
+        <div className="modal-bg" onPointerDown={() => setKitPick(null)}>
+          <div className="modal" onPointerDown={(e) => e.stopPropagation()} style={{ width: 360 }}>
+            <div className="modal-head"><b>Exportar .kitlab</b><div className="grow" /><button className="btn ghost" onClick={() => setKitPick(null)}>✕</button></div>
+            <div style={{ padding: '10px 14px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div className="muted small">{`Qual dos kits de ${kitPick.teamName}?`}</div>
+              {kitPick.kits.map((k) => <button key={k.slot} className="btn" onClick={() => { const p = kitPick; setKitPick(null); void doExportKitlab(p, k.slot) }}>{SLOT_LABEL[k.slot] ?? k.slot}</button>)}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

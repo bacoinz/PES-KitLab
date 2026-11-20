@@ -2,6 +2,11 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.14] - 2026-11-20
+### Added
+- Team cards (Teams screen) have "Import .kitlab": pick a file, the team opens in the editor (its saved work, or new kits) and the import dialog follows, with the usual choices for crest, brand and sponsors.
+- Team cards with saved work also have "Export .kitlab": it asks which of the team's kits (only when there are several) and writes the file with the crest, brand and images.
+
 ## [0.5.13] - 2026-11-20
 ### Added
 - Texture analyser, phase B (vectors): the review screen has a new "Shapes" section. "Recognise stripes, bands and halves of the shirt" (on by default) turns regular vertical stripes, horizontal bands and a right-half into the kit's own pattern layers (count, stripe width, gap and offset read from the texture, checked on the back of the shirt too), which are much easier to edit than free shapes. "Convert the other colours into vector shapes" turns the remaining colour masks into closed Bézier shapes; the tolerance (Fine 1 px, Normal 2 px, Loose 4 px) sets how closely the curves follow the edges.

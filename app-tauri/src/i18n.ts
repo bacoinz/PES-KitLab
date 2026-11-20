@@ -71,6 +71,7 @@ const RULES: [RegExp, string, string][] = [
   [/^Criar (\d+) variante\(s\)$/, 'Create $1 variant(s)', 'Crear $1 variante(s)'],
   [/^Vão para os equipamentos livres: (.+)\.$/, 'They go to the free kit slots: $1.', 'Van a las equipaciones libres: $1.'],
   [/^(\d+) variante\(s\) criada\(s\)$/, '$1 variant(s) created', '$1 variante(s) creada(s)'],
+  [/^Qual dos kits de (.+)\?$/, 'Which of the kits of $1?', '¿Cuál de las equipaciones de $1?'],
   [/^Usar (#[0-9a-fA-F]{6})$/, 'Use $1', 'Usar $1'],
   [/^(\d+) de (\d+) abaixo de (\d+):1\.$/, '$1 of $2 below $3:1.', '$1 de $2 por debajo de $3:1.'],
   [/^Kit exportado: (.+)$/, 'Kit exported: $1', 'Equipación exportada: $1'],

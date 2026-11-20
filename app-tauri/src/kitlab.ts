@@ -4,11 +4,15 @@
  * Importing never trusts the file: the app core checks the ZIP, this module checks the kit, and the kit goes through
  * the same format migrations as any saved kit.
  */
+import { create } from 'zustand'
 import type { Asset, KitDesign, LogoPlacement, TeamProject } from './model/design'
 import { KIT_VERSION, kitAssetIds, migrateKit, remapKitAssets, slotOrder, uid } from './model/design'
 import { SYSTEM_FONTS } from './compositor/numbers'
 
 export const KITLAB_FORMAT = 1
+
+/** A parsed .kitlab picked on a team card: the editor opens its import dialog for it as soon as the team is open. */
+export const usePendingKitlab = create<{ file: ParsedKitlab | null; set(f: ParsedKitlab | null): void }>((set) => ({ file: null, set: (file) => set({ file }) }))
 
 export interface ParsedKitlab {
   name: string
@@ -170,4 +174,4 @@ export function applyKitlab(project: TeamProject, f: ParsedKitlab, c: KitlabChoi
 }
 
 // exposed for scripted verification runs (KC_SCRIPT)
-;(window as unknown as { __kcKitlab: object }).__kcKitlab = { buildKitlab, parseKitlab, applyKitlab }
+;(window as unknown as { __kcKitlab: object }).__kcKitlab = { buildKitlab, parseKitlab, applyKitlab, usePendingKitlab }
