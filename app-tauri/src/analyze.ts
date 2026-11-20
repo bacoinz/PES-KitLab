@@ -4,8 +4,9 @@
  * layers: one image layer per colour and part (a mask painted in one colour, so it can be recoloured, hidden and
  * reordered), one "detail" layer per part with the original pixels, and the base colours of each part.
  */
-import type { Asset, KitDesign, OverlayLayer } from './model/design'
+import type { Asset, KitDesign, OverlayLayer, VPath } from './model/design'
 import { NONE, uid } from './model/design'
+import { recognizeTorso } from './analyzePatterns'
 
 export type PartKey = 'torso' | 'sleeves' | 'shorts' | 'socks'
 export interface AnalysisMask { color: number; area: number; png: string }
@@ -51,21 +52,57 @@ async function unionPng(pngs: string[], size: number): Promise<string> {
   return c.toDataURL('image/png')
 }
 
-export interface PlannedLayer { layer: OverlayLayer; asset: Asset }
+export interface PlannedLayer { layer: OverlayLayer; asset?: Asset }
+
+/** Phase B options: turn shirt stripes / bands / halves into the kit's own designs, and masks into vector shapes. */
+export interface PlanOpts { recognize?: boolean; vector?: boolean; tolerance?: number }
+
+const vecCache = new Map<string, VPath[]>()
+function hashOf(s: string): string { let h = 5381; for (let i = 0; i < s.length; i += 7) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return s.length + ':' + h }
+/** The mask (PNG) as closed Bézier paths in texture px (app core, game/vectorize.rs); tolerance in px. */
+export async function vectorizeMask(png: string, tolerance = 2): Promise<VPath[]> {
+  const key = tolerance + '|' + hashOf(png)
+  const hit = vecCache.get(key)
+  if (hit) return hit
+  const r = (await window.kc.vectorizeMask(png, { tolerance })) as { paths: VPath[] }
+  if (vecCache.size > 60) vecCache.clear()
+  vecCache.set(key, r.paths)
+  return r.paths
+}
+
+/** The layer as a vector layer in texture space (same place in the list, same colour). */
+export function vectorLayerFrom(L: OverlayLayer, paths: VPath[]): OverlayLayer {
+  return { id: L.id, kind: 'vector', part: L.part, vspace: 'uv', vpaths: paths, color: L.color, fill: L.fill, visible: L.visible, opacity: L.opacity, blend: L.blend, name: (L.name ?? 'Cor') + ' · vetor' }
+}
+
+/** Texture-space paths as the pen editor wants them (unit box, shapes filling it) and the way back. */
+export function uvToUnit(paths: VPath[]): { paths: VPath[]; back: (p: VPath[]) => VPath[] } {
+  const xs: number[] = [], ys: number[] = []
+  for (const p of paths) for (const q of p.pts) { xs.push(q.x); ys.push(q.y) }
+  const cx = xs.length ? (Math.min(...xs) + Math.max(...xs)) / 2 : 1024, cy = ys.length ? (Math.min(...ys) + Math.max(...ys)) / 2 : 1024
+  const size = Math.max(60, xs.length ? Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) : 2048) * 1.15
+  const map = (p: VPath[], fx: (v: number) => number, fy: (v: number) => number): VPath[] => p.map((q) => ({
+    closed: q.closed,
+    pts: q.pts.map((t) => ({ x: fx(t.x), y: fy(t.y), ...(t.ix !== undefined ? { ix: fx(t.ix), iy: fy(t.iy!) } : {}), ...(t.ox !== undefined ? { ox: fx(t.ox), oy: fy(t.oy!) } : {}) }))
+  }))
+  return { paths: map(paths, (x) => (x - cx) / size, (y) => (y - cy) / size), back: (p) => map(p, (x) => Math.round((x * size + cx) * 10) / 10, (y) => Math.round((y * size + cy) * 10) / 10) }
+}
 export interface Plan {
   layers: PlannedLayer[]
   /** base colour of each part */
   colors: Partial<Record<PartKey, string>>
-  /** how many colour layers / detail layers */
+  /** how many colour layers / detail layers (colour layers include the recognised and the vector ones) */
   nColor: number
   nDetail: number
+  nPattern: number
+  nVector: number
 }
 
 /** The layers and base colours the review would apply with these edits. */
-export async function planLayers(r: AnalysisResult, e: AnalysisEdits): Promise<Plan> {
+export async function planLayers(r: AnalysisResult, e: AnalysisEdits, o: PlanOpts = {}): Promise<Plan> {
   const layers: PlannedLayer[] = []
   const colors: Partial<Record<PartKey, string>> = {}
-  let nColor = 0, nDetail = 0
+  let nColor = 0, nDetail = 0, nPattern = 0, nVector = 0
   for (const p of r.parts) {
     if (e.skipPart[p.part]) continue
     const dom = p.dominant !== null ? repOf(p.dominant, e.merge) : null
@@ -82,10 +119,17 @@ export async function planLayers(r: AnalysisResult, e: AnalysisEdits): Promise<P
       const png = await unionPng(ms.map((m) => m.png), r.width)
       const id = uid() + 'm'
       const name = `${PART_LABEL[p.part]} · ${hex}`
-      layers.push({
-        asset: { id, name, dataUrl: png, w: r.width, h: r.width },
-        layer: { id: uid(), kind: 'image', part: p.part, assetId: id, fit: 'uv', tileTint: 'color', color: hex, visible: true, opacity: 1, name }
-      })
+      // regular stripes, bands and halves of the shirt are the kit's own designs
+      if (o.recognize && p.part === 'torso') {
+        const rec = await recognizeTorso(png, hex, PART_LABEL.torso)
+        if (rec) { layers.push({ layer: rec.layer }); nColor++; nPattern++; continue }
+      }
+      const img: OverlayLayer = { id: uid(), kind: 'image', part: p.part, assetId: id, fit: 'uv', tileTint: 'color', color: hex, visible: true, opacity: 1, name }
+      if (o.vector) {
+        const paths = await vectorizeMask(png, o.tolerance ?? 2)
+        if (paths.length) { layers.push({ layer: vectorLayerFrom(img, paths) }); nColor++; nVector++; continue }
+      }
+      layers.push({ asset: { id, name, dataUrl: png, w: r.width, h: r.width }, layer: img })
       nColor++
     }
   }
@@ -100,7 +144,7 @@ export async function planLayers(r: AnalysisResult, e: AnalysisEdits): Promise<P
     })
     nDetail++
   }
-  return { layers, colors, nColor, nDetail }
+  return { layers, colors, nColor, nDetail, nPattern, nVector }
 }
 
 /**
@@ -132,4 +176,4 @@ export function applyPlan(kit: KitDesign, plan: Plan, e: AnalysisEdits): KitDesi
 }
 
 // exposed for scripted verification runs (KC_SCRIPT)
-;(window as unknown as { __kcAnalyze: object }).__kcAnalyze = { planLayers, applyPlan, noEdits }
+;(window as unknown as { __kcAnalyze: object }).__kcAnalyze = { planLayers, applyPlan, noEdits, vectorizeMask, recognizeTorso }

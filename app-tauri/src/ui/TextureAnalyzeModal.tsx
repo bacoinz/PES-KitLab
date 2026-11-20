@@ -22,6 +22,10 @@ export function TextureAnalyzeModal({ kit, onClose }: { kit: KitDesign; onClose:
   const [cut, setCut] = useState(50)
   const [showDiff, setShowDiff] = useState(false)
   const [target, setTarget] = useState(kit.slot)
+  // phase B: the kit's own designs for regular stripes / bands, and vector shapes instead of masks
+  const [recognize, setRecognize] = useState(true)
+  const [vector, setVector] = useState(false)
+  const [tol, setTol] = useState(2)
   useEffect(() => {
     const k = (e: KeyboardEvent): void => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', k)
@@ -30,9 +34,9 @@ export function TextureAnalyzeModal({ kit, onClose }: { kit: KitDesign; onClose:
   useEffect(() => {
     if (!res) { setPlan(null); return }
     let alive = true
-    planLayers(res, ed).then((p) => { if (alive) setPlan(p) }).catch(() => undefined)
-    return () => { alive = false }
-  }, [res, ed])
+    const t = setTimeout(() => { planLayers(res, ed, { recognize, vector, tolerance: tol }).then((p) => { if (alive) setPlan(p) }).catch(() => undefined) }, 150)
+    return () => { alive = false; clearTimeout(t) }
+  }, [res, ed, recognize, vector, tol])
   const taken = useMemo(() => new Set((project?.kits ?? []).map((k) => k.slot)), [project])
   const family = kit.slot.startsWith('g') ? 'g' : 'p'
   const freeSlots = ALL_SLOTS.filter((s) => s.startsWith(family) && !taken.has(s))
@@ -75,7 +79,7 @@ export function TextureAnalyzeModal({ kit, onClose }: { kit: KitDesign; onClose:
     const slot = target
     setProject((p) => {
       const assets = { ...p.assets }
-      for (const pl of plan.layers) assets[pl.asset.id] = pl.asset
+      for (const pl of plan.layers) if (pl.asset) assets[pl.asset.id] = pl.asset
       if (slot === kit.slot) return { ...p, assets, kits: p.kits.map((k) => (k.slot === slot ? applyPlan(k, plan, ed) : k)) }
       const fresh = applyPlan({ ...kit, slot, layers: [] }, plan, ed)
       return { ...p, assets, kits: [...p.kits, fresh].sort((a, b) => slotOrder(a.slot, b.slot)) }
@@ -155,6 +159,11 @@ export function TextureAnalyzeModal({ kit, onClose }: { kit: KitDesign; onClose:
                 })}
                 {tooMany && <div className="kitlab-warn">Há muitas camadas de cor; junta ou descarta cores parecidas.</div>}
                 <div className="muted small">Sombras, dobras, degradês e texturas fotográficas não se separam bem em cores lisas e ficam como imagem (Detalhes). Desenhos que atravessam costuras ficam divididos pelas partes do kit.</div>
+                <div className="sub-title">Formas</div>
+                <label className="check"><input type="checkbox" checked={recognize} onChange={(e) => setRecognize(e.target.checked)} /> Reconhecer riscas, bandas e metades da camisola (ficam como desenhos do kit, fáceis de editar)</label>
+                <label className="check"><input type="checkbox" checked={vector} onChange={(e) => setVector(e.target.checked)} /> Converter as outras cores em formas vetoriais (editáveis com a caneta)</label>
+                {vector && <div className="set-grid"><label>Tolerância</label><select value={tol} onChange={(e) => setTol(Number(e.target.value))}><option value={1}>Fina (1 px)</option><option value={2}>Normal (2 px)</option><option value={4}>Solta (4 px)</option></select></div>}
+                {plan && (plan.nPattern > 0 || plan.nVector > 0) && <div className="muted small">{`${plan.nPattern} reconhecida(s) como desenho do kit, ${plan.nVector} em vetor.`}</div>}
                 <div className="set-grid">
                   <label>Aplicar a</label>
                   <select value={target} onChange={(e) => setTarget(e.target.value)}>

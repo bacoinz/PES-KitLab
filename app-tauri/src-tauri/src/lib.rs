@@ -219,6 +219,19 @@ async fn analyze_texture(data_url: String, opts: Option<game::analyze::Opts>) ->
     }).await
 }
 
+#[tauri::command]
+async fn vectorize_mask(data_url: String, opts: Option<game::vectorize::VOpts>) -> R<Value> {
+    blocking(move || {
+        let (_, body) = data_url.split_once(',').ok_or("Imagem inválida")?;
+        let bytes = kitlab::b64_decode(body).ok_or("Imagem corrompida")?;
+        let img = image::load_from_memory(&bytes).map_err(e2s)?.to_rgba8();
+        let (w, h) = (img.width() as usize, img.height() as usize);
+        let mask: Vec<bool> = img.as_raw().chunks_exact(4).map(|p| p[3] >= 128).collect();
+        let paths = game::vectorize::vectorize(&mask, w, h, &opts.unwrap_or_default());
+        Ok(json!({ "width": w, "paths": paths }))
+    }).await
+}
+
 // ---------------------------------------------------------------- .kitlab (shareable kit file)
 #[tauri::command]
 async fn export_kitlab(app: AppHandle, name: String, manifest: String, assets: Vec<kitlab::AssetIn>) -> R<Option<String>> {
@@ -776,7 +789,7 @@ pub fn run() {
             get_settings, get_version, save_settings, pick_folder, export_kitserver, pick_files, save_file, open_game, list_teams, read_kit_texture,
             read_emblem, read_model, list_collars, list_number_sets, read_file, list_fonts, decode_image_file, fetch_url, list_library, list_textures, export_team,
             restore_original, list_snapshots, save_snapshot, rename_snapshot, delete_snapshot, activate_snapshot, load_snapshot_project,
-            export_snapshot_zip, backup_original_zip, open_path, save_draft, load_draft, delete_draft, list_drafts, launch_game, save_user_template, export_kitlab, read_kitlab, analyze_texture, list_user_templates, delete_user_template, list_template_images, template_dir_path, screen_pixel, licence_hint,
+            export_snapshot_zip, backup_original_zip, open_path, save_draft, load_draft, delete_draft, list_drafts, launch_game, save_user_template, export_kitlab, read_kitlab, analyze_texture, vectorize_mask, list_user_templates, delete_user_template, list_template_images, template_dir_path, screen_pixel, licence_hint,
             script_result
         ])
         .setup(|app| {

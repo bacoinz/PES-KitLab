@@ -126,3 +126,22 @@ fn analyzer_on_a_real_kit_texture() {
     assert!(a.palette.len() >= 2);
     assert!(a.mean_diff < 14.0, "mean diff {}", a.mean_diff);
 }
+
+#[test]
+fn vectorizer_on_real_masks() {
+    if !has_game() { return; }
+    let gi = GameIndex::build(Path::new(GAME), &out().join("index.json"), &|_| {}).unwrap();
+    let b = gi.read("Asset/model/character/uniform/texture/#windx11/u0191p1.ftex").expect("kit file");
+    let img = decode_ftex(&b, 0).unwrap();
+    let a = kitcreator_lib::game::analyze::analyze(&img.data, img.width as usize, img.height as usize, &Default::default()).unwrap();
+    for p in &a.parts { for m in &p.masks {
+        let bytes = kitcreator_lib::kitlab::b64_decode(m.png.split_once(',').unwrap().1).unwrap();
+        let im = image::load_from_memory(&bytes).unwrap().to_rgba8();
+        let mask: Vec<bool> = im.as_raw().chunks_exact(4).map(|px| px[3] >= 128).collect();
+        let t = Instant::now();
+        let v = kitcreator_lib::game::vectorize::vectorize(&mask, im.width() as usize, im.height() as usize, &Default::default());
+        let nodes: usize = v.iter().map(|p| p.pts.len()).sum();
+        println!("{} colour {} area {}: {} paths, {} nodes in {:?}", p.part, m.color, m.area, v.len(), nodes, t.elapsed());
+        assert!(nodes < 20000);
+    } }
+}

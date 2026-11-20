@@ -1,3 +1,4 @@
+pub mod vectorize;
 pub mod analyze;
 pub mod cpk;
 pub mod fmdl;

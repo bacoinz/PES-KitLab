@@ -1247,5 +1247,14 @@ export const DICT: Record<string, [string, string]> = {
   'Análoga (−)': ['Analogous (−)', 'Análogo (−)'],
   'Tríade A': ['Triad A', 'Tríada A'],
   'Tríade B': ['Triad B', 'Tríada B'],
-  'Mais escura': ['Darker', 'Más oscura']
+  'Mais escura': ['Darker', 'Más oscura'],
+  'Reconhecer riscas, bandas e metades da camisola (ficam como desenhos do kit, fáceis de editar)': ['Recognise stripes, bands and halves of the shirt (they become the kit\'s own designs, easy to edit)', 'Reconocer rayas, bandas y mitades de la camiseta (quedan como diseños de la equipación, fáciles de editar)'],
+  'Converter as outras cores em formas vetoriais (editáveis com a caneta)': ['Convert the other colours into vector shapes (editable with the pen)', 'Convertir los otros colores en formas vectoriales (editables con la pluma)'],
+  'Fina (1 px)': ['Fine (1 px)', 'Fina (1 px)'],
+  'Normal (2 px)': ['Normal (2 px)', 'Normal (2 px)'],
+  'Solta (4 px)': ['Loose (4 px)', 'Suelta (4 px)'],
+  'Vetor': ['Vector', 'Vector'],
+  'Converter em vetor': ['Convert to vector', 'Convertir en vector'],
+  'Troca a máscara por formas vetoriais (curvas de Bézier) que podes editar com a caneta': ['Replaces the mask with vector shapes (Bézier curves) that you can edit with the pen', 'Sustituye la máscara por formas vectoriales (curvas de Bézier) que puedes editar con la pluma'],
+  'Não encontrei formas nesta camada.': ['I found no shapes in this layer.', 'No encontré formas en esta capa.']
 }

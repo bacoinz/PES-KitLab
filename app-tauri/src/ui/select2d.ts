@@ -55,6 +55,7 @@ export function layerBox(L: OverlayLayer, dims: (id: string) => { w: number; h: 
     const box = L.size ?? 300, r = Math.min(box / d.w, box / d.h)
     return { cx: L.x ?? 1024, cy: L.y ?? 1300, w: d.w * r * sx, h: d.h * r * sy, rot }
   }
+  if (L.kind === 'vector' && L.vspace === 'uv') return null
   if (L.kind === 'vector') return { cx: FRONT_CENTER.x + (L.dx ?? 0), cy: FRONT_CENTER.y + (L.dy ?? 0), w: 400 * sx, h: 400 * sy, rot }
   if (L.kind === 'text') {
     const s = L.size ?? 60

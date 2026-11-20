@@ -58,6 +58,7 @@ const RULES: [RegExp, string, string][] = [
   [/^Colar \((\d+) camadas\)$/, 'Paste ($1 layers)', 'Pegar ($1 capas)'],
   [/^(.+) já é usado em "(.+)"\. Trocar\? \(O outro fica sem atalho\.\)$/, '$1 is already used for "$2". Swap? (The other one loses its shortcut.)', '$1 ya se usa en "$2". ¿Cambiar? (El otro se queda sin atajo.)'],
   [/^(.+) \(manual\)$/, '$1 (manual)', '$1 (manual)'],
+  [/^(\d+) reconhecida\(s\) como desenho do kit, (\d+) em vetor\.$/, '$1 recognised as kit designs, $2 as vectors.', '$1 reconocida(s) como diseño de la equipación, $2 en vectores.'],
   [/^Juntar com (#[0-9a-fA-F]{6})$/, 'Merge with $1', 'Unir con $1'],
   [/^Diferença média por pixel: (.+) em 255$/, 'Mean difference per pixel: $1 of 255', 'Diferencia media por píxel: $1 de 255'],
   [/^(\d+) camada\(s\) de cor$/, '$1 colour layer(s)', '$1 capa(s) de color'],

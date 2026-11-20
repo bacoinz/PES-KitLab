@@ -29,6 +29,7 @@ import { KitlabImportModal } from './KitlabImportModal'
 import { ContrastPanel } from './ContrastPanel'
 import { ReferencePanel } from './ReferencePanel'
 import { TextureAnalyzeModal } from './TextureAnalyzeModal'
+import { uvToUnit, vectorizeMask, vectorLayerFrom } from '../analyze'
 import { ReferenceWindow } from './ReferenceWindow'
 import { useRef2, useReferenceInput } from './reference'
 import { nudgeLayer, resizeLayer, rotateLayer, reorderLayer, duplicateLayer } from './layerKeys'
@@ -1024,7 +1025,7 @@ export function Editor(): JSX.Element {
     const params = def ? def.params.filter((pm) => !outlineKeys.includes(pm.key) && pm.key !== 'round' && !(basicShape && (pm.key === 'w' || pm.key === 'h'))) : []
     const hasOutline = !!def && def.params.some((pm) => pm.key === 'ow')
     const roundParam = def?.params.find((pm) => pm.key === 'round')
-    const noTransform = L.kind === 'image' && L.fit === 'uv'
+    const noTransform = (L.kind === 'image' && L.fit === 'uv') || (L.kind === 'vector' && L.vspace === 'uv')
     return (
       <div className="layer-body pm">
         {/* 1. name, group, mask */}
@@ -1145,6 +1146,18 @@ export function Editor(): JSX.Element {
                 try { const im = await loadAsset(a); full = !L.fit || L.fit === 'free' ? Math.abs(imgW(im) - imgH(im)) < 4 && imgW(im) >= 512 : false } catch { /* keep the mode */ }
                 ch(full ? { assetId: a.id, fit: 'uv' } : { assetId: a.id })
               }} /></Row>
+            {L.fit === 'uv' && L.tileTint === 'color' && L.assetId && assets[L.assetId] && (
+              <Row label="Vetor">
+                <button className="btn small" title="Troca a máscara por formas vetoriais (curvas de Bézier) que podes editar com a caneta" onClick={async () => {
+                  try {
+                    const paths = await vectorizeMask(assets[L.assetId!].dataUrl, 2)
+                    if (!paths.length) { notify('err', 'Não encontrei formas nesta camada.'); return }
+                    setLayer(L.id, (x) => vectorLayerFrom(x, paths))
+                    setVecEdit(L.id)
+                  } catch (err) { notify('err', String((err as Error).message ?? err)) }
+                }}>Converter em vetor</button>
+              </Row>
+            )}
             <Row label="Modo"><Select value={L.fit ?? 'free'} options={[['free', 'Imagem solta'], ['part', 'Ocupar a peça inteira'], ['tile', 'Padrão (repetir em mosaico)'], ['uv', 'Textura completa (só a parte desta aba)']]}
               onChange={(fit) => ch(fit === 'tile' ? { fit: 'tile', size: 160, gap: L.gap ?? 0, dx: 0, dy: 0 } : { fit: fit as 'free' | 'part' })} /></Row>
             {L.fit === 'tile' && <Row label="Espaçamento"><Slider value={L.gap ?? 0} min={0} max={600} onChange={(gap) => ch({ gap })} /></Row>}
@@ -2409,7 +2422,9 @@ export function Editor(): JSX.Element {
     {vecEdit && (() => {
       const V = kit.layers.find((x) => x.id === vecEdit)
       if (!V) return null
-      return <VectorEditor value={V.vpaths ?? []} color={fillMain(V.fill, V.color)} onClose={() => setVecEdit(null)} onApply={(vpaths) => { setLayer(V.id, (x) => ({ ...x, vpaths })); setVecEdit(null) }} />
+      // shapes in texture space are shown in the pen editor scaled to fill it, and put back when applied
+      const uv = V.vspace === 'uv' ? uvToUnit(V.vpaths ?? []) : null
+      return <VectorEditor value={uv ? uv.paths : V.vpaths ?? []} color={fillMain(V.fill, V.color)} onClose={() => setVecEdit(null)} onApply={(vpaths) => { setLayer(V.id, (x) => ({ ...x, vpaths: uv ? uv.back(vpaths) : vpaths })); setVecEdit(null) }} />
     })()}
     <div className="editor">
       <aside className="panel" style={{ width }}>

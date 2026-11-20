@@ -97,6 +97,8 @@ export interface OverlayLayer {
   placement?: TextPlacement
   // vector drawing (kind 'vector'): paths in a unit box (−0.5 … 0.5), drawn 400 px wide at the part's centre
   vpaths?: VPath[]
+  /** 'uv': the paths are in texture px (0 … 2048, the kit's own layout) instead of the unit box, and the layer belongs to `part` like a uv image (kit v11, from the texture analyser) */
+  vspace?: 'uv'
   strokeW?: number // open paths: line width (px at 100 %)
   // stitching along the edge of the layer's shape (inside or outside it)
   stitch?: StitchSpec
@@ -377,7 +379,7 @@ export interface KitDesign {
   fabricShorts?: boolean // the kit's main fabric on the shorts too (default yes)
   shortsHem?: StitchSpec | null
   shortsMid?: StitchSpec | null
-  v?: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10
+  v?: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11
 }
 
 export interface Asset { id: string; name: string; dataUrl: string; w?: number; h?: number }
@@ -494,8 +496,13 @@ export function defaultFabrics(): FabricLayer[] {
 
 /** Bring any saved design up to the current model (v2): torso pattern → layer, single logos → lists, defaults. */
 export function migrateKit(k: KitDesign): KitDesign {
-  if (k.v === 10) return k
-  return toV10(k.v === 9 ? k : toV9(k.v === 8 ? k : toV8(k.v === 7 ? k : toV7(k.v === 6 ? k : toV6(k.v === 5 ? k : toV5(k.v === 4 ? k : toV4(migrateV3(k))))))))
+  if (k.v === 11) return k
+  return toV11(k.v === 10 ? k : toV10(k.v === 9 ? k : toV9(k.v === 8 ? k : toV8(k.v === 7 ? k : toV7(k.v === 6 ? k : toV6(k.v === 5 ? k : toV5(k.v === 4 ? k : toV4(migrateV3(k)))))))))
+}
+
+/** v11 (0.5.13): vector layers can live in texture space (`vspace: 'uv'`); nothing to convert, old kits only get the new number. */
+function toV11(k: KitDesign): KitDesign {
+  return { ...k, v: 11 }
 }
 
 /**
@@ -676,7 +683,7 @@ export function copyNumbers(to: NumbersSpec, from: NumbersSpec, withColors: bool
 // ---------------------------------------------------------------- assets used by a kit (templates, .kitlab files)
 const ASSET_KEYS = ['assetId', 'imageAssetId', 'backAsset', 'legAsset', 'nameAsset', 'asset']
 /** The newest kit format (`KitDesign.v`); a file with a higher number was made by a newer app. */
-export const KIT_VERSION = 10
+export const KIT_VERSION = 11
 
 /** Every asset id the kit uses: image layers, logos, base texture, imported number sets, the armband image and fabric layers (`asset:<id>`). */
 export function kitAssetIds(kit: KitDesign): Set<string> {

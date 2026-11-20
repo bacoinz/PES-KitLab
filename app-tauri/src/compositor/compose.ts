@@ -7,7 +7,7 @@ import type { CollarStyle, CollarSpec, KitDesign, Asset, LogoPlacement, OverlayL
 import { hexToRgb, contrastOn, migrateKit, solid, fillMain, luminance, resolveGroups, LOGO_BASE, shortsBase, NUMBER_DEFAULTS } from '../model/design'
 import { S, REGIONS, SPOTS, CLEAN_RECTS, pathOf, TORSO, SEAM, SHORTS_FRAME, SOCK_FRAME, LEGS, sleeveSeam, SLEEVE_SEAMS, PANEL, NECK_HOLE, BACK_AXIS, backY, mirrorX, type Pt } from './uv'
 import { drawTorsoPattern, drawSleevePattern, drawShortsPattern, drawSocksPattern, drawTexture } from './patterns'
-import { loadAsset, recolor, cleanRects, imgW, imgH, canvas, ctx2d } from './images'
+import { loadAsset, recolor, cleanRects, imgW, imgH, canvas, ctx2d, type Img } from './images'
 import { drawSeams, fabricTile, texturePaint, texturePaintShared, fabricPaint, TEXTURE_LOOK } from './fabric'
 import { drawDesign } from './designs'
 import { stitchCanvas } from './stitch'
@@ -298,6 +298,33 @@ export function drawVector(l: G, L: OverlayLayer): void {
   }
 }
 
+/** Vector layers in texture space (`vspace: 'uv'`): one white mask the size of the texture; closed shapes are filled even-odd (holes work), open ones stroked. */
+const uvVecCache = new Map<string, OffscreenCanvas>()
+export function uvVectorCanvas(L: OverlayLayer): OffscreenCanvas {
+  const key = JSON.stringify([L.vpaths, L.strokeW])
+  const hit = uvVecCache.get(key)
+  if (hit) return hit
+  const c = new OffscreenCanvas(S, S), g = c.getContext('2d')!
+  g.fillStyle = g.strokeStyle = '#fff'
+  const fillP = new Path2D()
+  for (const p of L.vpaths ?? []) {
+    if (p.pts.length < 2) continue
+    const sp = p.closed ? fillP : new Path2D()
+    sp.moveTo(p.pts[0].x, p.pts[0].y)
+    const seg = (a: typeof p.pts[0], b: typeof p.pts[0]): void => {
+      if (a.ox !== undefined || b.ix !== undefined) sp.bezierCurveTo(a.ox ?? a.x, a.oy ?? a.y, b.ix ?? b.x, b.iy ?? b.y, b.x, b.y)
+      else sp.lineTo(b.x, b.y)
+    }
+    for (let i = 1; i < p.pts.length; i++) seg(p.pts[i - 1], p.pts[i])
+    if (p.closed) { seg(p.pts[p.pts.length - 1], p.pts[0]); sp.closePath() }
+    else { g.lineWidth = L.strokeW ?? 8; g.lineCap = g.lineJoin = 'round'; g.stroke(sp) }
+  }
+  g.fill(fillP, 'evenodd')
+  if (uvVecCache.size > 40) uvVecCache.clear()
+  uvVecCache.set(key, c)
+  return c
+}
+
 /** True while a layer is painted in its own colours (RGBA passes) instead of as a white mask. */
 let paintColors = false
 /** True while drawing into a mirrored part frame (right sock): text is flipped back so it reads the right way. */
@@ -308,6 +335,7 @@ let shoulderShape: NonNullable<KitDesign['raglan']> | null = null
 /** White content of a non-image layer in the torso FRONT frame. */
 function frontContent(l: G, L: OverlayLayer): void {
   l.fillStyle = l.strokeStyle = '#fff'
+  if (L.kind === 'vector' && L.vspace === 'uv') return // drawn by its own pass (uvVectorCanvas)
   if (L.kind === 'vector') {
     l.save()
     l.translate(FRONT_CENTER.x, FRONT_CENTER.y); l.scale(VECTOR_BOX, VECTOR_BOX)
@@ -1115,11 +1143,12 @@ async function layerPassesRaw(out: Pass[], L: OverlayLayer, all: OverlayLayer[],
     tileImgs.set(L.assetId, await loadAsset(assets[L.assetId]))
     if (L.tileTint !== 'color') { tileRgbaPasses(out, L, part, op, blend); return }
     // one colour: falls through to the mask path below like any graphic layer
-  } else if (L.kind === 'image' && L.fit === 'uv') {
+  } else if ((L.kind === 'image' && L.fit === 'uv') || (L.kind === 'vector' && L.vspace === 'uv')) {
     // a graphic drawn in the kit's own UV layout: covers the whole texture as it is
-    if (!L.assetId || !assets[L.assetId]) return
-    const img = await loadAsset(assets[L.assetId])
-    const tint = L.tileTint === 'color' ? { tint: 'color' as const, color: fillMain(L.fill, L.color) } : {}
+    let img: Img
+    if (L.kind === 'vector') { if (!(L.vpaths ?? []).length) return; img = uvVectorCanvas(L) }
+    else { if (!L.assetId || !assets[L.assetId]) return; img = await loadAsset(assets[L.assetId]) }
+    const tint = L.kind === 'vector' || L.tileTint === 'color' ? { tint: 'color' as const, color: fillMain(L.fill, L.color) } : {}
     // only the part of the tab the layer belongs to is taken from it: shirt (front, back, short and long sleeves, collar),
     // shorts or socks. The rest of the texture is ignored.
     const place = { img, cx: S / 2, cy: S / 2, w: S, h: S, rot: 0, ...tint }

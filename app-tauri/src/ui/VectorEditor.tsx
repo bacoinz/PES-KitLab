@@ -207,8 +207,10 @@ export function VectorEditor({ value, color, onApply, onClose }: { value: VPath[
                 </g>
               ))}
               <rect x={-0.5} y={-0.5} width={1} height={1} fill="none" stroke="#666" strokeDasharray={`${4 / S} ${4 / S}`} strokeWidth={1 / S} />
+              {/* all closed shapes in one even-odd fill, so holes show */}
+              <path d={paths.filter((p) => p.closed).map(pathD).join(" ")} fill={color} fillOpacity={0.55} fillRule="evenodd" pointerEvents="none" />
               {paths.map((p, i) => (
-                <path key={i} d={pathD(p)} fill={p.closed ? color : 'none'} fillOpacity={0.55} stroke={sel?.path === i ? '#14d16b' : color} strokeWidth={(p.closed ? 2 : 6) / S}
+                <path key={i} d={pathD(p)} fill={p.closed ? "transparent" : "none"} stroke={sel?.path === i ? '#14d16b' : color} strokeWidth={(p.closed ? 2 : 6) / S}
                   onPointerDown={(e) => down(e, 'path', i)} style={{ cursor: tool === 'select' ? 'move' : 'crosshair' }} />
               ))}
               {paths.map((p, i) => p.pts.map((a, j) => {

@@ -2,6 +2,15 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.13] - 2026-11-20
+### Added
+- Texture analyser, phase B (vectors): the review screen has a new "Shapes" section. "Recognise stripes, bands and halves of the shirt" (on by default) turns regular vertical stripes, horizontal bands and a right-half into the kit's own pattern layers (count, stripe width, gap and offset read from the texture, checked on the back of the shirt too), which are much easier to edit than free shapes. "Convert the other colours into vector shapes" turns the remaining colour masks into closed Bézier shapes; the tolerance (Fine 1 px, Normal 2 px, Loose 4 px) sets how closely the curves follow the edges.
+- Vectorizer in the app core: it traces the mask edges, drops specks and tiny holes, keeps sharp corners as corners, fits cubic Béziers elsewhere (straight edges stay straight lines) and uses holes correctly (even-odd fill). A shirt-sized mask takes a few milliseconds.
+- Layer panel: an "Image/texture" layer that came from the analyser (a colour mask) now has a "Convert to vector" button; it replaces the mask by vector shapes and opens them in the pen editor. The pen editor shows holes of such shapes correctly.
+
+### Changed
+- Kit format version 11: vector layers can be in texture space (the kit's own layout, in px) instead of the unit box, so shapes taken from a texture keep their exact place. Older kits and files open unchanged; a file made with this version is refused by older versions of the app with a message.
+
 ## [0.5.12] - 2026-11-20
 ### Added
 - Colour variants (Origin tab → "Colour variants"): proposals of the current kit in other colours (Inverted, Complementary, Analogous (+/−), Triad A/B, Darker), shown as a grid of previews. The kit's three main colours are swapped everywhere they are used (colour slots, layers, collar, cuffs, gradients and outlines), so edges stay clean and nothing is repainted pixel by pixel.

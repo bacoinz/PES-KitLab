@@ -89,6 +89,8 @@ export interface KcApi {
   /** .kitlab: writes the file (save dialog; null = cancelled) / reads and checks one */
   exportKitlab(name: string, manifest: string, assets: { id: string; dataUrl: string }[]): Promise<string | null>
   /** texture analyser: splits a kit texture (PNG data URL) into colour masks and details (see analyze.ts) */
+  /** texture analyser, phase B: a flat-colour mask (PNG data URL) as closed Bézier paths in texture px */
+  vectorizeMask(dataUrl: string, opts: { tolerance?: number; minArea?: number; corner?: number }): Promise<unknown>
   analyzeTexture(dataUrl: string, opts: { colors?: number; sensitivity?: number }): Promise<unknown>
   readKitlab(path: string): Promise<{ kit: unknown; assets: Record<string, { name: string; dataUrl: string; w: number; h: number }> }>
   listUserTemplates(): Promise<string[]>
