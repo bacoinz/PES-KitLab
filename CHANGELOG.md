@@ -2,6 +2,17 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.6] - 2026-11-20
+### Added
+- Keyboard shortcuts. In the editor, with a layer selected: arrow keys move it 1 px (Shift: 10 px), `[` and `]` move it down / up the layer list, Del deletes, Ctrl+D duplicates, H hides / shows, L locks / unlocks, + and - resize, R rotates 15°. They do nothing while you type in a field, and a locked layer is not moved or deleted.
+- Ctrl+Shift+Left / Right switch between the editor tabs (it wraps around); Alt+1 … Alt+7 jump straight to a tab; Ctrl+Tab still switches between the 3D view and the 2D texture.
+- Command palette (Ctrl+K): search and run any command. "?" shows a sheet with every shortcut.
+- Ctrl+Enter in the Bulk generator runs "Generate teams".
+- Settings → "Keyboard shortcuts": every shortcut can be changed (click it, press the new combination; Esc cancels, Backspace removes it), with a search box, a warning when a combination is already used (you can swap them) and "Reset" / "Reset all". F5, Ctrl+R, Ctrl+P and Ctrl+F belong to the web view and are blocked.
+
+### Changed
+- Undo / Redo (Ctrl+Z / Ctrl+Y) and Ctrl+Tab now go through the same shortcut system, so they can also be changed in Settings, and Ctrl+Z / Ctrl+Y no longer interfere with text areas and drop-downs.
+
 ## [0.5.5] - 2026-11-20
 ### Added
 - Captain's armband: an "Image/texture" option. Modes: fill the whole band, loose image (aspect kept, with Size / Position X / Position Y), or "Full texture (only the armband)" which takes just the armband area from a full kit texture (picked automatically for square images).

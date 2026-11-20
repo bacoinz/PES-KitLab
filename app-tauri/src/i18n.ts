@@ -56,6 +56,7 @@ const RULES: [RegExp, string, string][] = [
   [/^Apagar o template "(.+)"\?$/, 'Delete the template "$1"?', '¿Borrar la plantilla "$1"?'],
   [/^(\d+) camadas (copiadas|coladas)$/, '$1 layers copied/pasted', '$1 capas $2'],
   [/^Colar \((\d+) camadas\)$/, 'Paste ($1 layers)', 'Pegar ($1 capas)'],
+  [/^(.+) já é usado em "(.+)"\. Trocar\? \(O outro fica sem atalho\.\)$/, '$1 is already used for "$2". Swap? (The other one loses its shortcut.)', '$1 ya se usa en "$2". ¿Cambiar? (El otro se queda sin atajo.)'],
   [/^Guardado: (.+) — usados nos kits novos$/, 'Saved: $1 — used for new kits', 'Guardado: $1 — usadas en las equipaciones nuevas']
 ]
 

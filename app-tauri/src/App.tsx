@@ -7,6 +7,8 @@ import { Library } from './ui/Library'
 import { Settings } from './ui/Settings'
 import { Footer, KofiButton } from './ui/Footer'
 import { setLang } from './i18n'
+import { CommandPalette, ShortcutSheet } from './ui/CommandPalette'
+import { installShortcuts, registerHandlers, setUserKeys } from './ui/shortcuts'
 
 const NAV: [View, string][] = [['teams', 'Equipas'], ['editor', 'Editor'], ['bulk', 'Gerador em massa'], ['library', 'Biblioteca'], ['settings', 'Definições']]
 
@@ -79,15 +81,18 @@ export function App(): JSX.Element {
   const [version, setVersion] = useState('')
   const [booting, setBooting] = useState(true)
   useEffect(() => { init().finally(() => setBooting(false)); window.kc.getVersion().then(setVersion) }, [init])
-  useEffect(() => {
-    const h = (e: KeyboardEvent): void => {
-      if (!(e.ctrlKey || e.metaKey) || (e.target as HTMLElement).tagName === 'INPUT') return
-      if (e.key === 'z') { e.preventDefault(); undo() }
-      if (e.key === 'y') { e.preventDefault(); redo() }
-    }
-    window.addEventListener('keydown', h)
-    return () => window.removeEventListener('keydown', h)
-  }, [undo, redo])
+  // keyboard shortcuts (ui/shortcuts.ts): the user's own keys come from the settings
+  const userKeysSaved = useApp((s) => s.settings?.shortcuts)
+  useEffect(() => { installShortcuts() }, [])
+  useEffect(() => { setUserKeys(userKeysSaved) }, [userKeysSaved])
+  const [palette, setPalette] = useState(false)
+  const [sheet, setSheet] = useState(false)
+  useEffect(() => registerHandlers((id) => ({
+    'palette.open': () => setPalette((v) => !v),
+    'help.open': () => setSheet(true),
+    'edit.undo': () => undo(),
+    'edit.redo': () => redo()
+  } as Record<string, () => void>)[id]), [undo, redo])
 
   return (
     <div className="app">
@@ -107,6 +112,8 @@ export function App(): JSX.Element {
       <main className="content">
         {!status ? <Splash version={version} booting={booting} /> : view === 'teams' ? <Teams /> : view === 'editor' && project ? <Editor /> : view === 'bulk' ? <Bulk /> : view === 'library' ? <Library /> : view === 'settings' ? <Settings /> : <Teams />}
       </main>
+      {palette && <CommandPalette onClose={() => setPalette(false)} />}
+      {sheet && <ShortcutSheet onClose={() => setSheet(false)} />}
       {toast && <div className={'toast ' + toast.kind} onClick={() => useApp.setState({ toast: null })}>{toast.text}</div>}
     </div>
   )

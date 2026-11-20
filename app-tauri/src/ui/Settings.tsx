@@ -9,6 +9,7 @@ import { useApp } from '../state'
 import { LIGHT_PRESETS } from '../three/KitViewer'
 import { ColorInput } from './common'
 import { Footer, KofiButton } from './Footer'
+import { ShortcutSettings } from './ShortcutSettings'
 import type { KitDefaults, PresetType, Settings as S } from '@shared/ipc'
 
 const ls = (k: string, d: string): string => { try { return localStorage.getItem(k) ?? d } catch { return d } }
@@ -131,6 +132,8 @@ export function Settings(): JSX.Element {
           {def.preset && <><span className="muted small">Predefinido guardado ✓</span><button className="btn small ghost" onClick={() => setDef({ preset: undefined })}>Esquecer</button></>}
         </div>
       </section>
+
+      <ShortcutSettings />
 
       <section className="set-card">
         <h3>Apoiar o projeto</h3>

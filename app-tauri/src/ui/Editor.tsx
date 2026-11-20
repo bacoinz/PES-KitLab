@@ -21,6 +21,8 @@ import { Icon, type IconName } from './icons'
 import { VectorEditor } from './VectorEditor'
 import { DESIGNS, designDef, dp } from '../compositor/designs'
 import { Swatch, ColorCtx, type NamedColor } from './ColorPicker'
+import { registerHandlers } from './shortcuts'
+import { nudgeLayer, resizeLayer, rotateLayer, reorderLayer, duplicateLayer } from './layerKeys'
 import { layerBox, handleAt, hitLayer, toFrame, dragTo, boxOutline, type Zone2D, type DragStart } from './select2d'
 import { Section, Row, ColorInput, Slider, Select, AssetPicker, CropModal, pickColorTarget, TeamColors } from './common'
 import { FillRow } from './FillInput'
@@ -498,14 +500,9 @@ export function Editor(): JSX.Element {
     try { localStorage.setItem('kc.texBg', texBg); localStorage.setItem('kc.showTexBg', showTexBg ? '1' : '0') } catch { /* ignore */ }
   }, [texBg, showTexBg])
 
-  // Ctrl+Tab switches between the 3D and the 2D texture view
-  useEffect(() => {
-    const h = (e: KeyboardEvent): void => {
-      if (e.ctrlKey && e.key === 'Tab') { e.preventDefault(); setMode((m) => (m === '3d' ? '2d' : '3d')) }
-    }
-    window.addEventListener('keydown', h, true)
-    return () => window.removeEventListener('keydown', h, true)
-  }, [])
+  // keyboard shortcuts of the editor (catalogue in ui/shortcuts.ts); the handlers are filled in on every render, below
+  const kbd = useRef<Record<string, () => boolean | void>>({})
+  useEffect(() => registerHandlers((id) => (id === 'view.toggle' ? () => setMode((m) => (m === '3d' ? '2d' : '3d')) : kbd.current[id])), [])
   const [tool, setTool] = useState<Tool2D>('hand')
   // 2D select / transform tool
   const [sel, setSel] = useState<{ id: string; z: Zone2D } | null>(null)
@@ -627,6 +624,35 @@ export function Editor(): JSX.Element {
   const up = (fn: (k: KitDesign) => KitDesign): void => updateKit(kit.slot, fn)
   const addAsset = (a: Asset): void => setProject((p) => ({ ...p, assets: { ...p.assets, [a.id]: a } }), false)
   const setLayer = (id: string, fn: (l: OverlayLayer) => OverlayLayer): void => up((k) => ({ ...k, layers: k.layers.map((x) => (x.id === id ? fn(x) : x)) }))
+  {
+    // the layer the keys act on: the one selected on the 2D view, else the open one in the list
+    const cur = (sel?.id ?? openLayer) ? kit.layers.find((l) => l.id === (sel?.id ?? openLayer)) : undefined
+    const onLayer = (fn: (L: OverlayLayer) => boolean | void, edits = true) => (): boolean | void => { if (!cur || (edits && cur.locked)) return false; return fn(cur) }
+    const nudge = (dx: number, dy: number) => onLayer((L) => { const p = nudgeLayer(L, dx, dy, (id) => dims[id]); if (!p) return false; setLayer(L.id, (x) => ({ ...x, ...p })) })
+    const goTab = (i: number): void => { const [t, , view] = TABS[(i + TABS.length) % TABS.length]; setTab(t); go(view); setFly(null) }
+    const tabAt = TABS.findIndex(([t]) => t === tab)
+    const k: Record<string, () => boolean | void> = {
+      'tab.prev': () => goTab(tabAt - 1),
+      'tab.next': () => goTab(tabAt + 1),
+      'layer.left': nudge(-1, 0), 'layer.right': nudge(1, 0), 'layer.up': nudge(0, -1), 'layer.down': nudge(0, 1),
+      'layer.left10': nudge(-10, 0), 'layer.right10': nudge(10, 0), 'layer.up10': nudge(0, -10), 'layer.down10': nudge(0, 10),
+      'layer.forward': onLayer((L) => { const r = reorderLayer(kit.layers, L.id, 1); if (!r) return false; up((x) => ({ ...x, layers: r })) }),
+      'layer.backward': onLayer((L) => { const r = reorderLayer(kit.layers, L.id, -1); if (!r) return false; up((x) => ({ ...x, layers: r })) }),
+      'layer.delete': onLayer((L) => {
+        if (L.kind === 'group' && kit.layers.some((x) => x.group === L.id) && !confirm('Apagar o grupo e todas as camadas dele? (Para manter as camadas usa "Desagrupar".)')) return
+        up((x) => ({ ...x, layers: x.layers.filter((y) => y.id !== L.id && y.group !== L.id) }))
+        setSel(null); setOpenLayer(null)
+      }),
+      'layer.duplicate': onLayer((L) => { up((x) => ({ ...x, layers: duplicateLayer(x.layers, L) })) }, false),
+      'layer.hide': onLayer((L) => { setLayer(L.id, (x) => ({ ...x, visible: !x.visible })) }, false),
+      'layer.lock': onLayer((L) => { setLayer(L.id, (x) => ({ ...x, locked: !x.locked || undefined })) }, false),
+      'layer.bigger': onLayer((L) => { setLayer(L.id, (x) => ({ ...x, ...resizeLayer(x, true) })) }),
+      'layer.smaller': onLayer((L) => { setLayer(L.id, (x) => ({ ...x, ...resizeLayer(x, false) })) }),
+      'layer.rotate': onLayer((L) => { setLayer(L.id, (x) => ({ ...x, ...rotateLayer(x) })) })
+    }
+    TABS.forEach((_, i) => { k['tab.' + (i + 1)] = () => goTab(i) })
+    kbd.current = k
+  }
   const setLogos = (fn: (l: Logos) => Logos): void => up((k) => ({ ...k, logos: fn(k.logos) }))
   const setCfg = (key: string, v: number | string): void => up((k) => ({ ...k, config: { ...k.config, [key]: v } }))
   const cfg = (key: string, d: number): number => { const v = Number(kit.config[key]); return kit.config[key] !== undefined && Number.isFinite(v) ? v : d }

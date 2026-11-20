@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useApp, assetFromUrl, gameKitColors } from '../state'
 import type { Asset, TeamProject, Logos } from '../model/design'
 import { defaultLogos, SLOT_LABEL, slotOrder } from '../model/design'
@@ -7,6 +7,7 @@ import { composeKit, frontThumb } from '../compositor/compose'
 import { palette, loadAsset, dataUrlFromBytes, trim, canvasToDataUrl } from '../compositor/images'
 import { ColorInput, AssetPicker, Select } from './common'
 import { Emblem } from './Teams'
+import { registerHandlers } from './shortcuts'
 
 interface Row {
   tpls?: Record<string, string> // per-kit template (default = global)
@@ -148,6 +149,10 @@ export function Bulk(): JSX.Element {
   }
 
   const generated = useMemo(() => rows.filter((r) => r.project).length, [rows])
+  // Ctrl+Enter (shortcut "Gerar todas as equipas"): same as the button
+  const kbdGenerate = useRef<() => boolean>(() => false)
+  kbdGenerate.current = () => { if (busy || !rows.length || !slots.length) return false; void generateAll(); return true }
+  useEffect(() => registerHandlers((id) => (id === 'bulk.generate' ? () => kbdGenerate.current() : undefined)), [])
 
   return (
     <div className="bulk">
