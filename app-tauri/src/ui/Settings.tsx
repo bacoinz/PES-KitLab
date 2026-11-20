@@ -10,6 +10,7 @@ import { LIGHT_PRESETS } from '../three/KitViewer'
 import { ColorInput } from './common'
 import { Footer, KofiButton } from './Footer'
 import { ShortcutSettings } from './ShortcutSettings'
+import { checkForUpdates } from './UpdateModal'
 import type { KitDefaults, PresetType, Settings as S } from '@shared/ipc'
 
 const ls = (k: string, d: string): string => { try { return localStorage.getItem(k) ?? d } catch { return d } }
@@ -73,6 +74,12 @@ export function Settings(): JSX.Element {
         <div className="set-grid">
           <label>Guardar a equipa aberta</label>{sel(settings?.autoSave ?? 0, [[0, 'Desligada'], [2, 'De 2 em 2 minutos'], [5, 'De 5 em 5 minutos'], [10, 'De 10 em 10 minutos'], [15, 'De 15 em 15 minutos']], (v) => save({ autoSave: Number(v) as S['autoSave'] }))}
         </div>
+
+        <div className="set-sub">Atualizações</div>
+        <div className="set-row">
+          <button className="btn small" onClick={() => void checkForUpdates(true, notify)}>Verificar atualização</button>
+        </div>
+        <label className="check"><input type="checkbox" checked={settings?.autoUpdateCheck ?? true} onChange={(e) => save({ autoUpdateCheck: e.target.checked })} /> Verificar ao abrir o programa</label>
 
         <div className="set-sub">Exportação</div>
         <div className="set-grid">

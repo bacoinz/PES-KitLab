@@ -63,6 +63,7 @@ fn load_settings(dir: &Path) -> Value {
     o.entry("logoFolders").or_insert(json!([]));
     o.entry("defaultFormat").or_insert(json!("DXT5"));
     o.entry("lang").or_insert(json!("pt"));
+    o.entry("autoUpdateCheck").or_insert(json!(true));
     if o["logoFolders"].as_array().map(|a| a.is_empty()).unwrap_or(true) {
         let mut f = vec![];
         for p in ["C:/AI Projects/FLLeagueMOD/LOGOS", "C:/AI Projects/FLLeagueMOD/MARCAS"] { if Path::new(p).exists() { f.push(json!(p)); } }
@@ -427,6 +428,103 @@ async fn fetch_url(url: String) -> R<Response> {
         out.extend(data);
         Ok(Response::new(out))
     }).await
+}
+
+// ---------------------------------------------------------------- updates (GitHub releases)
+const UPDATE_API: &str = "https://api.github.com/repos/bacoinz/PES-KitLab/releases/latest";
+const UPDATE_PREFIX: &str = "https://github.com/bacoinz/PES-KitLab/releases/download/";
+
+#[derive(Serialize)]
+struct UpdateInfo { version: String, url: String, notes: String, size: u64 }
+
+fn ver_parts(v: &str) -> Vec<u32> { v.trim().trim_start_matches(['v', 'V']).split('.').map(|p| p.chars().take_while(|c| c.is_ascii_digit()).collect::<String>().parse().unwrap_or(0)).collect() }
+fn ver_newer(a: &str, b: &str) -> bool {
+    let (x, y) = (ver_parts(a), ver_parts(b));
+    for i in 0..x.len().max(y.len()) {
+        let (p, q) = (x.get(i).copied().unwrap_or(0), y.get(i).copied().unwrap_or(0));
+        if p != q { return p > q }
+    }
+    false
+}
+
+/// Newest release with a portable exe, if it is newer than this version. `auto` = the check at start-up
+/// (skipped in the automated UI runs).
+#[tauri::command]
+async fn check_update(app: AppHandle, auto: Option<bool>) -> R<Option<UpdateInfo>> {
+    if auto.unwrap_or(false) && std::env::var_os("KC_SCRIPT").is_some() { return Ok(None) }
+    let cur = app.package_info().version.to_string();
+    blocking(move || {
+        let api = std::env::var("KC_UPDATE_URL").unwrap_or_else(|_| UPDATE_API.to_string());
+        let agent = ureq::AgentBuilder::new().timeout_connect(std::time::Duration::from_secs(8)).timeout(std::time::Duration::from_secs(20)).build();
+        let body = agent.get(&api).set("User-Agent", "PES-KitLab-updater").set("Accept", "application/vnd.github+json").call()
+            .map_err(|e| format!("Não foi possível verificar atualizações: {e}"))?.into_string().map_err(e2s)?;
+        let rel: Value = serde_json::from_str(&body).map_err(e2s)?;
+        let tag = rel["tag_name"].as_str().unwrap_or("").to_string();
+        if tag.is_empty() || !ver_newer(&tag, &cur) { return Ok(None) }
+        let asset = rel["assets"].as_array().and_then(|a| a.iter().find(|x| x["name"].as_str().map(|n| n.to_lowercase().ends_with("-portable.exe")).unwrap_or(false)));
+        let Some(asset) = asset else { return Ok(None) };
+        Ok(Some(UpdateInfo {
+            version: tag.trim_start_matches(['v', 'V']).to_string(),
+            url: asset["browser_download_url"].as_str().unwrap_or("").to_string(),
+            notes: rel["body"].as_str().unwrap_or("").to_string(),
+            size: asset["size"].as_u64().unwrap_or(0),
+        }))
+    }).await
+}
+
+/// Downloads the new exe next to the running one, then a hidden helper waits for this process to exit,
+/// deletes the old exe and starts the new one.
+#[tauri::command]
+async fn install_update(app: AppHandle, url: String, version: String) -> R<()> {
+    let app2 = app.clone();
+    blocking(move || {
+        let allowed = url.starts_with(UPDATE_PREFIX) || std::env::var_os("KC_UPDATE_URL").is_some();
+        if !allowed || version.is_empty() || !version.chars().all(|c| c.is_ascii_digit() || c == '.') { return Err("Atualização inválida".into()) }
+        let cur = std::env::current_exe().map_err(e2s)?;
+        let dir = cur.parent().ok_or("Pasta do programa desconhecida")?.to_path_buf();
+        let new = dir.join(format!("PES-KitLab-{version}-portable.exe"));
+        let part = dir.join(format!("PES-KitLab-{version}-portable.exe.part"));
+        let r = ureq::AgentBuilder::new().timeout_connect(std::time::Duration::from_secs(10)).timeout_read(std::time::Duration::from_secs(30)).build()
+            .get(&url).set("User-Agent", "PES-KitLab-updater").call().map_err(|e| format!("Erro ao descarregar: {e}"))?;
+        let total: u64 = r.header("content-length").and_then(|v| v.parse().ok()).unwrap_or(0);
+        let mut rd = r.into_reader();
+        let res = (|| -> R<()> {
+            use std::io::{Read, Write};
+            let mut f = fs::File::create(&part).map_err(|e| format!("Não foi possível escrever na pasta do programa: {e}"))?;
+            let (mut buf, mut got, mut last) = (vec![0u8; 256 * 1024], 0u64, -1i64);
+            let mut head = [0u8; 2];
+            loop {
+                let n = rd.read(&mut buf).map_err(e2s)?;
+                if n == 0 { break }
+                if got == 0 && n >= 2 { head.copy_from_slice(&buf[..2]); }
+                f.write_all(&buf[..n]).map_err(e2s)?;
+                got += n as u64;
+                if total > 0 { let pct = (got * 100 / total) as i64; if pct != last { last = pct; let _ = app2.emit("kc:update-progress", pct); } }
+            }
+            f.flush().map_err(e2s)?;
+            if &head != b"MZ" || got < 1_000_000 || (total > 0 && got != total) { return Err("Download incompleto ou inválido".into()) }
+            Ok(())
+        })();
+        if let Err(e) = res { let _ = fs::remove_file(&part); return Err(e) }
+        let esc = |p: &Path| p.to_string_lossy().replace('\'', "''");
+        // the helper (hidden PowerShell) waits for this process to exit, deletes the old exe, puts the new one in place and starts it
+        let delete_old = if cfg!(debug_assertions) || new == cur { String::new() } else { format!("for($i=0;$i -lt 40;$i++){{ try{{ Remove-Item -LiteralPath '{}' -Force -ErrorAction Stop; break }}catch{{ Start-Sleep -Milliseconds 500 }} }}; ", esc(&cur)) };
+        let ps = format!(
+            "try{{ Wait-Process -Id {pid} -Timeout 60 -ErrorAction SilentlyContinue }}catch{{}}; {del}for($i=0;$i -lt 40;$i++){{ try{{ Move-Item -LiteralPath '{part}' -Destination '{new}' -Force -ErrorAction Stop; break }}catch{{ Start-Sleep -Milliseconds 500 }} }}; Start-Process -FilePath '{new}' -WorkingDirectory '{dir}'",
+            pid = std::process::id(), del = delete_old, part = esc(&part), new = esc(&new), dir = esc(&dir)
+        );
+        let mut cmd = std::process::Command::new("powershell");
+        cmd.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-Command", &ps]);
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x0800_0000);
+        }
+        cmd.spawn().map_err(|e| format!("Não foi possível iniciar a substituição: {e}"))?;
+        Ok(())
+    }).await?;
+    std::thread::spawn(move || { std::thread::sleep(std::time::Duration::from_millis(400)); app.exit(0); });
+    Ok(())
 }
 
 #[derive(Serialize)]
@@ -808,7 +906,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState { data_dir: dir, settings: Mutex::new(settings), gi: Mutex::new(None), teams: Mutex::new(vec![]) })
         .invoke_handler(tauri::generate_handler![
-            get_settings, get_version, save_settings, pick_folder, export_kitserver, pick_files, save_file, open_game, list_teams, read_kit_texture,
+            get_settings, get_version, check_update, install_update, save_settings, pick_folder, export_kitserver, pick_files, save_file, open_game, list_teams, read_kit_texture,
             read_emblem, read_model, list_collars, list_number_sets, read_file, list_fonts, decode_image_file, fetch_url, list_library, list_textures, export_team,
             restore_original, list_snapshots, save_snapshot, rename_snapshot, delete_snapshot, activate_snapshot, load_snapshot_project,
             export_snapshot_zip, backup_original_zip, open_path, save_draft, load_draft, delete_draft, list_drafts, launch_game, save_user_template, export_kitlab, read_kitlab, analyze_texture, vectorize_mask, list_user_templates, delete_user_template, save_user_layers, list_user_layers, delete_user_layers, list_template_images, template_dir_path, screen_pixel, licence_hint,

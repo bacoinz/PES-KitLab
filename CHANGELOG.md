@@ -2,6 +2,11 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.22] - 2026-11-20
+### Added
+- Updates: when the program opens it looks for a newer release on GitHub and, if there is one, shows a pop-up with the release notes and two buttons: "Download and replace" (downloads the new version into the same folder as the running program, closes it, deletes the old version and opens the new one) and "Later".
+- Settings → General → Updates: "Check for updates" button and a "Check when the program opens" option.
+
 ## [0.5.21] - 2026-11-20
 ### Added
 - Pen tool: box selection. Drag on the empty canvas with the Select tool to select several points (Shift / Ctrl add to the selection, Ctrl+A selects all); the selected points move together and Delete removes them all.

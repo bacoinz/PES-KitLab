@@ -623,3 +623,10 @@ kbd { font: 11px/1.4 ui-monospace, Consolas, monospace; padding: 1px 6px; border
 .az-row.sel { border-color: #ffd200; box-shadow: 0 0 0 1px #ffd200 inset; background: #ffd2001a; }
 .az-row.off { opacity: 0.5; }
 .az-hl { pointer-events: none; mix-blend-mode: normal; }
+
+.update-modal { width: min(520px, 92vw); }
+.update-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; overflow: auto; }
+.update-notes { margin: 0; max-height: 240px; overflow: auto; white-space: pre-wrap; font: inherit; font-size: 12px; color: var(--muted, #9aa); background: var(--bg, #14161c); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.update-prog { height: 8px; border-radius: 4px; background: var(--bg, #14161c); border: 1px solid var(--line); overflow: hidden; }
+.update-prog > div { height: 100%; background: var(--accent, #4aa3ff); transition: width .15s; }
+.update-err { color: #ff6b6b; font-size: 12px; }

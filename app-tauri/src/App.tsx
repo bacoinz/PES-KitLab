@@ -7,6 +7,7 @@ import { Analyzer, azHooks } from './ui/Analyzer'
 import { Library } from './ui/Library'
 import { Settings } from './ui/Settings'
 import { Footer, KofiButton } from './ui/Footer'
+import { UpdateModal, checkForUpdates } from './ui/UpdateModal'
 import { setLang } from './i18n'
 import { CommandPalette, ShortcutSheet } from './ui/CommandPalette'
 import { installShortcuts, registerHandlers, setUserKeys } from './ui/shortcuts'
@@ -82,6 +83,10 @@ export function App(): JSX.Element {
   const [version, setVersion] = useState('')
   const [booting, setBooting] = useState(true)
   useEffect(() => { init().finally(() => setBooting(false)); window.kc.getVersion().then(setVersion) }, [init])
+  // look for a new version once, when the settings are loaded (Definições → Verificar ao abrir)
+  const hasSettings = useApp((s) => !!s.settings)
+  const autoUpd = useApp((s) => s.settings?.autoUpdateCheck ?? true)
+  useEffect(() => { if (hasSettings && autoUpd) void checkForUpdates(false, () => undefined) }, [hasSettings]) // eslint-disable-line react-hooks/exhaustive-deps
   // keyboard shortcuts (ui/shortcuts.ts): the user's own keys come from the settings
   const userKeysSaved = useApp((s) => s.settings?.shortcuts)
   useEffect(() => { installShortcuts() }, [])
@@ -113,6 +118,7 @@ export function App(): JSX.Element {
       <main className="content">
         {!status ? <Splash version={version} booting={booting} /> : view === 'teams' ? <Teams /> : view === 'editor' && project ? <Editor /> : view === 'bulk' ? <Bulk /> : view === 'analyzer' ? <Analyzer /> : view === 'library' ? <Library /> : view === 'settings' ? <Settings /> : <Teams />}
       </main>
+      <UpdateModal />
       {palette && <CommandPalette onClose={() => setPalette(false)} />}
       {sheet && <ShortcutSheet onClose={() => setSheet(false)} />}
       {toast && <div className={'toast ' + toast.kind} onClick={() => useApp.setState({ toast: null })}>{toast.text}</div>}

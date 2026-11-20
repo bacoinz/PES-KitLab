@@ -17,6 +17,8 @@ export interface KitDefaults {
 }
 export type PresetType = 'home' | 'away' | 'third' | 'fourth' | 'gk'
 
+export interface UpdateInfo { version: string; url: string; notes: string; size: number }
+
 export interface Settings {
   gameRoot?: string
   logoFolders: string[]
@@ -32,6 +34,8 @@ export interface Settings {
   previewBase?: string
   /** save the open team every N minutes (0 / undefined = off) */
   autoSave?: 0 | 2 | 5 | 10 | 15
+  /** look for a new version when the program opens (default on) */
+  autoUpdateCheck?: boolean
   /** keyboard shortcuts the user changed: command id → key combo (null = none); the rest keep their defaults */
   shortcuts?: Record<string, string | null>
 }
@@ -47,6 +51,9 @@ export interface ExportResult { ok: boolean; message: string; folder?: string; s
 export interface KcApi {
   getSettings(): Promise<Settings>
   getVersion(): Promise<string>
+  checkUpdate(auto?: boolean): Promise<UpdateInfo | null>
+  installUpdate(url: string, version: string): Promise<void>
+  onUpdateProgress(cb: (pct: number) => void): () => void
   saveSettings(s: Partial<Settings>): Promise<Settings>
   pickFolder(title?: string): Promise<string | null>
   pickFiles(filters: { name: string; extensions: string[] }[], multi?: boolean): Promise<string[]>

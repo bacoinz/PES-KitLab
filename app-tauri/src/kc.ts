@@ -48,6 +48,14 @@ const call = <T>(cmd: string, args?: Record<string, unknown>): Promise<T> => inv
 export const kc: KcApi & { launchGame(): Promise<string> } = {
   getSettings: () => call('get_settings'),
   getVersion: () => call('get_version'),
+  checkUpdate: (auto) => call('check_update', { auto }),
+  installUpdate: (url, version) => call('install_update', { url, version }),
+  onUpdateProgress: (cb) => {
+    let off: (() => void) | null = null
+    let dead = false
+    listen<number>('kc:update-progress', (e) => cb(e.payload)).then((u) => { if (dead) u(); else off = u })
+    return () => { dead = true; off?.() }
+  },
   saveSettings: (s) => call('save_settings', { s }),
   pickFolder: (title) => call('pick_folder', { title }),
   pickFiles: (filters, multi) => call('pick_files', { filters, multi }),

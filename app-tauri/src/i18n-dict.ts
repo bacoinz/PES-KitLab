@@ -1330,4 +1330,12 @@ export const DICT: Record<string, [string, string]> = {
   'Média': ['Medium', 'Media'],
   'Forte': ['Strong', 'Fuerte'],
   'Selecionar (V): arrasta pontos, pegas ou formas; arrasta no vazio para uma caixa de seleção (Shift / Ctrl somam)': ['Select (V): drag points, handles or shapes; drag on the empty canvas for a selection box (Shift / Ctrl add)', 'Seleccionar (V): arrastra puntos, tiradores o formas; arrastra en el vacío para una caja de selección (Shift / Ctrl suman)'],
+  'Nova versão disponível': ['New version available', 'Nueva versión disponible'],
+  'Mais tarde': ['Later', 'Más tarde'],
+  'Download e substituir': ['Download and replace', 'Descargar y reemplazar'],
+  'Atualizações': ['Updates', 'Actualizaciones'],
+  'Verificar atualização': ['Check for updates', 'Buscar actualizaciones'],
+  'Verificar ao abrir o programa': ['Check when the program opens', 'Buscar al abrir el programa'],
+  'Já tens a versão mais recente': ['You already have the latest version', 'Ya tienes la última versión'],
+  'A substituir e a reiniciar…': ['Replacing and restarting…', 'Reemplazando y reiniciando…'],
 }
