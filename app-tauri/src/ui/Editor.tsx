@@ -52,7 +52,7 @@ const SHAPES: [NonNullable<OverlayLayer['shape']>, string][] = [
 ]
 const STRIPED = ['stripes', 'pinstripes', 'hoops', 'thinHoops', 'halfHoops']
 /** Order of the "Adicionar camada" grid (Grupo spans both columns). */
-const ADD_ORDER = ['Designs', 'Caneta', 'Padrão', 'Padrão personalizado', 'Imagem/textura', 'Texto', 'Grupo']
+const ADD_ORDER = ['Designs', 'Caneta', 'Padrão', 'Padrão personalizado', 'Imagem/textura', 'Texto', 'Da biblioteca', 'Grupo']
 /** Categories of the built-in designs in the Designs panel. */
 const DESIGN_CAT: Record<string, string> = { vbands: 'Riscas', hbands: 'Faixas & Xadrez', checkers: 'Faixas & Xadrez', zigzag: 'Riscas', waves: 'Riscas', cross: 'Faixas & Xadrez', cross2: 'Faixas & Xadrez', cross2v2: 'Faixas & Xadrez', rect: 'Padrões & Formas', triangle: 'Padrões & Formas', circle: 'Padrões & Formas', shapes: 'Padrões & Formas' }
 const SHAPE_CAT: Record<string, string> = { band: 'Faixas & Xadrez', stripeH: 'Faixas & Xadrez', stripeV: 'Faixas & Xadrez', hem: 'Faixas & Xadrez', panelSides: 'Painéis Laterais', shoulders: 'Painéis de Ombro', yoke: 'Gola', collarV: 'Gola' }
