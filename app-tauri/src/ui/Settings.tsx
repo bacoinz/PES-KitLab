@@ -62,6 +62,12 @@ export function Settings(): JSX.Element {
         <div className="set-grid">
           <label>Guardar a equipa aberta</label>{sel(settings?.autoSave ?? 0, [[0, 'Desligada'], [2, 'De 2 em 2 minutos'], [5, 'De 5 em 5 minutos'], [10, 'De 10 em 10 minutos'], [15, 'De 15 em 15 minutos']], (v) => save({ autoSave: Number(v) as S['autoSave'] }))}
         </div>
+        <div className="set-sub">Atualizações</div>
+        <div className="set-row">
+          <button className="btn small" onClick={() => void checkForUpdates(true, notify)}>Verificar atualização</button>
+        </div>
+        <label className="check"><input type="checkbox" checked={settings?.autoUpdateCheck ?? true} onChange={(e) => save({ autoUpdateCheck: e.target.checked })} /> Verificar ao abrir o programa</label>
+
       </section>
 
       <section className="set-card">
@@ -85,14 +91,6 @@ export function Settings(): JSX.Element {
         </div>
       </section>
 
-      <section className="set-card">
-        <h3>Atualizações</h3>
-        <div className="set-row">
-          <button className="btn small" onClick={() => void checkForUpdates(true, notify)}>Verificar atualização</button>
-        </div>
-        <label className="check"><input type="checkbox" checked={settings?.autoUpdateCheck ?? true} onChange={(e) => save({ autoUpdateCheck: e.target.checked })} /> Verificar ao abrir o programa</label>
-
-      </section>
 
       <section className="set-card">
         <h3>2D, 3D e pré-visualizações</h3>

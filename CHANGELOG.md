@@ -2,6 +2,10 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.24] - 2026-11-20
+### Changed
+- Settings tab: all cards now have the same size in an even grid; the Updates section moved inside General (below Auto-save), followed by Export, 2D/3D and previews, Templates and Support the project.
+
 ## [0.5.23] - 2026-11-20
 ### Changed
 - Settings tab layout: cards now sit in an even grid, General is split into General, Export and Updates cards, each card has a title divider, and sub-sections are separated by lines with small accent headings. Long folder paths are truncated instead of stretching the card.
