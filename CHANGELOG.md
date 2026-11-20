@@ -2,6 +2,15 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.12] - 2026-11-20
+### Added
+- Colour variants (Origin tab → "Colour variants"): proposals of the current kit in other colours (Inverted, Complementary, Analogous (+/−), Triad A/B, Darker), shown as a grid of previews. The kit's three main colours are swapped everywhere they are used (colour slots, layers, collar, cuffs, gradients and outlines), so edges stay clean and nothing is repainted pixel by pixel.
+- Variants are checked with the legibility check: the name and numbers of recolourable prints get the nearest colour that reads well, and a variant that would read worse than the current kit is left out (a checkbox shows them anyway). "More variants" tries other hue turns.
+- "Create N variant(s)" puts the selected ones into the free kit slots of the same kind (players p1-p12, goalkeepers g1-g4) in one undoable step; it warns when there are fewer free slots than variants, and when there are none.
+
+### Changed
+- The legibility check measures recolourable prints with the colour set in the Numbers tab instead of the colour of the loaded glyphs.
+
 ## [0.5.11] - 2026-11-20
 ### Added
 - Texture analyser (Origin tab → "Analyse texture"): opens a kit texture (a PNG or FTEX file, the game's kit for the current slot, or the base texture imported in the kit) and splits it into editable layers. The app core smooths the fabric grain and compression noise with an edge-preserving filter, finds the flat colours (the number of colours is automatic or chosen, with a sensitivity slider), and makes one colour mask per colour and kit part (shirt, sleeves, shorts, socks). Each mask becomes an image layer painted in one colour, so it can be recoloured, hidden and reordered; the main colour of each part becomes its base colour.

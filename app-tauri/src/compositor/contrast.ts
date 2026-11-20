@@ -72,7 +72,7 @@ export function checkContrast(tex: { width: number; height: number; data: Uint8A
     const spec = specFor(kit.numbers, part)
     const recolorable = spec.mode === 'font' || spec.mode === 'recolor' || (spec.mode === 'file' && !!kit.numbers.fileRecolor)
     const useOutline = (spec.mode === 'font' || spec.mode === 'recolor') && spec.outlineWidth > 0 && /^#[0-9a-f]{6}$/i.test(spec.outline)
-    const fgHex = useOutline ? spec.outline.toLowerCase() : rgbToHex(fr / Math.max(1, nf), fg / Math.max(1, nf), fb / Math.max(1, nf))
+    const fgHex = useOutline ? spec.outline.toLowerCase() : recolorable && /^#[0-9a-f]{6}$/i.test(spec.fill) ? spec.fill.toLowerCase() : rgbToHex(fr / Math.max(1, nf), fg / Math.max(1, nf), fb / Math.max(1, nf))
     const ratio = worstRatio(lumOfHex(fgHex), lums)
     const ok = ratio >= MIN_CONTRAST
     let suggest: string | undefined

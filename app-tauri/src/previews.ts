@@ -35,6 +35,11 @@ export function recipePreview(k: KitDesign, tpl: Tpl, cols: [string, string, str
   return memo('gen:' + key, async () => kitPreview3d(noLogos(applyTpl({ ...k, layers: [] }, tpl, cols[0], cols[1], cols[2])), assets, 'torso', 'gen:' + key))
 }
 
+/** Preview of a colour variant (model/variants.ts); `key` names the colours that went into it. */
+export function variantPreview(k: KitDesign, assets: Record<string, Asset>, key: string): Promise<string> {
+  return memo('var:' + key, async () => kitPreview3d(noLogos(k), assets, 'torso', 'var:' + key))
+}
+
 export type PatternPart = 'torso' | 'sleeves' | 'shorts' | 'socks'
 const PART_FIELD: Record<PatternPart, 'torso' | 'sleevePattern' | 'shortsPattern' | 'socksPattern'> = {
   torso: 'torso', sleeves: 'sleevePattern', shorts: 'shortsPattern', socks: 'socksPattern'

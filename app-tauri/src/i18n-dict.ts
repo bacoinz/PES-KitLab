@@ -1233,5 +1233,19 @@ export const DICT: Record<string, [string, string]> = {
   'As camadas antigas das partes analisadas e o desenho da camisola são substituídos; emblemas, números e o resto ficam. Podes desfazer com Ctrl+Z.': ['The old layers of the analysed parts and the shirt design are replaced; crests, numbers and the rest stay. You can undo with Ctrl+Z.', 'Las capas antiguas de las partes analizadas y el diseño de la camiseta se sustituyen; escudos, números y el resto se quedan. Puedes deshacer con Ctrl+Z.'],
   'A textura tem de ser quadrada (como as dos kits, 2048×2048).': ['The texture must be square (like the kits\', 2048×2048).', 'La textura debe ser cuadrada (como las de las equipaciones, 2048×2048).'],
   'Não encontrei zonas de cor lisa nesta textura.': ['I found no flat colour areas in this texture.', 'No encontré zonas de color liso en esta textura.'],
-  'Não encontrei cores nesta textura.': ['I found no colours in this texture.', 'No encontré colores en esta textura.']
+  'Não encontrei cores nesta textura.': ['I found no colours in this texture.', 'No encontré colores en esta textura.'],
+  'Variantes de cor': ['Colour variants', 'Variantes de color'],
+  'Propostas do kit atual com outras cores (visitante, terceiro…). Trocam as três cores principais e tudo o que as usa (camadas, gola, punhos, contornos). As que deixariam o nome ou os números ilegíveis ficam de fora.': ['Proposals of the current kit in other colours (away, third…). They swap the three main colours and everything that uses them (layers, collar, cuffs, outlines). The ones that would leave the name or numbers unreadable are left out.', 'Propuestas de la equipación actual con otros colores (visitante, tercera…). Cambian los tres colores principales y todo lo que los usa (capas, cuello, puños, contornos). Las que dejarían el nombre o los números ilegibles se quedan fuera.'],
+  'Não há equipamentos livres neste tipo de kit. Elimina um (botão "Eliminar kit") e volta aqui.': ['There are no free kit slots for this kind of kit. Delete one ("Delete kit" button) and come back.', 'No hay equipaciones libres para este tipo de equipación. Elimina una (botón "Eliminar equipación") y vuelve aquí.'],
+  'A preparar as propostas…': ['Preparing the proposals…', 'Preparando las propuestas…'],
+  'Pouco contraste no nome ou nos números': ['Low contrast on the name or numbers', 'Poco contraste en el nombre o en los números'],
+  'Mais variantes': ['More variants', 'Más variantes'],
+  'Outras propostas com as mesmas regras': ['Other proposals with the same rules', 'Otras propuestas con las mismas reglas'],
+  'Invertida': ['Inverted', 'Invertida'],
+  'Complementar': ['Complementary', 'Complementario'],
+  'Análoga (+)': ['Analogous (+)', 'Análogo (+)'],
+  'Análoga (−)': ['Analogous (−)', 'Análogo (−)'],
+  'Tríade A': ['Triad A', 'Tríada A'],
+  'Tríade B': ['Triad B', 'Tríada B'],
+  'Mais escura': ['Darker', 'Más oscura']
 }

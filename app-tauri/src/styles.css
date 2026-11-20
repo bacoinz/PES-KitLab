@@ -581,3 +581,12 @@ kbd { font: 11px/1.4 ui-monospace, Consolas, monospace; padding: 1px 6px; border
 .az-color { display: flex; align-items: center; gap: 8px; font-size: 12px; }
 .az-color.merged { opacity: 0.45; }
 .az-part { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+
+/* colour variants */
+.var-panel { display: flex; flex-direction: column; gap: 8px; }
+.var-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.var-card { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg3); cursor: pointer; font-size: 12px; }
+.var-card.on { border-color: var(--accent); }
+.var-card input { position: absolute; left: 6px; top: 6px; }
+.var-card img { width: 100%; max-height: 120px; object-fit: contain; }
+.var-sw { display: flex; gap: 4px; align-items: center; }

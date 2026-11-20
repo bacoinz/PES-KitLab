@@ -5,6 +5,7 @@ import { describeStep } from './history'
 import { PANEL_STYLES, SLOT_LABEL, ALL_SLOTS, uid, defaultDesign, contrastOn, slotOrder, solid, fillMain, normalizeGroups, dropLayer, migrateKit, LOGO_SIZES, NUMBER_DEFAULTS, STITCH_KINDS, FABRIC_COLLAR, FABRIC_SLEEVE, COLLAR_FABRIC, CUFF_FABRIC, FABRIC_CUFF, SOCK_LAYER_FABRIC, MAIN_FABRIC, HEM_STITCH, SHORTS_HEM_STITCH, MID_STITCH, STITCH_DEFAULT, mergeLogos, copyNumbers, groupColors, swapGroupColor, resolveGroups, kitAssetIds } from '../model/design'
 import { TEMPLATES, applyTemplate, applyTpl } from '../model/templates'
 import { PatternGenPanel } from './PatternGenPanel'
+import { VariantsPanel } from './VariantsPanel'
 import { TORSO_PATTERNS, SLEEVE_PATTERNS, SHORTS_PATTERNS, SOCKS_PATTERNS, TEXTURES, STROKES } from '../compositor/patterns'
 import { composeKit, composeLive, composeShine, composeRelief, composeSockCover, onStaleRender, composeLiveShared, COLLAR_DESIGNS, collarParams, collarDefaults, frontThumb, raglanBend } from '../compositor/compose'
 import { decorationOverlay, type GlyphAtlas } from '../compositor/decorate'
@@ -1656,6 +1657,13 @@ export function Editor(): JSX.Element {
           <PatternGenPanel kit={kit} assets={assets} onApply={(tpl, c1, c2, c3) => up((k) => applyTpl(k, tpl, c1, c2, c3))} />
         </Section>
       )}
+      <Section group={tab} title="Variantes de cor">
+        <VariantsPanel project={project} kit={kit} assets={assets} atlases={atlases} onCreate={(kits) => {
+          setProject((pr) => ({ ...pr, kits: [...pr.kits, ...kits].sort((a, b) => slotOrder(a.slot, b.slot)) }))
+          setActiveSlot(kits[0].slot)
+          notify('ok', `${kits.length} variante(s) criada(s)`)
+        }} />
+      </Section>
       <Section group={tab} title="Analisar textura">
         <div className="muted small">Abre uma textura de kit (PNG ou FTEX, ou a do jogo) e separa-a em camadas de cor que podes recolorir, esconder e reordenar, com os emblemas e desenhos que não são cores lisas à parte.</div>
         <div className="btn-row"><button className="btn small" onClick={() => setAnalyzeOpen(true)}>Analisar textura…</button></div>
