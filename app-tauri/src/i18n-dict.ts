@@ -1153,5 +1153,15 @@ export const DICT: Record<string, [string, string]> = {
   'Ficheiro com entradas a mais': ['File with too many entries', 'Archivo con demasiadas entradas'],
   'Imagens a mais no ficheiro': ['Too many images in the file', 'Demasiadas imágenes en el archivo'],
   'Falta o kit.json': ['kit.json is missing', 'Falta kit.json'],
-  'kit.json demasiado grande': ['kit.json is too large', 'kit.json es demasiado grande']
+  'kit.json demasiado grande': ['kit.json is too large', 'kit.json es demasiado grande'],
+  'Legibilidade': ['Legibility', 'Legibilidad'],
+  'Contraste do nome e dos números sobre o kit (o mínimo é 3:1). É só um aviso: muitos equipamentos reais têm pouco contraste de propósito.': ['Contrast of the name and numbers over the kit (the minimum is 3:1). It is only a warning: many real kits have low contrast on purpose.', 'Contraste del nombre y los números sobre la equipación (el mínimo es 3:1). Es solo un aviso: muchas equipaciones reales tienen poco contraste a propósito.'],
+  'Não há nome nem números visíveis para verificar.': ['There is no visible name or number to check.', 'No hay nombre ni números visibles que comprobar.'],
+  'Lê-se bem': ['Reads well', 'Se lee bien'],
+  'Pouco contraste': ['Low contrast', 'Poco contraste'],
+  'Cor do número': ['Number colour', 'Color del número'],
+  'Cor do kit por baixo': ['Kit colour underneath', 'Color de la equipación debajo'],
+  'sobre': ['on', 'sobre'],
+  'Muda a cor para a mais próxima que se lê bem': ['Changes the colour to the closest one that reads well', 'Cambia el color al más cercano que se lee bien'],
+  'números do jogo: muda para "Recolorir os do jogo"': ['game numbers: switch to "Recolour the game\'s"', 'números del juego: cambia a "Recolorear los del juego"']
 }

@@ -2,6 +2,11 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.8] - 2026-11-20
+### Added
+- Numbers tab: a "Legibility" check. It measures the contrast (WCAG ratio, minimum 3:1) between the back number, the name, the chest number and the shorts number and the kit right under them, so stripes, patterns and fabrics count (the worst 5% of the pixels are left out as noise). With an outline, the outline colour is measured. It is only a warning and never blocks anything.
+- When a part is hard to read, a "Use #rrggbb" button picks the closest kit colour (or white / black) that passes and applies it. For the game's own baked-in numbers the tab suggests switching to "Recolour the game's".
+
 ## [0.5.7] - 2026-11-20
 ### Added
 - Shareable kit files (`.kitlab`). Origin → Share → "Export .kitlab…" saves the current kit with everything it uses (layers, colours, fabrics, numbers and names, sponsors, the crest, the brand and all the images) in one file; "Import .kitlab…" puts a file into a kit slot of the open team. The crest and the brand are always exported, also for kits that come from the game.

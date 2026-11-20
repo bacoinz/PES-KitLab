@@ -57,6 +57,8 @@ const RULES: [RegExp, string, string][] = [
   [/^(\d+) camadas (copiadas|coladas)$/, '$1 layers copied/pasted', '$1 capas $2'],
   [/^Colar \((\d+) camadas\)$/, 'Paste ($1 layers)', 'Pegar ($1 capas)'],
   [/^(.+) já é usado em "(.+)"\. Trocar\? \(O outro fica sem atalho\.\)$/, '$1 is already used for "$2". Swap? (The other one loses its shortcut.)', '$1 ya se usa en "$2". ¿Cambiar? (El otro se queda sin atajo.)'],
+  [/^Usar (#[0-9a-fA-F]{6})$/, 'Use $1', 'Usar $1'],
+  [/^(\d+) de (\d+) abaixo de (\d+):1\.$/, '$1 of $2 below $3:1.', '$1 de $2 por debajo de $3:1.'],
   [/^Kit exportado: (.+)$/, 'Kit exported: $1', 'Equipación exportada: $1'],
   [/^Kit importado: (.+)$/, 'Kit imported: $1', 'Equipación importada: $1'],
   [/^Substituir o equipamento (.+)\? \(Podes desfazer com Ctrl\+Z\.\)$/, 'Replace the $1 kit? (You can undo with Ctrl+Z.)', '¿Reemplazar la equipación $1? (Puedes deshacer con Ctrl+Z.)'],

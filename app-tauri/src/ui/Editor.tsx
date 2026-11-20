@@ -24,6 +24,7 @@ import { Swatch, ColorCtx, type NamedColor } from './ColorPicker'
 import { registerHandlers } from './shortcuts'
 import { exportKitlab, parseKitlab, type ParsedKitlab } from '../kitlab'
 import { KitlabImportModal } from './KitlabImportModal'
+import { ContrastPanel } from './ContrastPanel'
 import { nudgeLayer, resizeLayer, rotateLayer, reorderLayer, duplicateLayer } from './layerKeys'
 import { layerBox, handleAt, hitLayer, toFrame, dragTo, boxOutline, type Zone2D, type DragStart } from './select2d'
 import { Section, Row, ColorInput, Slider, Select, AssetPicker, CropModal, pickColorTarget, TeamColors } from './common'
@@ -2037,6 +2038,7 @@ export function Editor(): JSX.Element {
       <Row label="Número de exemplo"><input value={sampleNum} maxLength={2} onChange={(e) => setSampleNum(e.target.value.replace(/\D/g, ''))} /></Row>
       <label className="check"><input type="checkbox" checked={showNames} onChange={(e) => setShowNames(e.target.checked)} /> Mostrar nome e número no 3D</label>
       {numberShineBlock}
+      <ContrastPanel kit={kit} assets={assets} atlases={atlases} sampleName={sampleName} sampleNum={sampleNum} onNumbers={(numbers) => up((k) => ({ ...k, numbers }))} />
       <div className="sub-title">Impressão</div>
 
         <Row label="Letras e números">

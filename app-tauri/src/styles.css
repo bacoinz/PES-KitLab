@@ -539,3 +539,13 @@ kbd { font: 11px/1.4 ui-monospace, Consolas, monospace; padding: 1px 6px; border
 .kitlab-row { display: flex; align-items: center; gap: 8px; }
 .kitlab-row .logo-thumb { height: 38px; max-width: 70px; object-fit: contain; }
 .kitlab-warn { font-size: 12px; color: #e0b050; }
+
+/* contrast check (Numbers tab) */
+.contrast-panel { display: flex; flex-direction: column; gap: 6px; }
+.contrast-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.contrast-row.bad .contrast-ratio { color: #e0b050; }
+.contrast-mark { width: 16px; text-align: center; }
+.contrast-row.ok .contrast-mark { color: var(--accent); }
+.contrast-row.bad .contrast-mark { color: #e0b050; }
+.contrast-sw { width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--line); flex: none; }
+.contrast-ratio { min-width: 52px; text-align: right; }
