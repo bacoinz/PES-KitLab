@@ -23,6 +23,19 @@ function useVisible(ref: React.RefObject<HTMLElement>): boolean {
 /** Kit order on the cards: players first (p1, p2, …), then goalkeepers. */
 const slotRank = (s: string): number => { const m = s.match(/^([a-z]+)(\d+)/i); if (!m) return 999; return (m[1].toLowerCase() === 'p' ? 0 : 100) + Number(m[2]) }
 
+/** Mouse wheel over a kit row scrolls it sideways (only when it overflows, otherwise the page scrolls). */
+const wheelX = (el: HTMLDivElement | null): void => {
+  if (!el || (el as HTMLElement & { _wx?: boolean })._wx) return
+  ;(el as HTMLElement & { _wx?: boolean })._wx = true
+  el.addEventListener('wheel', (e) => {
+    if (el.scrollWidth <= el.clientWidth + 1 || Math.abs(e.deltaY) < Math.abs(e.deltaX)) return
+    const max = el.scrollWidth - el.clientWidth
+    if ((e.deltaY < 0 && el.scrollLeft <= 0) || (e.deltaY > 0 && el.scrollLeft >= max - 1)) return
+    el.scrollLeft += e.deltaY
+    e.preventDefault()
+  }, { passive: false })
+}
+
 function KitThumb({ team, slot }: { team: TeamInfo; slot: string }): JSX.Element {
   const key = `${team.id}:${slot}`
   const [src, setSrc] = useState(thumbCache.get(key) ?? '')
@@ -165,10 +178,10 @@ export function Teams(): JSX.Element {
                   {isPending(t.id) && <span className="pending">● alterações por importar</span>}
                 </div>
               </div>
-              <div className="kits-row">
+              <div className="kits-row" ref={wheelX}>
                 {draftOf.has(t.id)
                   ? Object.entries(draftOf.get(t.id)!.thumbs).sort((a, b) => slotRank(a[0]) - slotRank(b[0])).map(([slot, src]) => <div key={slot} className="kit-thumb draft" title={slot + ' (editado)'}><img src={src} alt={slot} /></div>)
-                  : [...t.slots].sort((a, b) => slotRank(a.slot) - slotRank(b.slot)).slice(0, 5).map((s) => <KitThumb key={s.slot} team={t} slot={s.slot} />)}
+                  : [...t.slots].sort((a, b) => slotRank(a.slot) - slotRank(b.slot)).map((s) => <KitThumb key={s.slot} team={t} slot={s.slot} />)}
                 {!draftOf.has(t.id) && !t.slots.length && <span className="muted small">Sem kits no jogo</span>}
               </div>
               <div className="team-actions">

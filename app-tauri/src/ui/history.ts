@@ -10,7 +10,7 @@ const KEY_LABEL: Record<string, string> = {
 }
 
 function layerName(L: { name?: string; kind: string; text?: string }): string {
-  return L.name || (L.kind === 'text' ? 'Texto ' + (L.text ?? '') : ({ design: 'Design', panel: 'Painel', shape: 'Forma', image: 'Imagem', texture: 'Padrão', vector: 'Caneta', group: 'Grupo', collar: 'Gola', pattern: 'Design', freeform: 'Pincel' } as Record<string, string>)[L.kind] ?? L.kind)
+  return L.name || (L.kind === 'text' ? 'Texto ' + (L.text ?? '') : ({ design: 'Design', panel: 'Painel', shape: 'Forma', image: 'Imagem/textura', texture: 'Padrão', vector: 'Caneta', group: 'Grupo', collar: 'Gola', pattern: 'Design', freeform: 'Pincel' } as Record<string, string>)[L.kind] ?? L.kind)
 }
 
 function kitChange(a: KitDesign, b: KitDesign): string {

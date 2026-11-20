@@ -2,14 +2,14 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useApp, assetFromFile, rawAssetFromFile, previewAssetFromFile, PRESET_TEAM, USER_TPL_TEAM, stepTime } from '../state'
 import type { PanelStyle, TextPlacement, PanelKind, KitDesign, OverlayLayer, Asset, LogoPlacement, LogoTint, Fill, PatternSpec, FabricLayer, FabricZone, Zone, Logos, StitchKind, StitchSpec, TextureSpec } from '../model/design'
 import { describeStep } from './history'
-import { PANEL_STYLES, SLOT_LABEL, uid, defaultDesign, contrastOn, slotOrder, solid, fillMain, normalizeGroups, dropLayer, migrateKit, LOGO_SIZES, NUMBER_DEFAULTS, STITCH_KINDS, FABRIC_COLLAR, FABRIC_SLEEVE, COLLAR_FABRIC, CUFF_FABRIC, FABRIC_CUFF, SOCK_LAYER_FABRIC, MAIN_FABRIC, HEM_STITCH, SHORTS_HEM_STITCH, MID_STITCH, STITCH_DEFAULT, mergeLogos, copyNumbers, groupColors, swapGroupColor, resolveGroups } from '../model/design'
+import { PANEL_STYLES, SLOT_LABEL, ALL_SLOTS, uid, defaultDesign, contrastOn, slotOrder, solid, fillMain, normalizeGroups, dropLayer, migrateKit, LOGO_SIZES, NUMBER_DEFAULTS, STITCH_KINDS, FABRIC_COLLAR, FABRIC_SLEEVE, COLLAR_FABRIC, CUFF_FABRIC, FABRIC_CUFF, SOCK_LAYER_FABRIC, MAIN_FABRIC, HEM_STITCH, SHORTS_HEM_STITCH, MID_STITCH, STITCH_DEFAULT, mergeLogos, copyNumbers, groupColors, swapGroupColor, resolveGroups } from '../model/design'
 import { TEMPLATES, applyTemplate } from '../model/templates'
 import { TORSO_PATTERNS, SLEEVE_PATTERNS, SHORTS_PATTERNS, SOCKS_PATTERNS, TEXTURES, STROKES } from '../compositor/patterns'
 import { composeKit, composeLive, composeShine, composeRelief, composeSockCover, onStaleRender, composeLiveShared, COLLAR_DESIGNS, collarParams, collarDefaults, frontThumb, raglanBend } from '../compositor/compose'
 import { decorationOverlay, type GlyphAtlas } from '../compositor/decorate'
 import { loadAtlases } from '../compositor/atlases'
 import { FABRICS, LAYER_FABRICS, EMBROIDERIES, TEXTURE_LOOK } from '../compositor/fabric'
-import { palette, loadAsset, rgbaToCanvas, canvasToDataUrl, canvas, ctx2d, type Img } from '../compositor/images'
+import { palette, loadAsset, rgbaToCanvas, canvasToDataUrl, canvas, ctx2d, imgW, imgH, type Img } from '../compositor/images'
 import { partAt, REGIONS, pathOf } from '../compositor/uv'
 import { SYSTEM_FONTS, registerFont, findBoxes } from '../compositor/numbers'
 import { KitViewer, LIGHT_PRESETS, ENVS, type CamView, type LightPreset, type EnvKind } from '../three/KitViewer'
@@ -39,7 +39,7 @@ const SHAPES: [NonNullable<OverlayLayer['shape']>, string][] = [
 ]
 const STRIPED = ['stripes', 'pinstripes', 'hoops', 'thinHoops', 'halfHoops']
 /** Order of the "Adicionar camada" grid (Grupo spans both columns). */
-const ADD_ORDER = ['Designs', 'Caneta', 'Padrão', 'Padrão personalizado', 'Imagem', 'Texto', 'Grupo']
+const ADD_ORDER = ['Designs', 'Caneta', 'Padrão', 'Padrão personalizado', 'Imagem/textura', 'Texto', 'Grupo']
 /** Categories of the built-in designs in the Designs panel. */
 const DESIGN_CAT: Record<string, string> = { vbands: 'Riscas', hbands: 'Faixas & Xadrez', checkers: 'Faixas & Xadrez', zigzag: 'Riscas', waves: 'Riscas', cross: 'Faixas & Xadrez', cross2: 'Faixas & Xadrez', cross2v2: 'Faixas & Xadrez', rect: 'Padrões & Formas', triangle: 'Padrões & Formas', circle: 'Padrões & Formas', shapes: 'Padrões & Formas' }
 const SHAPE_CAT: Record<string, string> = { band: 'Faixas & Xadrez', stripeH: 'Faixas & Xadrez', stripeV: 'Faixas & Xadrez', hem: 'Faixas & Xadrez', panelSides: 'Painéis Laterais', shoulders: 'Painéis de Ombro', yoke: 'Gola', collarV: 'Gola' }
@@ -75,7 +75,7 @@ function layerLabel(L: OverlayLayer): string {
   if (L.kind === 'image' && L.fit === 'tile') return 'Padrão personalizado'
   return L.kind === 'pattern' ? `Design: ${(L.part === 'shorts' ? SHORTS_PATTERNS : TORSO_PATTERNS).find((t) => t[0] === L.pattern)?.[1] ?? L.pattern}`
     : L.kind === 'texture' ? TEXTURES.find((t) => t[0] === L.pattern)?.[1] ?? 'Textura'
-      : L.kind === 'text' ? `“${L.text}”` : L.kind === 'image' ? (L.fit === 'part' ? 'Imagem (peça inteira)' : 'Imagem') : SHAPES.find((s) => s[0] === L.shape)?.[1] ?? 'Forma'
+      : L.kind === 'text' ? `“${L.text}”` : L.kind === 'image' ? (L.fit === 'part' ? 'Imagem (peça inteira)' : L.fit === 'uv' ? 'Textura' : 'Imagem/textura') : SHAPES.find((s) => s[0] === L.shape)?.[1] ?? 'Forma'
 }
 const BLEND_OPTIONS: [string, string][] = [
   ['source-over', 'Normal'], ['darken', 'Escurecer'], ['multiply', 'Multiplicar'], ['color-burn', 'Queimar cor'],
@@ -101,7 +101,7 @@ function readWidth(): number { try { return Number(localStorage.getItem('kc.side
 function partPalettes(img: Img): Record<string, string[]> {
   const k = (img as ImageBitmap).width / 2048
   const out: Record<string, string[]> = {}
-  for (const part of ['shirt', 'sleeves', 'collar', 'shorts', 'socks']) out[part] = palette(img, 4, (x, y) => partAt(x / k, y / k) === part).filter((p) => p.share > 0.04).map((p) => p.color)
+  for (const part of ['shirt', 'sleeves', 'collar', 'shorts', 'socks']) out[part] = palette(img, 5, (x, y) => partAt(x / k, y / k) === part).filter((p) => p.share > 0.03).map((p) => p.color)
   return out
 }
 
@@ -1085,10 +1085,16 @@ export function Editor(): JSX.Element {
         )}
         {L.kind === 'image' && (
           <>
-            <Row label={L.fit === 'tile' ? 'Padrão' : 'Imagem'}>{L.assetId && assets[L.assetId] && <img className="logo-thumb" src={assets[L.assetId].dataUrl} alt="" />}
+            <Row label={L.fit === 'tile' ? 'Padrão' : 'Imagem/textura'}>{L.assetId && assets[L.assetId] && <img className="logo-thumb" src={assets[L.assetId].dataUrl} alt="" />}
               {L.fit === 'tile' && <button className="btn small" onClick={() => setTexPick({ kind: 'patterns', part, replace: L.id })}>Trocar ▸</button>}
-              <AssetPicker label={L.fit === 'tile' ? 'Imagem própria…' : L.assetId ? 'Trocar' : 'Escolher'} autoOpen={!L.assetId} onPick={(a) => { addAsset(a); ch({ assetId: a.id }) }} /></Row>
-            <Row label="Modo"><Select value={L.fit ?? 'free'} options={[['free', 'Imagem solta'], ['part', 'Ocupar a peça inteira'], ['tile', 'Padrão (repetir em mosaico)'], ['uv', 'Textura inteira (layout do kit)']]}
+              <AssetPicker label={L.fit === 'tile' ? 'Imagem própria…' : L.assetId ? 'Trocar' : 'Escolher'} autoOpen={!L.assetId} onPick={async (a) => {
+                addAsset(a)
+                // a complete kit texture (square): only the part of this tab is taken from it
+                let full = false
+                try { const im = await loadAsset(a); full = !L.fit || L.fit === 'free' ? Math.abs(imgW(im) - imgH(im)) < 4 && imgW(im) >= 512 : false } catch { /* keep the mode */ }
+                ch(full ? { assetId: a.id, fit: 'uv' } : { assetId: a.id })
+              }} /></Row>
+            <Row label="Modo"><Select value={L.fit ?? 'free'} options={[['free', 'Imagem solta'], ['part', 'Ocupar a peça inteira'], ['tile', 'Padrão (repetir em mosaico)'], ['uv', 'Textura completa (só a parte desta aba)']]}
               onChange={(fit) => ch(fit === 'tile' ? { fit: 'tile', size: 160, gap: L.gap ?? 0, dx: 0, dy: 0 } : { fit: fit as 'free' | 'part' })} /></Row>
             {L.fit === 'tile' && <Row label="Espaçamento"><Slider value={L.gap ?? 0} min={0} max={600} onChange={(gap) => ch({ gap })} /></Row>}
             <Row label="Cores"><Select value={L.tileTint ?? 'original'} options={[['original', 'Originais da imagem'], ['color', L.fit === 'tile' ? 'Uma cor (ou gradiente)' : 'Uma cor']]} onChange={(v) => ch({ tileTint: v as 'original' | 'color' })} /></Row>
@@ -1197,7 +1203,7 @@ export function Editor(): JSX.Element {
       ['Designs', 'design', () => setTexPick({ kind: 'graphics', part })],
       ['Padrão personalizado', 'tile', () => addLayer(base('image', { fit: 'tile', tileTint: 'original', size: 160, gap: 0 }))],
       ['Caneta', 'freeform', () => { const id = uid(); addLayer({ id, kind: 'vector', part, visible: true, opacity: 1, color: kit.colors.shirt2, vpaths: [], zones: part === 'torso' ? ['front', 'back'] : undefined }); setVecEdit(id) }],
-      ['Imagem', 'logo', () => addLayer(base('image'))],
+      ['Imagem/textura', 'logo', () => addLayer(base('image'))],
       ['Texto', 'text', () => addLayer(base('text', { x: 1024, y: 1350, size: 90 }))],
       ['Grupo', 'group', () => addLayer({ id: uid(), kind: 'group', part, visible: true, opacity: 1, color: '#888888', name: 'Grupo ' + (kit.layers.filter((x) => x.kind === 'group').length + 1) })]
     ]
@@ -2304,7 +2310,7 @@ export function Editor(): JSX.Element {
             ))}
             <select className="slot-add" value="" onChange={(e) => e.target.value && addSlot(e.target.value)}>
               <option value="">+ kit</option>
-              {['p1', 'p2', 'p3', 'p4', 'g1', 'g2'].filter((s) => !project.kits.some((k) => k.slot === s)).map((s) => <option key={s} value={s}>{SLOT_LABEL[s]}</option>)}
+              {ALL_SLOTS.filter((s) => !project.kits.some((k) => k.slot === s)).map((s) => <option key={s} value={s}>{SLOT_LABEL[s]}</option>)}
             </select>
           </div>
           <div className="cat-tabs">

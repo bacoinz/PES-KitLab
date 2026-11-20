@@ -315,7 +315,7 @@ async fn list_number_sets(app: AppHandle) -> R<Vec<NumberSet>> {
         let gi = app.state::<AppState>().gi()?;
         let Some(root) = gi.read().unwrap().paths.kits_root.clone() else { return Ok(vec![]) };
         let re = Regex::new(r"(?i)^(.+?)_(back|leg|name)\.ftex$").unwrap();
-        let skip = Regex::new(r"(?i)^u\d+[pg]\d").unwrap();
+        let skip = Regex::new(r"(?i)^u\d+[pg]\d+").unwrap();
         let mut sets: BTreeMap<String, NumberSet> = BTreeMap::new();
         fn walk(dir: &Path, depth: u32, f: &mut dyn FnMut(&Path)) {
             if depth > 5 { return; }

@@ -71,7 +71,7 @@ export const PRESET_TEAM = -1
 export const USER_TPL_TEAM = -2
 export interface UserTemplate { id: string; name: string; date: string; kit: KitDesign; assets: Record<string, Asset> }
 export const PRESET_SLOT: Record<PresetType, string> = { home: 'p1', away: 'p2', third: 'p3', fourth: 'p4', gk: 'g1' }
-export const slotType = (slot: string): PresetType => (slot === 'p1' ? 'home' : slot === 'p2' ? 'away' : slot === 'p3' ? 'third' : slot === 'p4' ? 'fourth' : 'gk')
+export const slotType = (slot: string): PresetType => (slot === 'p1' ? 'home' : slot === 'p2' ? 'away' : slot === 'p3' ? 'third' : slot === 'p4' ? 'fourth' : slot[0] === 'p' ? 'fourth' : 'gk')
 /** Template for a new kit in this slot: its own one (editor), else the single saved kit. */
 function presetFor(def: KitDefaults, slot: string): string | undefined {
   const t = slotType(slot)

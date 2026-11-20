@@ -2,6 +2,19 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.4] - 2026-11-20
+### Added
+- Up to 12 team kits and 4 goalkeeper kits per team (the "Add kit" list, the game/kit-server reader and the export now cover p1-p12 and g1-g4, in numeric order).
+- In the Teams grid every kit of a team is shown in the same card space; the kit row scrolls sideways (mouse wheel works too) to reach the ones that do not fit.
+
+### Changed
+- The "Image" layer is now called "Image/texture".
+- A full kit texture (square image) imported into an Image/texture layer now only brings in the part of the current tab: Shirt (front, back, short and long sleeves, collar), Shorts or Socks. Picking a square image switches the layer to the "Full texture (only this tab's part)" mode automatically.
+- New kits start with plain, single-colour socks instead of a template pattern on the socks.
+
+### Fixed
+- Colour detection on existing kits ("Kit colours" / recolouring) is more accurate: it now uses a colour histogram on sharp (non-blurred) pixels and reports only colours that really cover area, so blends of two colours (for example purple from a blue and red kit) no longer appear.
+
 ## [0.5.3] - 2026-11-20
 ### Added
 - "Buy me a coffee on Ko-fi" button (https://ko-fi.com/bacoinz) on the start screen and in a new "Support the project" card in Settings.

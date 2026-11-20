@@ -195,7 +195,7 @@ pub fn read_team_folder(team_dir: &Path) -> Vec<KitSlotFiles> {
         let re = Regex::new(r"^[pgPG]\d+$").unwrap();
         if let Ok(rd) = fs::read_dir(team_dir) {
             let mut v: Vec<String> = rd.flatten().filter(|e| e.path().is_dir()).map(|e| e.file_name().to_string_lossy().to_string()).filter(|n| re.is_match(n)).collect();
-            v.sort();
+            v.sort_by_key(|n| (n.to_lowercase().starts_with('g'), n[1..].parse::<u32>().unwrap_or(0)));
             names = v;
         }
     }

@@ -1120,7 +1120,16 @@ async function layerPassesRaw(out: Pass[], L: OverlayLayer, all: OverlayLayer[],
     if (!L.assetId || !assets[L.assetId]) return
     const img = await loadAsset(assets[L.assetId])
     const tint = L.tileTint === 'color' ? { tint: 'color' as const, color: fillMain(L.fill, L.color) } : {}
-    out.push({ t: 'image', clip: 'all', opacity: op, blend, place: { img, cx: S / 2, cy: S / 2, w: S, h: S, rot: 0, ...tint } })
+    // only the part of the tab the layer belongs to is taken from it: shirt (front, back, short and long sleeves, collar),
+    // shorts or socks. The rest of the texture is ignored.
+    const place = { img, cx: S / 2, cy: S / 2, w: S, h: S, rot: 0, ...tint }
+    if (part === 'shorts') out.push({ t: 'image', clip: 'shorts', opacity: op, blend, place })
+    else if (part === 'socks') out.push({ t: 'image', clip: 'socks', opacity: op, blend, place })
+    else if (part === 'sleeves') out.push({ t: 'image', clip: 'sleeves', opacity: op, blend, place })
+    else {
+      out.push({ t: 'image', clip: 'zones', zoneSel: [1, 1, 1], opacity: op, blend, place })
+      out.push({ t: 'image', clip: 'collar', opacity: op, blend, place })
+    }
     return
   } else if (L.kind === 'image') {
     if (!L.assetId || !assets[L.assetId]) return

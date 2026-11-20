@@ -619,12 +619,20 @@ export function migrateProject(p: TeamProject): TeamProject {
   return { ...p, kits: p.kits.map(migrateKit) }
 }
 
-export const SLOT_LABEL: Record<string, string> = { p1: 'Principal', p2: 'Alternativo', p3: 'Terceiro', p4: 'Quarto', g1: 'GR 1', g2: 'GR 2' }
+/** Up to 12 team kits (p1…p12) and 4 goalkeeper kits (g1…g4). */
+export const PLAYER_SLOTS = Array.from({ length: 12 }, (_, i) => 'p' + (i + 1))
+export const GK_SLOTS = Array.from({ length: 4 }, (_, i) => 'g' + (i + 1))
+export const ALL_SLOTS = [...PLAYER_SLOTS, ...GK_SLOTS]
+export const SLOT_LABEL: Record<string, string> = {
+  p1: 'Principal', p2: 'Alternativo', p3: 'Terceiro', p4: 'Quarto',
+  ...Object.fromEntries(PLAYER_SLOTS.slice(4).map((s) => [s, 'Equipamento ' + s.slice(1)])),
+  ...Object.fromEntries(GK_SLOTS.map((s) => [s, 'GR ' + s.slice(1)]))
+}
 
 export const uid = (): string => Math.random().toString(36).slice(2, 10)
 
-/** p1, p2, p3, p4, g1, g2 */
-export const slotOrder = (a: string, b: string): number => (a[0] === b[0] ? a.localeCompare(b) : a[0] === 'p' ? -1 : 1)
+/** p1 … p12, g1 … g4 (numeric order) */
+export const slotOrder = (a: string, b: string): number => (a[0] === b[0] ? (Number(a.slice(1)) || 0) - (Number(b.slice(1)) || 0) : a[0] === 'p' ? -1 : 1)
 
 /**
  * "Copy to all kits" for logos: what the other kit already has (same image) stays as it is; what is missing is

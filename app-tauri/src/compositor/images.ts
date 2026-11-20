@@ -97,41 +97,49 @@ export function trim(img: Img): Img {
 /** Dominant colours (k-means on opaque pixels). */
 export function palette(img: Img, k = 4, region?: (x: number, y: number) => boolean): { color: string; share: number }[] {
   const w = imgW(img), h = imgH(img)
-  const scale = Math.min(1, 256 / Math.max(w, h))
+  // nearest-neighbour sampling: smoothing would blend neighbouring colours into ones the kit does not have
+  const scale = Math.min(1, 640 / Math.max(w, h))
   const sw = Math.max(1, Math.round(w * scale)), sh = Math.max(1, Math.round(h * scale))
   const c = canvas(sw, sh), g = ctx2d(c)
+  g.imageSmoothingEnabled = false
   g.drawImage(img as CanvasImageSource, 0, 0, sw, sh)
   const d = g.getImageData(0, 0, sw, sh).data
-  const px: number[][] = []
+  // colour histogram (16 levels per channel): only colours that really occupy area count, so anti-aliased edges
+  // and averages of two colours never show up as a "colour of the kit"
+  const bins = new Map<number, { n: number; r: number; g: number; b: number }>()
+  let total = 0
   for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) {
     const q = (y * sw + x) * 4
-    if (d[q + 3] < 200) continue
+    if (d[q + 3] < 250) continue
     if (region && !region(x / scale, y / scale)) continue
-    px.push([d[q], d[q + 1], d[q + 2]])
+    const key = ((d[q] >> 4) << 8) | ((d[q + 1] >> 4) << 4) | (d[q + 2] >> 4)
+    const b = bins.get(key)
+    if (b) { b.n++; b.r += d[q]; b.g += d[q + 1]; b.b += d[q + 2] } else bins.set(key, { n: 1, r: d[q], g: d[q + 1], b: d[q + 2] })
+    total++
   }
-  if (!px.length) return []
-  let cent = Array.from({ length: k }, (_, i) => px[Math.floor(((i + 0.5) / k) * px.length)].slice())
-  const assign = new Array<number>(px.length).fill(0)
-  for (let it = 0; it < 10; it++) {
-    const sums = cent.map(() => [0, 0, 0, 0])
-    px.forEach((p, i) => {
-      let b = 0, bd = Infinity
-      cent.forEach((c2, j) => { const dd = (p[0] - c2[0]) ** 2 + (p[1] - c2[1]) ** 2 + (p[2] - c2[2]) ** 2; if (dd < bd) { bd = dd; b = j } })
-      assign[i] = b
-      sums[b][0] += p[0]; sums[b][1] += p[1]; sums[b][2] += p[2]; sums[b][3]++
-    })
-    cent = cent.map((c2, j) => (sums[j][3] ? [sums[j][0] / sums[j][3], sums[j][1] / sums[j][3], sums[j][2] / sums[j][3]] : c2))
+  if (!total) return []
+  const left = [...bins.values()].map((b) => ({ n: b.n, c: [b.r / b.n, b.g / b.n, b.b / b.n] })).sort((a, b) => b.n - a.n)
+  const out: { color: string; share: number }[] = []
+  const R = 62 // radius that a colour absorbs (folds, shading, compression noise)
+  const d2 = (a: number[], b: number[]): number => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2
+  while (out.length < k) {
+    // the strongest remaining colour = the one with the most pixels around it (only the 150 biggest bins are candidates)
+    let best = -1, bestN = 0
+    for (let i = 0, seen = 0; i < left.length && seen < 150; i++) {
+      if (!left[i].n) continue
+      seen++
+      let n = 0
+      for (const o of left) { if (o.n && d2(o.c, left[i].c) < (R * 0.6) ** 2) n += o.n }
+      if (n > bestN) { bestN = n; best = i }
+    }
+    if (best < 0 || bestN / total < 0.015) break
+    // its colour is the densest bin in the neighbourhood (a real colour of the image), not an average
+    const ref = left[best].c
+    let share = 0
+    for (const o of left) if (o.n && d2(o.c, ref) < R * R) { share += o.n; o.n = 0 }
+    out.push({ color: rgbToHex(ref[0], ref[1], ref[2]), share: share / total })
   }
-  const counts = cent.map((_, j) => assign.filter((a) => a === j).length)
-  const out = cent.map((c2, j) => ({ color: rgbToHex(c2[0], c2[1], c2[2]), share: counts[j] / px.length })).filter((x) => x.share > 0.01)
-  // merge near-duplicates
-  const merged: { color: string; share: number }[] = []
-  for (const p of out.sort((a, b) => b.share - a.share)) {
-    const m = merged.find((x) => { const a = hexToRgb(x.color), b = hexToRgb(p.color); return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) < 60 })
-    if (m) m.share += p.share
-    else merged.push({ ...p })
-  }
-  return merged
+  return out
 }
 
 /**

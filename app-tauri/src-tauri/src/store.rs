@@ -251,8 +251,9 @@ impl Store {
         }
         let mut players: Vec<&str> = t.kits.iter().filter(|k| k.slot.starts_with('p')).map(|k| k.slot.as_str()).collect();
         let mut gks: Vec<&str> = t.kits.iter().filter(|k| k.slot.starts_with('g')).map(|k| k.slot.as_str()).collect();
-        players.sort();
-        gks.sort();
+        let num = |s: &&str| s[1..].parse::<u32>().unwrap_or(0);
+        players.sort_by_key(num);
+        gks.sort_by_key(num);
         fs::write(kits_dir.join("order.ini"), players.join("\r\n") + "\r\n")?;
         if !gks.is_empty() { fs::write(kits_dir.join("gk_order.ini"), gks.join("\r\n") + "\r\n")?; }
         Ok(())
@@ -451,7 +452,8 @@ impl Store {
             }
             None => {
                 let gi = self.gi.read().unwrap();
-                for s in ["p1", "p2", "p3", "p4", "g1", "g2"] {
+                for s in (1..=12).map(|i| format!("p{i}")).chain((1..=4).map(|i| format!("g{i}"))) {
+                    let s = s.as_str();
                     for suf in ["", "_back", "_leg", "_name", "_chest"] {
                         let inner = format!("{KIT_TEX_DIR}{}{suf}.ftex", kit_tex_name(team_id, s));
                         if let Some(b) = gi.read_opts(&inner, &skip) { files.push((inner, b)); }

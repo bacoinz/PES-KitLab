@@ -173,7 +173,7 @@ pub fn load_teams(gi: &GameIndex) -> Result<Vec<TeamInfo>> {
     let map = kits_root.as_ref().and_then(|k| read_text(&k.join("map.txt"))).map(|t| effective_map(parse_map(&t))).unwrap_or_default();
     let countries = gi.read("common/etc/pesdb/Country.bin").map(|b| parse_countries(&b)).unwrap_or_default();
     let (by_team, by_name) = leagues_from_competitions(gi, &countries);
-    let kit_re = Regex::new(r"(?i)uniform/texture/#windx11/u\d+[pg]\d\.ftex$").unwrap();
+    let kit_re = Regex::new(r"(?i)uniform/texture/#windx11/u\d+[pg]\d+\.ftex$").unwrap();
     let cpk_kits: HashSet<String> = gi.list_cpk(&kit_re).iter().map(|p| p[KIT_TEX_DIR.len()..p.len() - 5].to_lowercase()).collect();
     let mut out = vec![];
     for (id, name, abbr) in teams {
@@ -187,7 +187,8 @@ pub fn load_teams(gi: &GameIndex) -> Result<Vec<TeamInfo>> {
             }
         }
         if slots.is_empty() {
-            for s in ["p1", "p2", "p3", "p4", "g1", "g2"] {
+            for s in (1..=12).map(|i| format!("p{i}")).chain((1..=4).map(|i| format!("g{i}"))) {
+                let s = s.as_str();
                 let n = kit_tex_name(id, s);
                 if cpk_kits.contains(&n) { slots.push(KitSlotInfo { slot: s.into(), source: "game".into(), file: Some(format!("{KIT_TEX_DIR}{n}.ftex")), config: None }); }
             }

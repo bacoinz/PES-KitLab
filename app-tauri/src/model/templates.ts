@@ -151,7 +151,7 @@ export function generateSet(inp: BulkTeamInput, rnd = Math.random): KitDesign[] 
       a = light ? (luminance(c2) > 180 ? c2 : '#f4f4f4') : (luminance(c2) < 90 ? c2 : '#15161a')
       b = colorDist(a, c1) > 80 ? c1 : c2
       tpl = pick(inp.templates.away)
-    } else if (slot === 'p3' || slot === 'p4') { a = c3; b = colorDist(c3, c1) > 80 ? c1 : c2; tpl = pick(inp.templates.third) }
+    } else if (slot[0] === 'p') { a = c3; b = colorDist(c3, c1) > 80 ? c1 : c2; tpl = pick(inp.templates.third) }
     else {
       const used = [c1, c2, c3, out.find((k) => k.slot === 'p2')?.colors.shirt ?? '#ffffff']
       const gks = [...GK_COLORS].sort((x, y) => Math.min(...used.map((u) => colorDist(y, u))) - Math.min(...used.map((u) => colorDist(x, u))))
@@ -165,7 +165,8 @@ export function generateSet(inp: BulkTeamInput, rnd = Math.random): KitDesign[] 
     if (slot.startsWith('g')) base.logos.sponsor.enabled = inp.logos.sponsor.enabled
     const own = inp.perSlot?.[slot]
     if (own && own !== 'default') tpl = pick(own)
-    out.push(applyTemplate(base, tpl, a, b, slot === 'p1' ? c3 : undefined))
+    // a new kit starts with plain socks (one colour); stripes and bands on the socks are added on purpose
+    out.push({ ...applyTemplate(base, tpl, a, b, slot === 'p1' ? c3 : undefined), socksPattern: { ...NONE }, socksColor2: undefined })
   }
   return out
 }
