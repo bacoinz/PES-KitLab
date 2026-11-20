@@ -672,3 +672,37 @@ export function copyNumbers(to: NumbersSpec, from: NumbersSpec, withColors: bool
   const part = (t: PartNumSpec | undefined, x: PartNumSpec | undefined): PartNumSpec | undefined => (x && t ? { ...x, fill: t.fill, outline: t.outline } : x)
   return { ...s, fill: to.fill, outline: to.outline, chest: part(to.chest, s.chest), leg: part(to.leg, s.leg) }
 }
+
+// ---------------------------------------------------------------- assets used by a kit (templates, .kitlab files)
+const ASSET_KEYS = ['assetId', 'imageAssetId', 'backAsset', 'legAsset', 'nameAsset', 'asset']
+/** The newest kit format (`KitDesign.v`); a file with a higher number was made by a newer app. */
+export const KIT_VERSION = 10
+
+/** Every asset id the kit uses: image layers, logos, base texture, imported number sets, the armband image and fabric layers (`asset:<id>`). */
+export function kitAssetIds(kit: KitDesign): Set<string> {
+  const used = new Set<string>()
+  const walk = (v: unknown, key: string): void => {
+    if (typeof v === 'string') {
+      if (ASSET_KEYS.includes(key)) used.add(v)
+      else if (key === 'source' && v.startsWith('asset:')) used.add(v.slice(6))
+    } else if (Array.isArray(v)) v.forEach((x) => walk(x, key))
+    else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) walk(x, k)
+  }
+  walk(kit, '')
+  if (kit.armband?.image) used.add(kit.armband.image)
+  return used
+}
+
+/** A copy of the kit with its asset ids swapped through `map` (ids not in the map stay). */
+export function remapKitAssets(kit: KitDesign, map: Record<string, string>): KitDesign {
+  const to = (id: string): string => map[id] ?? id
+  const walk = (v: unknown, key: string): unknown => {
+    if (typeof v === 'string') return ASSET_KEYS.includes(key) ? to(v) : key === 'source' && v.startsWith('asset:') ? 'asset:' + to(v.slice(6)) : v
+    if (Array.isArray(v)) return v.map((x) => walk(x, key))
+    if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x, k)]))
+    return v
+  }
+  const out = walk(kit, '') as KitDesign
+  if (out.armband?.image) out.armband = { ...out.armband, image: to(out.armband.image) }
+  return out
+}

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { GameStatus, TeamInfo, TeamExport, KitExport } from '@shared/types'
 import type { Settings, LibraryItem, DraftInfo, PresetType, KitDefaults } from '@shared/ipc'
 import type { TeamProject, KitDesign, KitColors, Asset, Logos } from './model/design'
-import { defaultLogos, uid, slotOrder, migrateProject, migrateKit } from './model/design'
+import { defaultLogos, uid, slotOrder, migrateProject, migrateKit, kitAssetIds } from './model/design'
 import { generateSet, teamColorsFromPalette, applyTemplate, TEMPLATES } from './model/templates'
 import { luminance, colorDist, defaultDesign } from './model/design'
 import { composeKit, composeRgba, composeLive, composeRelief, composeShine, designConfig, frontThumb } from './compositor/compose'
@@ -193,8 +193,7 @@ export const useApp = create<State>((set, get) => ({
     const p = get().project, t = get().editingTemplate
     if (!p || p.teamId !== USER_TPL_TEAM || !t) return
     const kit = p.kits[0]
-    const used = new Set<string>()
-    JSON.stringify(kit, (k2, v) => { if (typeof v === 'string' && ['assetId', 'imageAssetId', 'backAsset', 'legAsset', 'nameAsset', 'asset'].includes(k2)) used.add(v); if (k2 === 'source' && typeof v === 'string' && v.startsWith('asset:')) used.add(v.slice(6)); return v })
+    const used = kitAssetIds(kit)
     const nt: UserTemplate = { ...t, date: new Date().toISOString(), kit, assets: Object.fromEntries([...used].filter((a) => p.assets[a]).map((a) => [a, p.assets[a]])) }
     await window.kc.saveUserTemplate(t.id, JSON.stringify(nt))
     set({ savedProject: p, editingTemplate: nt })

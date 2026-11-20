@@ -2,6 +2,16 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.7] - 2026-11-20
+### Added
+- Shareable kit files (`.kitlab`). Origin → Share → "Export .kitlab…" saves the current kit with everything it uses (layers, colours, fabrics, numbers and names, sponsors, the crest, the brand and all the images) in one file; "Import .kitlab…" puts a file into a kit slot of the open team. The crest and the brand are always exported, also for kits that come from the game.
+- The import dialog shows a preview of the kit, lets you pick the target slot (free slots first, or replace one) and asks whether to use the crest, the brand and the sponsors from the file or the team's own ones (position, size and colours always come from the file). It also warns about fonts that are not installed on this PC.
+- Files are checked before they are opened: only the kit and its PNG / JPG / WebP images are accepted, with size limits, and nothing in the file is ever run. Files made by older versions open through the normal kit migrations; files made by a newer version are refused with a message. Imported images get new ids, so nothing already in the team is overwritten.
+- The first export shows a reminder that official logos and brands may be copyrighted.
+
+### Fixed
+- Saving a kit as a template (Origin → "Save as template…") now also keeps the image of the captain's armband.
+
 ## [0.5.6] - 2026-11-20
 ### Added
 - Keyboard shortcuts. In the editor, with a layer selected: arrow keys move it 1 px (Shift: 10 px), `[` and `]` move it down / up the layer list, Del deletes, Ctrl+D duplicates, H hides / shows, L locks / unlocks, + and - resize, R rotates 15°. They do nothing while you type in a field, and a locked layer is not moved or deleted.

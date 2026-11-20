@@ -2,6 +2,7 @@
 //! maps each camelCase method to the snake_case command here. Large binary payloads travel as raw IPC bodies.
 pub mod fonts;
 pub mod game;
+pub mod kitlab;
 pub mod store;
 
 use game::fmdl::{parse_fmdl, MeshData};
@@ -202,6 +203,27 @@ async fn save_file(app: AppHandle, request: Request<'_>) -> R<Option<String>> {
         let Some(p) = save_dialog(&app, &name) else { return Ok(None) };
         fs::write(&p, data).map_err(e2s)?;
         Ok(Some(p.to_string_lossy().into_owned()))
+    }).await
+}
+
+// ---------------------------------------------------------------- .kitlab (shareable kit file)
+#[tauri::command]
+async fn export_kitlab(app: AppHandle, name: String, manifest: String, assets: Vec<kitlab::AssetIn>) -> R<Option<String>> {
+    blocking(move || {
+        let zip = kitlab::build(&manifest, &assets)?;
+        let Some(mut p) = app.dialog().file().set_file_name(&name).add_filter("PES KitLab", &["kitlab"]).blocking_save_file().and_then(|p| p.into_path().ok()) else { return Ok(None) };
+        if p.extension().is_none() { p.set_extension("kitlab"); }
+        fs::write(&p, zip).map_err(e2s)?;
+        Ok(Some(p.to_string_lossy().into_owned()))
+    }).await
+}
+
+#[tauri::command]
+async fn read_kitlab(path: String) -> R<Value> {
+    blocking(move || {
+        let len = fs::metadata(&path).map_err(e2s)?.len();
+        if len > kitlab::MAX_TOTAL { return Err("Ficheiro demasiado grande".into()); }
+        kitlab::read(&fs::read(&path).map_err(e2s)?)
     }).await
 }
 
@@ -741,7 +763,7 @@ pub fn run() {
             get_settings, get_version, save_settings, pick_folder, export_kitserver, pick_files, save_file, open_game, list_teams, read_kit_texture,
             read_emblem, read_model, list_collars, list_number_sets, read_file, list_fonts, decode_image_file, fetch_url, list_library, list_textures, export_team,
             restore_original, list_snapshots, save_snapshot, rename_snapshot, delete_snapshot, activate_snapshot, load_snapshot_project,
-            export_snapshot_zip, backup_original_zip, open_path, save_draft, load_draft, delete_draft, list_drafts, launch_game, save_user_template, list_user_templates, delete_user_template, list_template_images, template_dir_path, screen_pixel, licence_hint,
+            export_snapshot_zip, backup_original_zip, open_path, save_draft, load_draft, delete_draft, list_drafts, launch_game, save_user_template, export_kitlab, read_kitlab, list_user_templates, delete_user_template, list_template_images, template_dir_path, screen_pixel, licence_hint,
             script_result
         ])
         .setup(|app| {

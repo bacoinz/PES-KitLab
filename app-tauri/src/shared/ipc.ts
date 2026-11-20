@@ -86,6 +86,9 @@ export interface KcApi {
   loadDraft(teamId: number): Promise<string | null>
   /** named shirt templates (KitCreatorData/templates): JSON of { id, name, date, kit, assets } */
   saveUserTemplate(id: string, json: string): Promise<void>
+  /** .kitlab: writes the file (save dialog; null = cancelled) / reads and checks one */
+  exportKitlab(name: string, manifest: string, assets: { id: string; dataUrl: string }[]): Promise<string | null>
+  readKitlab(path: string): Promise<{ kit: unknown; assets: Record<string, { name: string; dataUrl: string; w: number; h: number }> }>
   listUserTemplates(): Promise<string[]>
   deleteUserTemplate(id: string): Promise<void>
   /** full kit textures (PNG / JPG) in KitCreatorData/templates */

@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useApp, assetFromFile, rawAssetFromFile, previewAssetFromFile, PRESET_TEAM, USER_TPL_TEAM, stepTime } from '../state'
 import type { PanelStyle, TextPlacement, PanelKind, KitDesign, OverlayLayer, Asset, LogoPlacement, LogoTint, Fill, PatternSpec, FabricLayer, FabricZone, Zone, Logos, StitchKind, StitchSpec, TextureSpec } from '../model/design'
 import { describeStep } from './history'
-import { PANEL_STYLES, SLOT_LABEL, ALL_SLOTS, uid, defaultDesign, contrastOn, slotOrder, solid, fillMain, normalizeGroups, dropLayer, migrateKit, LOGO_SIZES, NUMBER_DEFAULTS, STITCH_KINDS, FABRIC_COLLAR, FABRIC_SLEEVE, COLLAR_FABRIC, CUFF_FABRIC, FABRIC_CUFF, SOCK_LAYER_FABRIC, MAIN_FABRIC, HEM_STITCH, SHORTS_HEM_STITCH, MID_STITCH, STITCH_DEFAULT, mergeLogos, copyNumbers, groupColors, swapGroupColor, resolveGroups } from '../model/design'
+import { PANEL_STYLES, SLOT_LABEL, ALL_SLOTS, uid, defaultDesign, contrastOn, slotOrder, solid, fillMain, normalizeGroups, dropLayer, migrateKit, LOGO_SIZES, NUMBER_DEFAULTS, STITCH_KINDS, FABRIC_COLLAR, FABRIC_SLEEVE, COLLAR_FABRIC, CUFF_FABRIC, FABRIC_CUFF, SOCK_LAYER_FABRIC, MAIN_FABRIC, HEM_STITCH, SHORTS_HEM_STITCH, MID_STITCH, STITCH_DEFAULT, mergeLogos, copyNumbers, groupColors, swapGroupColor, resolveGroups, kitAssetIds } from '../model/design'
 import { TEMPLATES, applyTemplate } from '../model/templates'
 import { TORSO_PATTERNS, SLEEVE_PATTERNS, SHORTS_PATTERNS, SOCKS_PATTERNS, TEXTURES, STROKES } from '../compositor/patterns'
 import { composeKit, composeLive, composeShine, composeRelief, composeSockCover, onStaleRender, composeLiveShared, COLLAR_DESIGNS, collarParams, collarDefaults, frontThumb, raglanBend } from '../compositor/compose'
@@ -22,6 +22,8 @@ import { VectorEditor } from './VectorEditor'
 import { DESIGNS, designDef, dp } from '../compositor/designs'
 import { Swatch, ColorCtx, type NamedColor } from './ColorPicker'
 import { registerHandlers } from './shortcuts'
+import { exportKitlab, parseKitlab, type ParsedKitlab } from '../kitlab'
+import { KitlabImportModal } from './KitlabImportModal'
 import { nudgeLayer, resizeLayer, rotateLayer, reorderLayer, duplicateLayer } from './layerKeys'
 import { layerBox, handleAt, hitLayer, toFrame, dragTo, boxOutline, type Zone2D, type DragStart } from './select2d'
 import { Section, Row, ColorInput, Slider, Select, AssetPicker, CropModal, pickColorTarget, TeamColors } from './common'
@@ -435,6 +437,7 @@ export function Editor(): JSX.Element {
   useEffect(() => { if (texPick) { setFly(null); setDesignPick(null) } }, [texPick])
   useEffect(() => { if (designPick) { setFly(null); setTexPick(null) } }, [designPick])
   const [tab, setTab] = useState<Tab>('shirt')
+  const [kitlabFile, setKitlabFile] = useState<ParsedKitlab | null>(null)
   const [width, setWidth] = useState(readWidth)
   useEffect(() => { document.documentElement.style.setProperty('--sidebar-w', width + 'px') }, [width])
   const [tucked, setTucked] = useState(() => { try { return localStorage.getItem('kc.tucked') === '1' } catch { return false } })
@@ -1608,13 +1611,33 @@ export function Editor(): JSX.Element {
             const off = (lp: LogoPlacement): LogoPlacement => ({ ...lp, assetId: undefined, enabled: false })
             const logos: Logos = { ...L, crest: off(L.crest), shortsCrest: off(L.shortsCrest), sponsor: off(L.sponsor), backSponsor: off(L.backSponsor), sponsors: [], backSponsors: [], sleeveBadges: (L.sleeveBadges ?? []).filter((b) => b.brand), shortsSponsor: L.shortsSponsor ? off(L.shortsSponsor) : undefined, shortsSponsors: [] }
             const t = { ...kit, logos, armband: kit.armband ? { ...kit.armband, crest: false } : kit.armband }
-            const used = new Set<string>()
-            JSON.stringify(t, (k2, v) => { if ((k2 === 'assetId' || k2 === 'imageAssetId' || k2 === 'backAsset' || k2 === 'legAsset' || k2 === 'nameAsset' || k2 === 'asset') && typeof v === 'string') used.add(v); if (k2 === 'source' && typeof v === 'string' && v.startsWith('asset:')) used.add(v.slice(6)); return v })
+            const used = kitAssetIds(t)
             const id = uid() + Date.now().toString(36)
             await window.kc.saveUserTemplate(id, JSON.stringify({ id, name, date: new Date().toISOString(), kit: t, assets: Object.fromEntries([...used].filter((a) => assets[a]).map((a) => [a, assets[a]])) }))
             notify('ok', 'Template guardado: ' + name)
           }}>Guardar como template…</button>
           <button className="btn small" onClick={loadUserTpls}>Carregar template ▸</button>
+        </div>
+        <div className="btn-row">
+          <span className="muted small">Partilhar:</span>
+          <button className="btn small" title="Grava este equipamento com tudo o que usa (camadas, cores, números, patrocinadores, emblema, marca e imagens) num único ficheiro .kitlab" onClick={async () => {
+            try {
+              if (!localStorage.getItem('kc.kitlabWarned')) {
+                if (!confirm('O ficheiro .kitlab leva o emblema, a marca e todas as imagens deste kit. Logótipos e marcas oficiais podem ter direitos de autor: partilha-o só se tiveres esse direito. Exportar?')) return
+                localStorage.setItem('kc.kitlabWarned', '1')
+              }
+            } catch { /* no storage: ask every time */ if (!confirm('O ficheiro .kitlab leva o emblema, a marca e todas as imagens deste kit. Logótipos e marcas oficiais podem ter direitos de autor: partilha-o só se tiveres esse direito. Exportar?')) return }
+            try {
+              const r = await exportKitlab(project, kit, await window.kc.getVersion())
+              if (r.path) notify('ok', 'Kit exportado: ' + r.path)
+            } catch (e) { notify('err', String((e as Error).message ?? e)) }
+          }}>Exportar .kitlab…</button>
+          <button className="btn small" title="Abre um ficheiro .kitlab e põe o kit num equipamento desta equipa" onClick={async () => {
+            try {
+              const [p] = await window.kc.pickFiles([{ name: 'PES KitLab', extensions: ['kitlab'] }])
+              if (p) setKitlabFile(await parseKitlab(p))
+            } catch (e) { notify('err', String((e as Error).message ?? e)) }
+          }}>Importar .kitlab…</button>
         </div>
       </Section>
       <Section group={tab} title="Copiar para todos os kits">
@@ -2329,6 +2352,7 @@ export function Editor(): JSX.Element {
         </div>
       )
     })()}
+    {kitlabFile && <KitlabImportModal file={kitlabFile} onClose={() => setKitlabFile(null)} />}
     {logoCtx && (() => {
       const { lp, set, key, i } = logoCtx
       const close = (): void => setLogoCtx(null)

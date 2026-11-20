@@ -57,6 +57,17 @@ const RULES: [RegExp, string, string][] = [
   [/^(\d+) camadas (copiadas|coladas)$/, '$1 layers copied/pasted', '$1 capas $2'],
   [/^Colar \((\d+) camadas\)$/, 'Paste ($1 layers)', 'Pegar ($1 capas)'],
   [/^(.+) já é usado em "(.+)"\. Trocar\? \(O outro fica sem atalho\.\)$/, '$1 is already used for "$2". Swap? (The other one loses its shortcut.)', '$1 ya se usa en "$2". ¿Cambiar? (El otro se queda sin atajo.)'],
+  [/^Kit exportado: (.+)$/, 'Kit exported: $1', 'Equipación exportada: $1'],
+  [/^Kit importado: (.+)$/, 'Kit imported: $1', 'Equipación importada: $1'],
+  [/^Substituir o equipamento (.+)\? \(Podes desfazer com Ctrl\+Z\.\)$/, 'Replace the $1 kit? (You can undo with Ctrl+Z.)', '¿Reemplazar la equipación $1? (Puedes deshacer con Ctrl+Z.)'],
+  [/^(.+) — (substituir|livre)$/, '$1 — $2', '$1 — $2'],
+  [/^Importar os patrocinadores \((\d+)\)$/, 'Import the sponsors ($1)', 'Importar los patrocinadores ($1)'],
+  [/^Tipos de letra que não estão instalados neste PC: (.+)\. O kit usa outro no lugar deles\.$/, 'Fonts that are not installed on this PC: $1. The kit uses another one in their place.', 'Fuentes que no están instaladas en este PC: $1. La equipación usa otra en su lugar.'],
+  [/^(\d+) imagem\(ns\) em falta no ficheiro\.$/, '$1 image(s) missing from the file.', '$1 imagen(es) que faltan en el archivo.'],
+  [/^Entrada inesperada no ficheiro: (.+)$/, 'Unexpected entry in the file: $1', 'Entrada inesperada en el archivo: $1'],
+  [/^Imagem demasiado grande: (.+)$/, 'Image too large: $1', 'Imagen demasiado grande: $1'],
+  [/^Imagem com tamanho inválido: (.+)$/, 'Image with an invalid size: $1', 'Imagen con un tamaño no válido: $1'],
+  [/^(.+) não é uma imagem (PNG \/ JPG \/ WebP|válida)$/, '$1 is not a valid image', '$1 no es una imagen válida'],
   [/^Guardado: (.+) — usados nos kits novos$/, 'Saved: $1 — used for new kits', 'Guardado: $1 — usadas en las equipaciones nuevas']
 ]
 
