@@ -58,6 +58,7 @@ export interface KcApi {
   listCollars(): Promise<number[]>
   listNumberSets(): Promise<NumberSet[]>
 
+  listFonts(): Promise<string[]>
   readFile(path: string): Promise<Uint8Array>
   decodeImageFile(path: string): Promise<RgbaImage | null> // DDS / FTEX → RGBA (PNG etc. are decoded in the renderer)
   fetchUrl(url: string): Promise<{ data: Uint8Array; mime: string }>

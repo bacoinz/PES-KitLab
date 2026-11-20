@@ -70,6 +70,7 @@ export const kc: KcApi & { launchGame(): Promise<string> } = {
   listCollars: () => call('list_collars'),
   listNumberSets: () => call('list_number_sets'),
 
+  listFonts: () => call<string[]>('list_fonts'),
   readFile: async (path) => new Uint8Array(await call<ArrayBuffer>('read_file', { path })),
   decodeImageFile: async (path) => rgba(await call<ArrayBuffer>('decode_image_file', { path })),
   fetchUrl: async (url) => {

@@ -11,7 +11,8 @@ import { loadAtlases } from '../compositor/atlases'
 import { FABRICS, LAYER_FABRICS, EMBROIDERIES, TEXTURE_LOOK } from '../compositor/fabric'
 import { palette, loadAsset, rgbaToCanvas, canvasToDataUrl, canvas, ctx2d, imgW, imgH, type Img } from '../compositor/images'
 import { partAt, REGIONS, pathOf } from '../compositor/uv'
-import { SYSTEM_FONTS, registerFont, findBoxes } from '../compositor/numbers'
+import { registerFont, findBoxes } from '../compositor/numbers'
+import { useFontList, addUserFont } from '../fonts'
 import { KitViewer, LIGHT_PRESETS, ENVS, type CamView, type LightPreset, type EnvKind } from '../three/KitViewer'
 import { uvWireframe } from '../compositor/uvmesh'
 import { kitTemplate } from '../compositor/template'
@@ -222,15 +223,24 @@ const TEXT_PLACEMENTS: [string, string][] = [
   ['sideR', 'Lado direito'], ['sideL', 'Lado esquerdo'], ['sides', 'Lados'], ['sidesMirror', 'Lados (espelhados)'], ['sidesMirrorInv', 'Lados (espelhados invertidos)'],
   ['armband', 'Braçadeira de capitão'], ['backCollar', 'Gola']
 ]
+/** Every font installed on the PC (the list updates by itself when one is installed). */
+function FontSelect({ value, onChange }: { value: string; onChange: (f: string) => void }): JSX.Element {
+  const fonts = useFontList()
+  return <Select value={value} options={(fonts.includes(value) ? fonts : [value, ...fonts]).map((f) => [f, f] as [string, string])} onChange={onChange} />
+}
 /** Font list with each name written in its own font. */
 function FontPicker({ value, onChange }: { value: string; onChange: (f: string) => void }): JSX.Element {
   const [open, setOpen] = useState(false)
+  const [q, setQ] = useState('')
+  const fonts = useFontList()
+  const shown = q ? fonts.filter((f) => f.toLowerCase().includes(q.toLowerCase())) : fonts
   return (
     <span className="font-picker">
-      <button type="button" className="fp-btn" style={{ fontFamily: `"${value}"` }} onClick={(e) => { e.preventDefault(); setOpen(!open) }}><span className="fp-sample">ABC 0123</span> {value} ▾</button>
+      <button type="button" className="fp-btn" style={{ fontFamily: `"${value}"` }} onClick={(e) => { e.preventDefault(); setOpen(!open); setQ('') }}><span className="fp-sample">ABC 0123</span> {value} ▾</button>
       {open && (
         <div className="fp-list" onMouseLeave={() => setOpen(false)}>
-          {SYSTEM_FONTS.map((f) => (
+          <input className="fp-search" autoFocus placeholder={`Pesquisar entre ${fonts.length} fontes…`} value={q} onChange={(e) => setQ(e.target.value)} />
+          {shown.map((f) => (
             <button type="button" key={f} className={'fp-item' + (f === value ? ' on' : '')} style={{ fontFamily: `"${f}"` }} onClick={(e) => { e.preventDefault(); onChange(f); setOpen(false) }}>
               <span className="fp-sample">ABCDEF 012345</span><span className="fp-name">{f}</span>
             </button>
@@ -1363,7 +1373,7 @@ export function Editor(): JSX.Element {
             }}>{sp.asset ? 'Ficheiro ✓' : 'Importar FTEX'}</button>
           </div>
         )}
-        {sp.mode === 'font' && <Row label="Fonte"><Select value={sp.font} options={SYSTEM_FONTS.map((f) => [f, f] as [string, string])} onChange={(font) => ch({ font })} /></Row>}
+        {sp.mode === 'font' && <Row label="Fonte"><FontSelect value={sp.font} onChange={(font) => ch({ font })} /></Row>}
         {sp.mode === 'file' && <label className="check"><input type="checkbox" checked={!!sp.recolor} onChange={(e) => ch({ recolor: e.target.checked })} /> Recolorir estes números</label>}
         {(sp.mode === 'font' || sp.mode === 'recolor' || (sp.mode === 'file' && sp.recolor)) && <Row label="Cor"><ColorInput value={sp.fill} onChange={(fill) => ch({ fill })} /></Row>}
         {sp.mode !== 'same' && (
@@ -1625,10 +1635,32 @@ export function Editor(): JSX.Element {
       <FillRow label="Cor" value={ab.fill} onChange={(fill) => setAb({ fill })} />
       <Row label="Texto"><input value={ab.text} maxLength={10} onChange={(e) => setAb({ text: e.target.value })} /></Row>
       <Row label="Cor do texto"><ColorInput value={ab.textColor} onChange={(textColor) => setAb({ textColor })} /></Row>
-      <Row label="Fonte"><Select value={ab.font} options={SYSTEM_FONTS.map((f) => [f, f] as [string, string])} onChange={(font) => setAb({ font })} /></Row>
+      <Row label="Fonte"><FontSelect value={ab.font} onChange={(font) => setAb({ font })} /></Row>
       <Row label="Tamanho da fonte"><Slider value={ab.textSize ?? 100} min={30} max={160} snaps={[100]} onChange={(textSize) => setAb({ textSize })} /></Row>
       <label className="check"><input type="checkbox" checked={!!ab.crest} onChange={(e) => setAb({ crest: e.target.checked })} /> Emblema do clube na braçadeira</label>
       {ab.crest && <Row label="Tamanho do emblema"><Slider value={ab.crestSize ?? 100} min={40} max={128} onChange={(crestSize) => setAb({ crestSize })} /></Row>}
+      <Row label="Imagem/textura">
+        {ab.image && assets[ab.image] && <img className="logo-thumb" src={assets[ab.image].dataUrl} alt="" />}
+        <AssetPicker label={ab.image ? 'Trocar' : 'Escolher'} onPick={async (a) => {
+          addAsset(a)
+          let sq = false
+          try { const im = await loadAsset(a); sq = Math.abs(imgW(im) - imgH(im)) < 4 && imgW(im) >= 512 } catch { /* keep the mode */ }
+          setAb({ image: a.id, imageMode: sq ? 'uv' : 'stretch', imageSize: 100, imageDx: 0, imageDy: 0 })
+        }} />
+        {ab.image && <button className="btn tiny ghost" title="Tirar a imagem" onClick={() => setAb({ image: undefined, imageMode: undefined })}>✕</button>}
+      </Row>
+      {ab.image && (
+        <>
+          <Row label="Modo"><Select value={ab.imageMode ?? 'stretch'} options={[['stretch', 'Ocupar a braçadeira toda'], ['free', 'Imagem solta (proporção mantida)'], ['uv', 'Textura completa (só a braçadeira)']]} onChange={(imageMode) => setAb({ imageMode: imageMode as 'stretch' | 'free' | 'uv' })} /></Row>
+          {(ab.imageMode ?? 'stretch') !== 'uv' && (
+            <>
+              <Row label="Tamanho"><Slider value={ab.imageSize ?? 100} min={20} max={400} snaps={[100]} onChange={(imageSize) => setAb({ imageSize })} /></Row>
+              <Row label="Posição X"><Slider value={ab.imageDx ?? 0} min={-256} max={256} snaps={[0]} onChange={(imageDx) => setAb({ imageDx })} /></Row>
+              <Row label="Posição Y"><Slider value={ab.imageDy ?? 0} min={-64} max={64} snaps={[0]} onChange={(imageDy) => setAb({ imageDy })} /></Row>
+            </>
+          )}
+        </>
+      )}
       <Row label="Padrão"><Select value={ab.pattern ?? 'none'} options={[['none', 'Liso'], ['stripes', 'Riscas'], ['hoops', 'Listas nas bordas'], ['check', 'Quadrados'], ['diagonal', 'Diagonais']]} onChange={(pattern) => setAb({ pattern })} /></Row>
       {ab.pattern && ab.pattern !== 'none' && (
         <>
@@ -1973,13 +2005,13 @@ export function Editor(): JSX.Element {
         )}
         {kit.numbers.mode === 'font' && (
           <Row label="Fonte">
-            <Select value={kit.numbers.font} options={SYSTEM_FONTS.map((f) => [f, f] as [string, string])} onChange={(font) => up((k) => ({ ...k, numbers: { ...k.numbers, font } }))} />
+            <FontSelect value={kit.numbers.font} onChange={(font) => up((k) => ({ ...k, numbers: { ...k.numbers, font } }))} />
             <button className="btn tiny" onClick={async () => {
               const f = await window.kc.pickFiles([{ name: 'Fontes', extensions: ['ttf', 'otf', 'woff', 'woff2'] }])
               if (!f[0]) return
               const name = f[0].split(/[\\/]/).pop()!.replace(/\.\w+$/, '')
               await registerFont(name, await window.kc.readFile(f[0]))
-              SYSTEM_FONTS.unshift(name)
+              addUserFont(name)
               up((k) => ({ ...k, numbers: { ...k.numbers, font: name } }))
             }}>TTF…</button>
           </Row>

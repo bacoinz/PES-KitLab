@@ -2,6 +2,12 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.5] - 2026-11-20
+### Added
+- Captain's armband: an "Image/texture" option. Modes: fill the whole band, loose image (aspect kept, with Size / Position X / Position Y), or "Full texture (only the armband)" which takes just the armband area from a full kit texture (picked automatically for square images).
+- Every font installed on the PC can now be chosen in all text fields (text layers, armband, numbers and names), with a search box in the font picker.
+- The font list updates by itself: a font installed while the app is open appears within a few seconds or as soon as the window gets focus.
+
 ## [0.5.4] - 2026-11-20
 ### Added
 - Up to 12 team kits and 4 goalkeeper kits per team (the "Add kit" list, the game/kit-server reader and the export now cover p1-p12 and g1-g4, in numeric order).

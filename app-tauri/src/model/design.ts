@@ -306,7 +306,9 @@ export interface CuffSpec { style: 'none' | 'solid' | 'tipped' | 'stripes2' | 's
   /** stripes / tip: width of each stripe, space between stripes, distance of the first one from the cuff's edge (px) */
   stripeW?: number; gap?: number; offset?: number }
 export interface FabricLayer { id: string; source: string /* builtin id or asset:<id> */; zones: FabricZone[]; opacity: number; scale: number; blend: GlobalCompositeOperation; visible: boolean; v2?: boolean /* zones include shorts / socks explicitly */ }
-export interface ArmbandSpec { all?: boolean /* same in every kit of the team */; show: boolean; fill: Fill; text: string; textColor: string; font: string; textSize?: number /* % of the default size */; crest?: boolean; crestSize?: number; pattern?: string; patternColor?: string; patternScale?: number /* % */; patternAngle?: number; patternWidth?: number /* % */; patternDx?: number }
+export interface ArmbandSpec { all?: boolean /* same in every kit of the team */; show: boolean; fill: Fill; text: string; textColor: string; font: string; textSize?: number /* % of the default size */; crest?: boolean; crestSize?: number; pattern?: string; patternColor?: string; patternScale?: number /* % */; patternAngle?: number; patternWidth?: number /* % */; patternDx?: number
+  /** Image / texture on the band: 'stretch' fills it, 'free' is a box with size and offset, 'uv' takes the armband part of a full kit texture. */
+  image?: string; imageMode?: 'stretch' | 'free' | 'uv'; imageSize?: number /* % */; imageDx?: number; imageDy?: number }
 
 /** Own look for the chest or shorts number (otherwise they use the back numbers). */
 export interface PartNumSpec { mode: 'same' | 'recolor' | 'font' | 'file'; fill: string; outline: string; outlineWidth: number; font: string; asset?: string; recolor?: boolean }

@@ -1502,6 +1502,13 @@ async function armbandPasses(out: Pass[], d: KitDesign, assets: Record<string, A
       }
     })
   }
+  if (ab.image && assets[ab.image]) {
+    const img = await loadAsset(assets[ab.image])
+    const mode = ab.imageMode ?? (Math.abs(imgW(img) - imgH(img)) < 4 ? 'uv' : 'stretch')
+    if (mode === 'uv') out.push({ t: 'image', clip: 'armband', place: { img, cx: S / 2, cy: S / 2, w: S, h: S, rot: 0 } })
+    else if (mode === 'stretch') out.push({ t: 'image', clip: 'armband', place: { img, cx: 256 + (ab.imageDx ?? 0), cy: 64 + (ab.imageDy ?? 0), w: 512 * ((ab.imageSize ?? 100) / 100), h: 128 * ((ab.imageSize ?? 100) / 100), rot: 0 } })
+    else out.push({ t: 'image', clip: 'armband', place: { img, ...fitted(img, 256 + (ab.imageDx ?? 0), 64 + (ab.imageDy ?? 0), (128 * (ab.imageSize ?? 100)) / 100, 0) } })
+  }
   const useCrest = !!(ab.crest && crestId && assets[crestId])
   if (useCrest) {
     const img = await loadAsset(assets[crestId!])

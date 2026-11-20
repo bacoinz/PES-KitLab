@@ -363,6 +363,7 @@ nav { display: flex; gap: 2px; }
 .fp-btn { width: 100%; text-align: left; background: var(--bg3); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 5px 8px; cursor: pointer; font-size: 13px; }
 .fp-sample { background: #fff; color: #111; padding: 0 4px; border-radius: 2px; margin-right: 6px; }
 .fp-list { position: absolute; z-index: 50; top: 100%; left: 0; right: 0; max-height: 300px; overflow: auto; background: #2b2e45; border: 1px solid #ffffff22; border-radius: 6px; box-shadow: 0 8px 24px #0008; }
+.fp-search { position: sticky; top: 0; width: 100%; box-sizing: border-box; border-radius: 0; z-index: 1; }
 .fp-item { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: 0; color: var(--text); padding: 6px 8px; cursor: pointer; font-size: 14px; text-align: left; }
 .fp-item:hover, .fp-item.on { background: var(--bg3); }
 .fp-name { font-size: 13px; opacity: 0.85; }
