@@ -1074,6 +1074,9 @@ export const DICT: Record<string, [string, string]> = {
   'Os outros kits já o têm': ['The other kits already have it', 'Los otros kits ya lo tienen'],
   'Escolhe primeiro a imagem deste logo': ["Pick this logo's image first", 'Elige primero la imagen de este logo'],
   'A abrir o jogo': ['Opening the game', 'Abriendo el juego'],
+  'Doar um café no Ko-fi': ['Buy me a coffee on Ko-fi', 'Invítame a un café en Ko-fi'],
+  'Apoiar o projeto': ['Support the project', 'Apoyar el proyecto'],
+  'O PES KitLab é gratuito. Se te poupa tempo, podes ajudar a manter o desenvolvimento.': ['PES KitLab is free. If it saves you time, you can help keep development going.', 'PES KitLab es gratuito. Si te ahorra tiempo, puedes ayudar a mantener el desarrollo.'],
   'Outros projetos': ['Other projects', 'Otros proyectos'],
   'Criado por bacoinz · Modelos 3D do CometKITpreviewer · Funciona com o Sider e o kit-server de juce · Ferramenta de fãs, sem ligação à Konami': ['Made by bacoinz · 3D models from CometKITpreviewer · Works with Sider and the kit-server by juce · Fan tool, not affiliated with Konami', 'Creado por bacoinz · Modelos 3D de CometKITpreviewer · Funciona con Sider y el kit-server de juce · Herramienta de fans, sin relación con Konami'],
 }

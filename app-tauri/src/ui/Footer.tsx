@@ -1,6 +1,7 @@
 /** Small footer shared by the start screen and Settings: repository, other projects and credits. */
 const REPO = 'https://github.com/bacoinz/PES-KitLab'
 const SITE = 'https://bacoinz.github.io/'
+const KOFI = 'https://ko-fi.com/bacoinz'
 
 const GithubIcon = (): JSX.Element => (
   <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor" aria-hidden="true">
@@ -9,6 +10,15 @@ const GithubIcon = (): JSX.Element => (
 )
 
 const open = (url: string) => (e: React.MouseEvent): void => { e.preventDefault(); void window.kc.openPath(url) }
+
+/** Ko-fi donation button (start screen and Settings). */
+export function KofiButton(): JSX.Element {
+  return (
+    <a className="kofi-btn" href={KOFI} onClick={open(KOFI)} title={KOFI}>
+      <span aria-hidden="true">☕</span> Doar um café no Ko-fi
+    </a>
+  )
+}
 
 export function Footer(): JSX.Element {
   return (

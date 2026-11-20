@@ -5,7 +5,7 @@ import { Editor } from './ui/Editor'
 import { Bulk } from './ui/Bulk'
 import { Library } from './ui/Library'
 import { Settings } from './ui/Settings'
-import { Footer } from './ui/Footer'
+import { Footer, KofiButton } from './ui/Footer'
 import { setLang } from './i18n'
 
 const NAV: [View, string][] = [['teams', 'Equipas'], ['editor', 'Editor'], ['bulk', 'Gerador em massa'], ['library', 'Biblioteca'], ['settings', 'Definições']]
@@ -48,6 +48,7 @@ function Splash({ version, booting }: { version: string; booting: boolean }): JS
             <input readOnly value={gameRoot ?? ''} placeholder="Pasta do jogo (onde está o FL_2027.exe)" title={gameRoot ?? ''} />
           </div>
         )}
+        <KofiButton />
       </div>
       <Footer />
     </div>

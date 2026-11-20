@@ -8,7 +8,7 @@ import { useState } from 'react'
 import { useApp } from '../state'
 import { LIGHT_PRESETS } from '../three/KitViewer'
 import { ColorInput } from './common'
-import { Footer } from './Footer'
+import { Footer, KofiButton } from './Footer'
 import type { KitDefaults, PresetType, Settings as S } from '@shared/ipc'
 
 const ls = (k: string, d: string): string => { try { return localStorage.getItem(k) ?? d } catch { return d } }
@@ -130,6 +130,12 @@ export function Settings(): JSX.Element {
             onClick={() => { if (!kit) return; const { logos: _l, numbers: _n, slot: _s, base: _b, ...rest } = kit; void setDef({ preset: JSON.stringify(rest) }); notify('ok', 'Kit aberto guardado como predefinido') }}>Usar o kit aberto como predefinido</button>
           {def.preset && <><span className="muted small">Predefinido guardado ✓</span><button className="btn small ghost" onClick={() => setDef({ preset: undefined })}>Esquecer</button></>}
         </div>
+      </section>
+
+      <section className="set-card">
+        <h3>Apoiar o projeto</h3>
+        <div className="muted small">O PES KitLab é gratuito. Se te poupa tempo, podes ajudar a manter o desenvolvimento.</div>
+        <div className="set-row"><KofiButton /></div>
       </section>
     </div>
     <Footer />

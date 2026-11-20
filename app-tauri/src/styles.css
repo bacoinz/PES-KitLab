@@ -501,6 +501,9 @@ button.lr-mask { background: none; border: 0; color: var(--accent); cursor: poin
 .splash-load { display: flex; flex-direction: column; align-items: center; gap: 12px; min-height: 70px; }
 .spinner.big { width: 34px; height: 34px; border-width: 3px; }
 .splash-step { font-size: 11px; color: var(--muted); max-width: 480px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kofi-btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 8px; background: #ff5e5b; color: #fff; font-weight: 600; font-size: 13px; text-decoration: none; }
+.kofi-btn:hover { background: #ff7673; }
+.splash-main > .kofi-btn { margin-top: 22px; }
 .app-footer { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px 8px; padding: 10px 16px; font-size: 11px; color: var(--muted); }
 .app-footer a { color: var(--muted); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
 .app-footer a:hover { color: var(--text); text-decoration: underline; }

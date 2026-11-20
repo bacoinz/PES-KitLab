@@ -2,6 +2,10 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.3] - 2026-11-20
+### Added
+- "Buy me a coffee on Ko-fi" button (https://ko-fi.com/bacoinz) on the start screen and in a new "Support the project" card in Settings.
+
 ## [0.5.2] - 2026-11-19
 ### Added
 - Captain's armband: a "Font size" slider for the armband text.

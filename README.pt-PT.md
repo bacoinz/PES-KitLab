@@ -40,6 +40,7 @@ Só escreve os ficheiros que são dele, por isso desfazer tudo é um botão.
 
 - Um ecrã inicial com o logo e a versão: pede a pasta do jogo só à primeira vez e depois mostra os passos do carregamento.
 - Um rodapé com o repositório do GitHub, outros projetos e créditos, também no fim das Definições.
+- Um botão para doar no Ko-fi no ecrã inicial e nas Definições ("Apoiar o projeto").
 
 **Logos e números**
 

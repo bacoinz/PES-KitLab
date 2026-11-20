@@ -40,6 +40,7 @@ It only ever writes its own files, so removing everything it did takes one butto
 
 - A start screen with the logo and version: it asks for the game folder only the first time, then shows the loading steps.
 - A footer with the GitHub repository, other projects and credits, also at the bottom of Settings.
+- A Ko-fi donate button on the start screen and in Settings ("Support the project").
 
 **Logos and numbers**
 
