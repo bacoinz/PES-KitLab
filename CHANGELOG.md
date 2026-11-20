@@ -2,6 +2,10 @@
 
 All notable changes to PES KitLab. Newest first. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.23] - 2026-11-20
+### Changed
+- Settings tab layout: cards now sit in an even grid, General is split into General, Export and Updates cards, each card has a title divider, and sub-sections are separated by lines with small accent headings. Long folder paths are truncated instead of stretching the card.
+
 ## [0.5.22] - 2026-11-20
 ### Added
 - Updates: when the program opens it looks for a newer release on GitHub and, if there is one, shows a pop-up with the release notes and two buttons: "Download and replace" (downloads the new version into the same folder as the running program, closes it, deletes the old version and opens the new one) and "Later".

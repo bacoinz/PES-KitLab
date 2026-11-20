@@ -58,6 +58,14 @@ export function Settings(): JSX.Element {
           <button className="btn small ghost" onClick={() => { if (!confirm('Repor as preferências da interface (painéis, vista 3D, cores guardadas)?')) return; try { Object.keys(localStorage).filter((k) => k.startsWith('kc.')).forEach((k) => localStorage.removeItem(k)) } catch { /* ignore */ } notify('ok', 'Preferências repostas') }}>Repor preferências da interface</button>
         </div>
 
+        <div className="set-sub">Gravação automática</div>
+        <div className="set-grid">
+          <label>Guardar a equipa aberta</label>{sel(settings?.autoSave ?? 0, [[0, 'Desligada'], [2, 'De 2 em 2 minutos'], [5, 'De 5 em 5 minutos'], [10, 'De 10 em 10 minutos'], [15, 'De 15 em 15 minutos']], (v) => save({ autoSave: Number(v) as S['autoSave'] }))}
+        </div>
+      </section>
+
+      <section className="set-card">
+        <h3>Exportação</h3>
         <div className="set-sub">Pasta de exportação dos kits</div>
         <div className="set-row">
           <code className="grow" style={{ opacity: settings?.kitExportAsk ?? true ? 0.45 : 1 }}>{settings?.kitExportDir || '—'}</code>
@@ -70,22 +78,20 @@ export function Settings(): JSX.Element {
         <label className="check"><input type="checkbox" checked={settings?.kitExportAsk ?? true} onChange={(e) => save({ kitExportAsk: e.target.checked })} /> Perguntar sempre</label>
         <div className="muted small">Cada clube é exportado para uma pasta com o seu nome dentro desta pasta.</div>
 
-        <div className="set-sub">Gravação automática</div>
+        <div className="set-sub">Formato da textura</div>
         <div className="set-grid">
-          <label>Guardar a equipa aberta</label>{sel(settings?.autoSave ?? 0, [[0, 'Desligada'], [2, 'De 2 em 2 minutos'], [5, 'De 5 em 5 minutos'], [10, 'De 10 em 10 minutos'], [15, 'De 15 em 15 minutos']], (v) => save({ autoSave: Number(v) as S['autoSave'] }))}
+          <label>Formato</label>{sel(settings?.defaultFormat ?? 'DXT5', [['DXT5', 'DXT5 (rápido, igual aos kit-server)'], ['BC7', 'BC7 (melhor qualidade, mais lento)']], (v) => save({ defaultFormat: v as S['defaultFormat'] }))}
+          <label>Tamanho da textura</label>{sel(settings?.exportSize ?? 2048, [[512, '512 px'], [1024, '1024 px'], [2048, '2048 px (igual ao jogo)'], [4096, '4096 px']], (v) => save({ exportSize: Number(v) as S['exportSize'] }))}
         </div>
+      </section>
 
-        <div className="set-sub">Atualizações</div>
+      <section className="set-card">
+        <h3>Atualizações</h3>
         <div className="set-row">
           <button className="btn small" onClick={() => void checkForUpdates(true, notify)}>Verificar atualização</button>
         </div>
         <label className="check"><input type="checkbox" checked={settings?.autoUpdateCheck ?? true} onChange={(e) => save({ autoUpdateCheck: e.target.checked })} /> Verificar ao abrir o programa</label>
 
-        <div className="set-sub">Exportação</div>
-        <div className="set-grid">
-          <label>Formato</label>{sel(settings?.defaultFormat ?? 'DXT5', [['DXT5', 'DXT5 (rápido, igual aos kit-server)'], ['BC7', 'BC7 (melhor qualidade, mais lento)']], (v) => save({ defaultFormat: v as S['defaultFormat'] }))}
-          <label>Tamanho da textura</label>{sel(settings?.exportSize ?? 2048, [[512, '512 px'], [1024, '1024 px'], [2048, '2048 px (igual ao jogo)'], [4096, '4096 px']], (v) => save({ exportSize: Number(v) as S['exportSize'] }))}
-        </div>
       </section>
 
       <section className="set-card">
